@@ -32,6 +32,7 @@ const supabase = async (table, options = {}) => {
   return text ? JSON.parse(text) : null;
 };
 
+const integerVolume = (value) => Math.round(Number(value ?? 0));
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const to = new Date();
 const from = new Date(to.getTime() - 5 * 24 * 60 * 60 * 1000);
@@ -79,7 +80,7 @@ for (const symbol of symbols) {
         previous_close: previousClose,
         change,
         change_percent: changePercent,
-        volume: latestBar.v,
+        volume: integerVolume(latestBar.v),
         market_status: 'eod',
         quote_timestamp: new Date(latestBar.t).toISOString(),
         data_source: 'massive-github-actions',
@@ -95,7 +96,7 @@ for (const symbol of symbols) {
       high: bar.h,
       low: bar.l,
       close: bar.c,
-      volume: bar.v,
+      volume: integerVolume(bar.v),
       data_source: 'massive-github-actions',
     }));
 
