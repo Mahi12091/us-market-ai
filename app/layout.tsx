@@ -5,6 +5,7 @@ import './market-pages.css';
 import './predictions-page.css';
 import './info-pages.css';
 import './blog/blog.css';
+import './blog/article.css';
 import './ui-polish.css';
 import SiteHeader from '@/components/site-header';
 
