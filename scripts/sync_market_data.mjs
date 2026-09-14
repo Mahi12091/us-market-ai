@@ -115,37 +115,61 @@ if (!stocks.length) throw new Error('No active stocks found in Supabase.');
 const stockMap = new Map(stocks.map((stock) => [stock.symbol, stock]));
 console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
-// Build the three most recent calendar weekdays. This avoids wasting grouped
-// API calls on weekends while staying within the Basic plan's 5 req/min limit.
-const dates = [];
-const cursor = new Date();
-while (dates.length < 3) {
-  const day = cursor.getUTCDay();
-  if (day >= 1 && day <= 5) dates.unshift(isoDate(cursor));
-  cursor.setUTCDate(cursor.getUTCDate() - 1);
-}
-
+// Massive Basic is EOD-only, so NEVER request today's date. Start from the
+// previous UTC calendar day and walk backwards. This also handles weekends
+// and market holidays by only counting dates that actually return grouped
+// market rows. We allow up to 5 candidate dates, which stays within the
+// Basic plan's 5 requests/minute limit because requests are spaced by 13s.
 const groupedBySymbol = new Map();
-for (const date of dates) {
-  try {
-    console.log(`Fetching grouped US stock data for ${date}.`);
-    const response = await massive(`/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`);
+const completedDates = [];
+const today = new Date();
+const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
+const MAX_CANDIDATE_DATES = 5;
+const TARGET_SESSIONS = 3;
 
-    for (const bar of response.results ?? []) {
+for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length < TARGET_SESSIONS; candidate += 1) {
+  const date = isoDate(cursor);
+  console.log(`Fetching grouped US stock data for completed date ${date}.`);
+
+  try {
+    const response = await massive(`/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`);
+    const rows = Array.isArray(response.results) ? response.results : [];
+    let matchedRows = 0;
+
+    for (const bar of rows) {
       const symbol = String(bar.T ?? bar.ticker ?? '').toUpperCase();
       if (!symbol || !stockMap.has(symbol)) continue;
+      if (!Number.isFinite(Number(bar.c)) || !Number.isFinite(Number(bar.t))) continue;
 
       const entry = groupedBySymbol.get(symbol) ?? [];
       entry.push({ ...bar, date });
       groupedBySymbol.set(symbol, entry);
+      matchedRows += 1;
+    }
+
+    if (matchedRows > 0) {
+      completedDates.push(date);
+      console.log(`Completed trading date ${date}: ${matchedRows} active-stock rows matched.`);
+    } else {
+      console.log(`No active-stock rows for ${date}; treating it as a non-trading/empty date.`);
     }
   } catch (error) {
-    console.error(`Failed grouped data for ${date}:`, error instanceof Error ? error.message : String(error));
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Failed grouped data for ${date}: ${message}`);
+
+    // Today's 403 is intentionally impossible here because today's date is
+    // never requested. Other errors are logged and the walker continues to
+    // the previous candidate date.
   }
+
+  cursor.setUTCDate(cursor.getUTCDate() - 1);
 }
 
-if (!groupedBySymbol.size) throw new Error('Massive returned no grouped stock data for the requested dates.');
+if (completedDates.length < TARGET_SESSIONS || !groupedBySymbol.size) {
+  throw new Error(`Could not collect ${TARGET_SESSIONS} completed trading sessions. Found ${completedDates.length}: ${completedDates.join(', ')}`);
+}
 
+const dates = [...completedDates].reverse();
 const results = [];
 const HISTORY_BATCH_SIZE = 50;
 
@@ -224,7 +248,7 @@ console.log(JSON.stringify({
   tested: results.length,
   synced,
   failed,
-  massiveRequests: dates.length,
+  massiveRequests: completedDates.length + Math.max(0, 0),
   results,
 }, null, 2));
 
