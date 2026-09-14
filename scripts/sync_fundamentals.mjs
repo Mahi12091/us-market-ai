@@ -1,16 +1,118 @@
-const required=['MASSIVE_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];for(const n of required)if(!process.env[n])throw new Error(`${n} is not configured.`);
-const api=process.env.MASSIVE_API_KEY;const base='https://api.massive.com';const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function massive(path){const u=new URL(path,base);u.searchParams.set('apiKey',api);for(let a=1;a<=4;a++){const r=await fetch(u);const t=await r.text();if(r.ok)return t?JSON.parse(t):{};if(![408,429,500,502,503,504].includes(r.status)||a===4)throw new Error(`Massive ${r.status}: ${t}`);await sleep(r.status===429?65000:Math.min(1000*2**(a-1),8000))}}
-async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){const u=new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);for(const[k,v]of Object.entries(params))u.searchParams.set(k,v);const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});const t=await r.text();if(!r.ok)throw new Error(`Supabase ${r.status}: ${t}`);return t?JSON.parse(t):null}
-const stocks=await db('stocks',{params:{select:'id,symbol',is_active:'eq.true',limit:5000}});const ids=new Map((stocks??[]).map(s=>[s.symbol,Number(s.id)]));
-const [ratios,income,cash,balance]=await Promise.all([
- massive('/stocks/financials/v1/ratios?limit=50000&sort=ticker.asc'),
- massive('/stocks/financials/v1/income-statements?limit=50000&sort=period_end.desc'),
- massive('/stocks/financials/v1/cash-flow-statements?limit=50000&sort=period_end.desc'),
- massive('/stocks/financials/v1/balance-sheets?limit=50000&sort=period_end.desc')
-]);
-const latest=(arr,key='period_end')=>{const m=new Map();for(const r of arr??[]){const t=r.tickers?.[0]??r.ticker;if(t&&!m.has(t))m.set(t,r)}return m};
-const rm=new Map((ratios.results??[]).map(r=>[r.ticker,r]));const im=latest(income.results);const cm=latest(cash.results);const bm=latest(balance.results);const payload=[];
-for(const [symbol,stockId] of ids){const r=rm.get(symbol),i=im.get(symbol),c=cm.get(symbol),b=bm.get(symbol);if(!r&&!i)continue;const revenue=Number(i?.revenue),net=Number(i?.net_income_loss_attributable_common_shareholders??i?.consolidated_net_income_loss),gross=Number(i?.gross_profit),op=Number(i?.operating_income),eps=Number(i?.diluted_earnings_per_share??i?.basic_earnings_per_share),fcf=Number(c?.free_cash_flow),pe=Number(r?.price_to_earnings),de=Number(r?.debt_to_equity),roe=Number(r?.return_on_equity),roa=Number(r?.return_on_assets);const period=i?.timeframe==='annual'?'annual':i?.period_end?`quarterly-${i.fiscal_year ?? ''}-${i.fiscal_quarter ?? ''}`:'ttm';payload.push({stock_id:stockId,fiscal_period:period,market_cap:r?.market_cap??null,enterprise_value:r?.enterprise_value??null,revenue:Number.isFinite(revenue)?revenue:null,revenue_growth:null,gross_profit:Number.isFinite(gross)?gross:null,operating_income:Number.isFinite(op)?op:null,net_income:Number.isFinite(net)?net:null,eps:Number.isFinite(eps)?eps:null,eps_growth:null,pe_ratio:Number.isFinite(pe)?pe:null,forward_pe:null,peg_ratio:null,price_sales:r?.price_to_sales??null,price_book:r?.price_to_book??null,debt_equity:Number.isFinite(de)?de:null,roe:Number.isFinite(roe)?roe:null,roa:Number.isFinite(roa)?roa:null,free_cash_flow:Number.isFinite(fcf)?fcf:null,dividend_yield:r?.dividend_yield??null,report_date:i?.period_end??r?.date??null,data_source:'Massive'});}
-for(const row of payload){await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]})}
-console.log(JSON.stringify({mode:'fundamentals-sync',stocks:ids.size,rows_written:payload.length,source:'Massive'},null,2));
+const required=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+for(const n of required)if(!process.env[n])throw new Error(`${n} is not configured.`);
+
+const SEC_USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research contact: github.com/Mahi12091/us-market-ai';
+const SEC_BASE='https://data.sec.gov';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function sec(path){
+  const u=new URL(path,SEC_BASE);
+  for(let attempt=1;attempt<=4;attempt++){
+    const r=await fetch(u,{headers:{'User-Agent':SEC_USER_AGENT,'Accept-Encoding':'gzip, deflate'}});
+    const t=await r.text();
+    if(r.ok)return t?JSON.parse(t):{};
+    if(![408,429,500,502,503,504].includes(r.status)||attempt===4)throw new Error(`SEC ${r.status}: ${t.slice(0,500)}`);
+    await sleep(r.status===429?2000:Math.min(1000*2**(attempt-1),8000));
+  }
+}
+
+async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
+  const u=new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
+  for(const[k,v]of Object.entries(params))u.searchParams.set(k,v);
+  const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
+  const t=await r.text();
+  if(!r.ok)throw new Error(`Supabase ${r.status}: ${t}`);
+  return t?JSON.parse(t):null;
+}
+
+function num(v){const n=Number(v);return Number.isFinite(n)?n:null;}
+function latestFact(facts,tags,units=['USD','USD/shares','shares']){
+  for(const tag of tags){
+    const fact=facts?.facts?.['us-gaap']?.[tag]||facts?.facts?.dei?.[tag];
+    if(!fact?.units)continue;
+    for(const unit of units){
+      const rows=fact.units[unit];
+      if(!Array.isArray(rows))continue;
+      const usable=rows.filter(x=>x?.val!=null&&x?.end&&(x.form==='10-K'||x.form==='10-Q'||x.form==='20-F'||x.form==='6-K'));
+      usable.sort((a,b)=>String(b.end).localeCompare(String(a.end))||String(b.filed||'').localeCompare(String(a.filed||'')));
+      if(usable[0])return usable[0];
+    }
+  }
+  return null;
+}
+function annualFacts(facts,tags,units=['USD','USD/shares']){
+  for(const tag of tags){
+    const fact=facts?.facts?.['us-gaap']?.[tag];
+    if(!fact?.units)continue;
+    for(const unit of units){
+      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end&&x.form==='10-K'&&x.fp==='FY');
+      if(rows.length)return rows.sort((a,b)=>String(b.end).localeCompare(String(a.end)));
+    }
+  }
+  return [];
+}
+function valueAt(facts,tags){return num(latestFact(facts,tags)?.val);}
+function growth(current,previous){return current!=null&&previous!=null&&previous!==0?((current/previous)-1)*100:null;}
+
+const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',limit:5000}});
+const quotes=await db('latest_quotes',{params:{select:'stock_id,price',limit:5000}});
+const priceById=new Map((quotes??[]).map(q=>[Number(q.stock_id),num(q.price)]));
+const tickerData=await sec('/api/xbrl/companyfacts/CIK0000000000.json').catch(()=>null);
+
+// SEC's ticker map gives us the CIK for every listed company. It is a small single request.
+const tickers=await sec('/submissions/CIK0000000000.json').catch(()=>null);
+let map;
+try{
+  const raw=await (async()=>{const r=await fetch('https://www.sec.gov/files/company_tickers.json',{headers:{'User-Agent':SEC_USER_AGENT,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error(`SEC ticker map ${r.status}`);return r.json()})();
+  map=new Map(Object.values(raw).map(x=>[String(x.ticker).toUpperCase(),String(x.cik_str).padStart(10,'0')]));
+}catch(e){throw new Error(`Unable to load SEC ticker map: ${e.message}`)}
+void tickerData; void tickers;
+
+const rows=[];const failures=[];const eligible=(stocks??[]).filter(s=>s.symbol&&!['crypto'].includes(String(s.asset_type||'').toLowerCase()));
+let completed=0;
+for(let offset=0;offset<eligible.length;offset+=5){
+  const batch=eligible.slice(offset,offset+5);
+  const results=await Promise.all(batch.map(async stock=>{
+    const cik=map.get(String(stock.symbol).toUpperCase());
+    if(!cik)return {stock,skip:'no-sec-cik'};
+    try{
+      const facts=await sec(`/api/xbrl/companyfacts/CIK${cik}.json`);
+      const revenueFacts=annualFacts(facts,['RevenueFromContractWithCustomerExcludingAssessedTax','SalesRevenueNet','Revenues']);
+      const epsFacts=annualFacts(facts,['EarningsPerShareDiluted','EarningsPerShareBasic'],['USD/shares']);
+      const revenue=num(revenueFacts[0]?.val),previousRevenue=num(revenueFacts[1]?.val);
+      const eps=num(epsFacts[0]?.val),previousEps=num(epsFacts[1]?.val);
+      const net=valueAt(facts,['ProfitLoss','NetIncomeLoss','NetIncomeLossAvailableToCommonStockholdersBasic']);
+      const gross=valueAt(facts,['GrossProfit']);
+      const op=valueAt(facts,['OperatingIncomeLoss']);
+      const assets=valueAt(facts,['Assets']);
+      const equity=valueAt(facts,['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest']);
+      const cash=valueAt(facts,['CashAndCashEquivalentsAtCarryingValue']);
+      const debtCurrent=valueAt(facts,['LongTermDebtCurrent','ShortTermBorrowings']);
+      const debtNonCurrent=valueAt(facts,['LongTermDebtNoncurrent','LongTermDebt']);
+      const cfo=valueAt(facts,['NetCashProvidedByUsedInOperatingActivities']);
+      const capex=valueAt(facts,['PaymentsToAcquirePropertyPlantAndEquipment','PaymentsToAcquireProductiveAssets']);
+      const shares=valueAt(facts,['EntityCommonStockSharesOutstanding','CommonStockSharesOutstanding']);
+      const price=priceById.get(Number(stock.id));
+      const marketCap=(price!=null&&shares!=null)?price*shares:num(stock.market_cap);
+      const debt=(debtCurrent||0)+(debtNonCurrent||0);
+      const fcf=cfo!=null&&capex!=null?cfo-Math.abs(capex):null;
+      const pe=price!=null&&eps!=null&&eps>0?price/eps:null;
+      const ps=marketCap!=null&&revenue!=null&&revenue>0?marketCap/revenue:null;
+      const pb=marketCap!=null&&equity!=null&&equity>0?marketCap/equity:null;
+      const de=debt!=null&&equity!=null&&equity!==0?debt/equity:null;
+      const roe=net!=null&&equity!=null&&equity!==0?(net/equity)*100:null;
+      const roa=net!=null&&assets!=null&&assets!==0?(net/assets)*100:null;
+      const reportDate=revenueFacts[0]?.end||epsFacts[0]?.end||null;
+      if(revenue==null&&net==null&&assets==null)return {stock,skip:'no-standardized-facts'};
+      const fiscalPeriod=`annual-${revenueFacts[0]?.fy??epsFacts[0]?.fy??reportDate??'latest'}`;
+      return {stock,row:{stock_id:Number(stock.id),fiscal_period:fiscalPeriod,market_cap:marketCap,enterprise_value:null,revenue,revenue_growth:growth(revenue,previousRevenue),gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:growth(eps,previousEps),pe_ratio:pe,forward_pe:null,peg_ratio:null,price_sales:ps,price_book:pb,debt_equity:de,roe,roa,free_cash_flow:fcf,dividend_yield:null,report_date:reportDate,data_source:'SEC EDGAR'}};
+    }catch(error){return {stock,error:error.message};}
+  }));
+  for(const result of results){completed++;if(result.row)rows.push(result.row);else failures.push({symbol:result.stock.symbol,reason:result.skip||result.error});}
+  if(offset+5<eligible.length)await sleep(600);
+}
+
+for(const row of rows){
+  await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
+}
+console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR',failures:failures.slice(0,20)},null,2));
