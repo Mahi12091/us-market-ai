@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getDailyAggregates, getLatestTrade } from '@/lib/massive';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
+
+const TEST_SYMBOLS = ['AAPL', 'AMZN', 'MSFT', 'NVDA', 'TSLA'] as const;
 
 function authorized(request: Request) {
   const secret = process.env.MARKET_DATA_SYNC_SECRET || process.env.CRON_SECRET;
@@ -11,46 +13,73 @@ function authorized(request: Request) {
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
 
-function isoDate(date: Date) { return date.toISOString().slice(0, 10); }
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
 
-async function runSync(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+function tradeTimestamp(value: number | undefined) {
+  if (!value) return new Date().toISOString();
+  return new Date(value > 1_000_000_000_000 ? value / 1_000_000 : value).toISOString();
+}
 
-  const supabase = await createClient();
-  // Controlled 5-stock smoke test. Expand to a paginated full-universe worker after validation.
-  const { data: stocks, error } = await supabase.from('stocks').select('id,symbol').eq('is_active', true).limit(5);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+async function syncTestStocks() {
+  const supabase = createAdminClient();
+  const { data: stocks, error: stockError } = await supabase
+    .from('stocks')
+    .select('id,symbol')
+    .in('symbol', [...TEST_SYMBOLS])
+    .eq('is_active', true);
 
+  if (stockError) throw new Error(`Supabase stock lookup failed: ${stockError.message}`);
+
+  const stockMap = new Map((stocks ?? []).map((stock) => [stock.symbol, stock]));
   const to = new Date();
   const from = new Date(to.getTime() - 5 * 24 * 60 * 60 * 1000);
-  const results: { symbol: string; ok: boolean; error?: string }[] = [];
+  const results: Array<{ symbol: string; ok: boolean; historyRows?: number; error?: string }> = [];
 
-  for (const stock of stocks ?? []) {
+  for (const symbol of TEST_SYMBOLS) {
+    const stock = stockMap.get(symbol);
+    if (!stock) {
+      results.push({ symbol, ok: false, error: 'Active stock not found in Supabase' });
+      continue;
+    }
+
     try {
-      const [trade, aggregates] = await Promise.all([
-        getLatestTrade(stock.symbol),
-        getDailyAggregates(stock.symbol, isoDate(from), isoDate(to)),
+      const [tradeResponse, aggregateResponse] = await Promise.all([
+        getLatestTrade(symbol),
+        getDailyAggregates(symbol, isoDate(from), isoDate(to)),
       ]);
-      const bars = aggregates.results ?? [];
-      const latest = trade.results;
 
-      if (latest?.p != null) {
-        const previousClose = bars.length >= 2 ? bars[bars.length - 2].c : bars.at(-1)?.c ?? null;
-        const change = previousClose != null ? latest.p - previousClose : null;
-        const changePercent = previousClose ? (change! / previousClose) * 100 : null;
-        await supabase.from('latest_quotes').upsert({
-          stock_id: stock.id,
-          price: latest.p,
-          previous_close: previousClose,
-          change,
-          change_percent: changePercent,
-          quote_timestamp: latest.t ? new Date(latest.t / 1_000_000).toISOString() : new Date().toISOString(),
-          data_source: 'massive',
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'stock_id' });
-      }
+      const bars = aggregateResponse.results ?? [];
+      const latestTrade = tradeResponse.results;
+      if (!latestTrade?.p) throw new Error('Massive returned no latest trade price');
+      if (!bars.length) throw new Error('Massive returned no daily aggregate bars');
 
-      const rows = bars.map(bar => ({
+      const latestBar = bars.at(-1)!;
+      const previousClose = bars.length >= 2 ? bars[bars.length - 2].c : latestBar.c;
+      const change = latestTrade.p - previousClose;
+      const changePercent = previousClose ? (change / previousClose) * 100 : null;
+      const now = new Date().toISOString();
+
+      const { error: quoteError } = await supabase.from('latest_quotes').upsert({
+        stock_id: stock.id,
+        price: latestTrade.p,
+        open: latestBar.o,
+        high: latestBar.h,
+        low: latestBar.l,
+        previous_close: previousClose,
+        change,
+        change_percent: changePercent,
+        volume: latestBar.v,
+        market_status: 'unknown',
+        quote_timestamp: tradeTimestamp(latestTrade.t),
+        data_source: 'massive',
+        updated_at: now,
+      }, { onConflict: 'stock_id' });
+
+      if (quoteError) throw new Error(`latest_quotes upsert failed: ${quoteError.message}`);
+
+      const rows = bars.map((bar) => ({
         stock_id: stock.id,
         timeframe: '1d',
         timestamp: new Date(bar.t).toISOString(),
@@ -61,21 +90,54 @@ async function runSync(request: Request) {
         volume: bar.v,
         data_source: 'massive',
       }));
-      if (rows.length) await supabase.from('price_history').upsert(rows, { onConflict: 'stock_id,timeframe,timestamp' });
-      results.push({ symbol: stock.symbol, ok: true });
-    } catch (e) {
-      results.push({ symbol: stock.symbol, ok: false, error: e instanceof Error ? e.message : 'Unknown error' });
+
+      const { error: historyError } = await supabase
+        .from('price_history')
+        .upsert(rows, { onConflict: 'stock_id,timeframe,timestamp' });
+
+      if (historyError) throw new Error(`price_history upsert failed: ${historyError.message}`);
+
+      results.push({ symbol, ok: true, historyRows: rows.length });
+    } catch (error) {
+      results.push({
+        symbol,
+        ok: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
     }
   }
 
-  return NextResponse.json({ synced: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results });
-}
-
-export async function POST(request: Request) {
-  return runSync(request);
+  return {
+    mode: 'test',
+    tested: TEST_SYMBOLS.length,
+    synced: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
 }
 
 export async function GET(request: Request) {
-  // Vercel Cron invokes the configured route with GET, so GET must execute the job.
-  return runSync(request);
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    return NextResponse.json(await syncTestStocks());
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Market data sync failed' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    return NextResponse.json(await syncTestStocks());
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Market data sync failed' },
+      { status: 500 },
+    );
+  }
 }
