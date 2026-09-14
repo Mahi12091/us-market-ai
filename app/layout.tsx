@@ -1,13 +1,17 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import SiteHeader from '@/components/site-header';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://us-market-4msyoejtw-mahi12091s-projects.vercel.app';
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://us-market-ai.vercel.app'),
+  metadataBase: new URL(siteUrl),
   title: { default: 'US Market AI', template: '%s | US Market AI' },
   description: 'US stocks and crypto market intelligence, technical analysis and quantitative predictions.',
   robots: { index: true, follow: true },
+  openGraph: { title: 'US Market AI', description: 'US market intelligence, AI predictions and research.', type: 'website', url: siteUrl },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en-US"><body><header style={{borderBottom:'1px solid #1d3048',background:'rgba(7,17,31,.9)',position:'sticky',top:0,zIndex:10}}><div className="container" style={{height:64,display:'flex',alignItems:'center',justifyContent:'space-between'}}><a href="/" style={{fontWeight:800,fontSize:20}}>US Market <span style={{color:'#5eead4'}}>AI</span></a><nav style={{display:'flex',gap:20,fontSize:14}}><a href="/stocks">Stocks</a><a href="/crypto">Crypto</a><a href="/about">About</a></nav></div></header><main>{children}</main><footer className="container" style={{padding:'48px 0',fontSize:13}}><div className="muted">© {new Date().getFullYear()} US Market AI · Estimates only, not financial advice.</div></footer></body></html>;
+  return <html lang="en-US"><body><SiteHeader /><main>{children}</main><footer className="site-footer"><div className="container footer-grid"><div><a href="/" className="brand"><span>US Market</span> <b>AI</b></a><p className="muted">Market intelligence, quantitative forecasts and research for US stocks and crypto.</p></div><div><b>Markets</b><a href="/stocks">Stocks</a><a href="/crypto">Crypto</a><a href="/markets">Market Overview</a></div><div><b>Research</b><a href="/news">News</a><a href="/analysis">AI Analysis</a><a href="/predictions">Predictions</a></div><div><b>Company</b><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div></div><div className="container footer-bottom">© {new Date().getFullYear()} US Market AI · Estimates only, not financial advice.</div></footer></body></html>;
 }
