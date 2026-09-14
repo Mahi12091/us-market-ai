@@ -7,11 +7,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const integerVolume = (value) => Math.round(Number(value ?? 0));
 
-// Massive Basic currently allows 5 REST requests/minute. The previous
-// per-ticker implementation made one Massive request per stock, which caused
-// HTTP 429 once the active universe grew. Grouped daily summaries return all US
-// stocks for one trading date in a single request, so the whole universe can be
-// ingested with only a few Massive calls.
+// Massive Basic currently allows 5 REST requests/minute. Grouped daily
+// summaries return all US stocks for one date in one request, so we can sync
+// the entire active universe without making one request per ticker.
 const MASSIVE_REQUEST_GAP_MS = 13_000;
 let lastMassiveRequestAt = 0;
 
@@ -21,9 +19,7 @@ const massive = async (path) => {
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const elapsed = Date.now() - lastMassiveRequestAt;
-    if (elapsed < MASSIVE_REQUEST_GAP_MS) {
-      await sleep(MASSIVE_REQUEST_GAP_MS - elapsed);
-    }
+    if (elapsed < MASSIVE_REQUEST_GAP_MS) await sleep(MASSIVE_REQUEST_GAP_MS - elapsed);
 
     const url = new URL(`https://api.massive.com${path}`);
     url.searchParams.set('apiKey', process.env.MASSIVE_API_KEY);
@@ -39,8 +35,6 @@ const massive = async (path) => {
       const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
       if (!retryable || attempt === maxAttempts) throw lastError;
 
-      // A 429 means the provider's rate window has been hit. Wait a full
-      // minute before trying again instead of hammering the endpoint.
       const delay = response.status === 429 ? 65_000 : Math.min(5_000 * 2 ** (attempt - 1), 30_000);
       console.log(`Massive ${response.status}; retry ${attempt + 1}/${maxAttempts} in ${delay}ms`);
       await sleep(delay);
@@ -121,23 +115,21 @@ if (!stocks.length) throw new Error('No active stocks found in Supabase.');
 const stockMap = new Map(stocks.map((stock) => [stock.symbol, stock]));
 console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
-// Fetch the current date plus the two preceding calendar dates. On normal
-// trading weeks this gives the latest three trading sessions. Grouped daily
-// data is one Massive request per date, regardless of the number of stocks.
-const today = new Date();
-const dates = [0, 1, 2].map((daysAgo) => {
-  const date = new Date(today);
-  date.setUTCDate(date.getUTCDate() - daysAgo);
-  return isoDate(date);
-}).reverse();
+// Build the three most recent calendar weekdays. This avoids wasting grouped
+// API calls on weekends while staying within the Basic plan's 5 req/min limit.
+const dates = [];
+const cursor = new Date();
+while (dates.length < 3) {
+  const day = cursor.getUTCDay();
+  if (day >= 1 && day <= 5) dates.unshift(isoDate(cursor));
+  cursor.setUTCDate(cursor.getUTCDate() - 1);
+}
 
 const groupedBySymbol = new Map();
 for (const date of dates) {
   try {
     console.log(`Fetching grouped US stock data for ${date}.`);
-    const response = await massive(
-      `/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`,
-    );
+    const response = await massive(`/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`);
 
     for (const bar of response.results ?? []) {
       const symbol = String(bar.T ?? bar.ticker ?? '').toUpperCase();
