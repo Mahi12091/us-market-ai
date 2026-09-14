@@ -1,0 +1,2 @@
+export const metadata={title:'Contact',description:'Contact US Market AI.'};
+export default function Contact(){return <div className="container"><section className="page-head"><div className="eyebrow">US Market AI</div><h1>Contact</h1><p className="muted">Questions, feedback, data corrections or partnership inquiries can be routed here.</p></section><div className="panel stat-card"><h2>Get in touch</h2><p className="muted">Contact form integration will be enabled before production launch.</p></div></div>}
