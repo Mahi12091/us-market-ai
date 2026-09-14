@@ -115,17 +115,15 @@ if (!stocks.length) throw new Error('No active stocks found in Supabase.');
 const stockMap = new Map(stocks.map((stock) => [stock.symbol, stock]));
 console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
-// Massive Basic is EOD-only, so NEVER request today's date. Start from the
-// previous UTC calendar day and walk backwards. This also handles weekends
-// and market holidays by only counting dates that actually return grouped
-// market rows. We allow up to 5 candidate dates, which stays within the
-// Basic plan's 5 requests/minute limit because requests are spaced by 13s.
+// EOD-only source: start from yesterday and walk backwards. We collect 30
+// completed sessions so RSI-14, MACD, ATR and Bollinger calculations have
+// enough history. Longer SMAs remain null until a larger history backfill.
 const groupedBySymbol = new Map();
 const completedDates = [];
 const today = new Date();
 const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
-const MAX_CANDIDATE_DATES = 5;
-const TARGET_SESSIONS = 3;
+const MAX_CANDIDATE_DATES = 45;
+const TARGET_SESSIONS = 30;
 
 for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length < TARGET_SESSIONS; candidate += 1) {
   const date = isoDate(cursor);
@@ -156,10 +154,6 @@ for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`Failed grouped data for ${date}: ${message}`);
-
-    // Today's 403 is intentionally impossible here because today's date is
-    // never requested. Other errors are logged and the walker continues to
-    // the previous candidate date.
   }
 
   cursor.setUTCDate(cursor.getUTCDate() - 1);
@@ -248,7 +242,7 @@ console.log(JSON.stringify({
   tested: results.length,
   synced,
   failed,
-  massiveRequests: completedDates.length + Math.max(0, 0),
+  massiveRequests: completedDates.length,
   results,
 }, null, 2));
 
