@@ -14,31 +14,40 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+      ARTICLE_BATCH_SIZE: '25'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
       - name: Validate required secrets
         run: |
           set -euo pipefail
           for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            if [ -z "${!name:-}" ]; then
-              echo "$name is not configured in GitHub repository secrets."
-              exit 1
-            fi
+            if [ -z "${!name:-}" ]; then echo "$name is not configured in GitHub repository secrets."; exit 1; fi
           done
-          echo "Required secrets are configured."
-
       - name: Sync Massive directly to Supabase
         run: node scripts/sync_market_data.mjs
-
       - name: Calculate technical indicators
         run: node scripts/compute_technical_indicators.mjs
-
+      - name: Evaluate mature predictions
+        run: node scripts/evaluate_predictions.mjs
+      - name: Sync fundamentals
+        run: node scripts/sync_fundamentals.mjs
+      - name: Respect Massive request limits before earnings
+        run: sleep 65
+      - name: Sync earnings
+        run: node scripts/sync_earnings.mjs
+      - name: Respect Massive request limits before news
+        run: sleep 65
+      - name: Sync news and sentiment
+        run: node scripts/sync_news.mjs
       - name: Generate quantitative predictions
         run: node scripts/generate_predictions.mjs
+      - name: Generate AI market analysis
+        run: node scripts/generate_ai_articles.mjs
