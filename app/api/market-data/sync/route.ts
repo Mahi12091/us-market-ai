@@ -13,11 +13,12 @@ function authorized(request: Request) {
 
 function isoDate(date: Date) { return date.toISOString().slice(0, 10); }
 
-export async function POST(request: Request) {
+async function runSync(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const supabase = await createClient();
-  const { data: stocks, error } = await supabase.from('stocks').select('id,symbol').eq('is_active', true).limit(100);
+  // Controlled 5-stock smoke test. Expand to a paginated full-universe worker after validation.
+  const { data: stocks, error } = await supabase.from('stocks').select('id,symbol').eq('is_active', true).limit(5);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const to = new Date();
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       ]);
       const bars = aggregates.results ?? [];
       const latest = trade.results;
+
       if (latest?.p != null) {
         const previousClose = bars.length >= 2 ? bars[bars.length - 2].c : bars.at(-1)?.c ?? null;
         const change = previousClose != null ? latest.p - previousClose : null;
@@ -47,6 +49,7 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'stock_id' });
       }
+
       const rows = bars.map(bar => ({
         stock_id: stock.id,
         timeframe: '1d',
@@ -68,9 +71,11 @@ export async function POST(request: Request) {
   return NextResponse.json({ synced: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length, results });
 }
 
+export async function POST(request: Request) {
+  return runSync(request);
+}
+
 export async function GET(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const supabase = await createClient();
-  const { count } = await supabase.from('stocks').select('*', { count: 'exact', head: true }).eq('is_active', true);
-  return NextResponse.json({ status: 'ready', activeStocks: count ?? 0 });
+  // Vercel Cron invokes the configured route with GET, so GET must execute the job.
+  return runSync(request);
 }
