@@ -1,5 +1,3 @@
-const symbols = ['AAPL', 'AMZN', 'MSFT', 'NVDA', 'TSLA'];
-
 const required = ['MASSIVE_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
 for (const name of required) {
   if (!process.env[name]) throw new Error(`${name} is not configured in GitHub Actions secrets.`);
@@ -40,9 +38,6 @@ const supabase = async (table, options = {}) => {
       if (response.ok) return text ? JSON.parse(text) : null;
 
       lastError = new Error(`Supabase ${response.status} ${table}: ${text}`);
-      // 409 is a real constraint conflict. All writes below explicitly specify
-      // their unique conflict target, so a 409 should surface immediately rather
-      // than wasting 3 retries on an error that cannot resolve by waiting.
       const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
       if (!retryable || attempt === maxAttempts) throw lastError;
 
@@ -69,86 +64,111 @@ const isoDate = (date) => date.toISOString().slice(0, 10);
 const to = new Date();
 const from = new Date(to.getTime() - 5 * 24 * 60 * 60 * 1000);
 const HISTORY_BATCH_SIZE = 2;
+const STOCK_BATCH_SIZE = 40;
+const INTER_STOCK_DELAY_MS = 100;
 
+// Pull the active universe from Supabase so adding a stock automatically adds it
+// to the ingestion pipeline. This replaces the temporary 5-symbol test list.
 const stockRows = await supabase('stocks', {
   params: {
     select: 'id,symbol',
-    symbol: `in.(${symbols.join(',')})`,
     is_active: 'eq.true',
+    order: 'id.asc',
+    limit: 5000,
   },
 });
-const stockMap = new Map((stockRows ?? []).map((row) => [row.symbol, row]));
+
+const stocks = (stockRows ?? [])
+  .filter((row) => row?.id && row?.symbol)
+  .map((row) => ({ id: Number(row.id), symbol: String(row.symbol).toUpperCase() }));
+
+if (!stocks.length) throw new Error('No active stocks found in Supabase.');
+
+console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
 const results = [];
-for (const symbol of symbols) {
-  const stock = stockMap.get(symbol);
-  if (!stock) {
-    results.push({ symbol, ok: false, error: 'Active stock not found in Supabase' });
-    continue;
-  }
 
-  try {
-    const aggregateResponse = await massive(
-      `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/day/${isoDate(from)}/${isoDate(to)}?adjusted=true&sort=asc&limit=50000`,
-    );
-    const bars = aggregateResponse.results ?? [];
-    if (!bars.length) throw new Error('Massive returned no daily aggregate bars');
+for (let batchStart = 0; batchStart < stocks.length; batchStart += STOCK_BATCH_SIZE) {
+  const batch = stocks.slice(batchStart, batchStart + STOCK_BATCH_SIZE);
+  console.log(`Processing stocks ${batchStart + 1}-${batchStart + batch.length} of ${stocks.length}.`);
 
-    const latestBar = bars.at(-1);
-    const previousClose = bars.length >= 2 ? bars.at(-2).c : latestBar.c;
-    const change = latestBar.c - previousClose;
-    const changePercent = previousClose ? (change / previousClose) * 100 : null;
-    const now = new Date().toISOString();
+  for (const stock of batch) {
+    const { symbol } = stock;
 
-    await supabase('latest_quotes', {
-      method: 'POST',
-      params: { on_conflict: 'stock_id' },
-      prefer: 'resolution=merge-duplicates,return=minimal',
-      body: [{
-        stock_id: stock.id,
-        price: latestBar.c,
-        open: latestBar.o,
-        high: latestBar.h,
-        low: latestBar.l,
-        previous_close: previousClose,
-        change,
-        change_percent: changePercent,
-        volume: integerVolume(latestBar.v),
-        market_status: 'eod',
-        quote_timestamp: new Date(latestBar.t).toISOString(),
-        data_source: 'massive-github-actions',
-        updated_at: now,
-      }],
-    });
+    try {
+      const aggregateResponse = await massive(
+        `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/day/${isoDate(from)}/${isoDate(to)}?adjusted=true&sort=asc&limit=50000`,
+      );
+      const bars = aggregateResponse.results ?? [];
+      if (!bars.length) throw new Error('Massive returned no daily aggregate bars');
 
-    const historyRows = bars.map((bar) => ({
-      stock_id: stock.id,
-      timeframe: '1d',
-      timestamp: new Date(bar.t).toISOString(),
-      open: bar.o,
-      high: bar.h,
-      low: bar.l,
-      close: bar.c,
-      volume: integerVolume(bar.v),
-      data_source: 'massive-github-actions',
-    }));
+      const latestBar = bars.at(-1);
+      const previousClose = bars.length >= 2 ? bars.at(-2).c : latestBar.c;
+      const change = latestBar.c - previousClose;
+      const changePercent = previousClose ? (change / previousClose) * 100 : null;
+      const now = new Date().toISOString();
 
-    for (let index = 0; index < historyRows.length; index += HISTORY_BATCH_SIZE) {
-      const batch = historyRows.slice(index, index + HISTORY_BATCH_SIZE);
-      await supabase('price_history', {
+      await supabase('latest_quotes', {
         method: 'POST',
-        params: { on_conflict: 'stock_id,timeframe,timestamp' },
+        params: { on_conflict: 'stock_id' },
         prefer: 'resolution=merge-duplicates,return=minimal',
-        body: batch,
+        body: [{
+          stock_id: stock.id,
+          price: latestBar.c,
+          open: latestBar.o,
+          high: latestBar.h,
+          low: latestBar.l,
+          previous_close: previousClose,
+          change,
+          change_percent: changePercent,
+          volume: integerVolume(latestBar.v),
+          market_status: 'eod',
+          quote_timestamp: new Date(latestBar.t).toISOString(),
+          data_source: 'massive-github-actions',
+          updated_at: now,
+        }],
       });
+
+      const historyRows = bars.map((bar) => ({
+        stock_id: stock.id,
+        timeframe: '1d',
+        timestamp: new Date(bar.t).toISOString(),
+        open: bar.o,
+        high: bar.h,
+        low: bar.l,
+        close: bar.c,
+        volume: integerVolume(bar.v),
+        data_source: 'massive-github-actions',
+      }));
+
+      for (let index = 0; index < historyRows.length; index += HISTORY_BATCH_SIZE) {
+        const batchRows = historyRows.slice(index, index + HISTORY_BATCH_SIZE);
+        await supabase('price_history', {
+          method: 'POST',
+          params: { on_conflict: 'stock_id,timeframe,timestamp' },
+          prefer: 'resolution=merge-duplicates,return=minimal',
+          body: batchRows,
+        });
+      }
+
+      results.push({ symbol, ok: true, price: latestBar.c, historyRows: historyRows.length });
+    } catch (error) {
+      results.push({ symbol, ok: false, error: error instanceof Error ? error.message : String(error) });
     }
 
-    results.push({ symbol, ok: true, price: latestBar.c, historyRows: historyRows.length });
-  } catch (error) {
-    results.push({ symbol, ok: false, error: error instanceof Error ? error.message : String(error) });
+    await sleep(INTER_STOCK_DELAY_MS);
   }
 }
 
-console.log(JSON.stringify({ mode: 'github-direct-test', tested: symbols.length, synced: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length, results }, null, 2));
+const synced = results.filter((result) => result.ok).length;
+const failed = results.length - synced;
 
-if (results.some((r) => !r.ok)) process.exit(1);
+console.log(JSON.stringify({
+  mode: 'github-direct-active-universe',
+  tested: stocks.length,
+  synced,
+  failed,
+  results,
+}, null, 2));
+
+if (failed > 0) process.exit(1);
