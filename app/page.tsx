@@ -1,0 +1,7 @@
+import { createClient } from '@/lib/supabase/server';
+
+export default async function Home() {
+  const supabase = await createClient();
+  const { data: stocks } = await supabase.from('stocks').select('symbol,slug,company_name').eq('is_active',true).eq('is_indexable',true).order('market_cap',{ascending:false}).limit(12);
+  return <div className="container" style={{padding:'64px 0'}}><section style={{maxWidth:820}}><div className="muted" style={{letterSpacing:2,textTransform:'uppercase',fontSize:12}}>US markets · intelligence · predictions</div><h1 style={{fontSize:'clamp(42px,7vw,76px)',lineHeight:1.02,margin:'14px 0'}}>Understand the market before you make a move.</h1><p className="muted" style={{fontSize:18,lineHeight:1.7}}>US Market AI brings market data, technical signals, fundamentals, news sentiment and quantitative forecasts into one research dashboard.</p></section><section style={{marginTop:48}}><h2>Popular US stocks</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:14,marginTop:18}}>{(stocks ?? []).map(s=><a className="panel" style={{padding:20}} href={`/stocks/${s.slug}`} key={s.symbol}><div style={{fontWeight:800,fontSize:20}}>{s.symbol}</div><div className="muted" style={{marginTop:7}}>{s.company_name}</div></a>)}{!stocks?.length && <div className="panel" style={{padding:20}}>Database is connected. Stock seed data will appear here.</div>}</div></section></div>;
+}
