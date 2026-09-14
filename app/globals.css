@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+:root { --bg:#07111f; --panel:#0d1a2b; --border:#1d3048; --text:#eef5ff; --muted:#91a4bb; --accent:#5eead4; }
+* { box-sizing:border-box; }
+html { background:var(--bg); color:var(--text); }
+body { margin:0; min-height:100vh; background:radial-gradient(circle at 20% 0%, #10233b 0, var(--bg) 38%); font-family:Arial,Helvetica,sans-serif; }
+a { color:inherit; text-decoration:none; }
+.container { width:min(1180px, calc(100% - 32px)); margin:auto; }
+.panel { background:rgba(13,26,43,.82); border:1px solid var(--border); border-radius:16px; }
+.muted { color:var(--muted); }
