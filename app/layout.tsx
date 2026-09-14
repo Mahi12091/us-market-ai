@@ -4,6 +4,7 @@ import './stock-page.css';
 import './market-pages.css';
 import './predictions-page.css';
 import './info-pages.css';
+import './blog/blog.css';
 import './ui-polish.css';
 import SiteHeader from '@/components/site-header';
 
@@ -18,5 +19,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en-US"><body><SiteHeader /><main>{children}</main><footer className="site-footer"><div className="container footer-grid"><div><a href="/" className="brand"><span>US Market</span> <b>AI</b></a><p className="muted">Market intelligence, quantitative forecasts and research for US stocks and crypto.</p></div><div><b>Markets</b><a href="/stocks">Stocks</a><a href="/crypto">Crypto</a><a href="/markets">Market Overview</a></div><div><b>Research</b><a href="/news">News</a><a href="/analysis">AI Analysis</a><a href="/predictions">Predictions</a></div><div><b>Company</b><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div></div><div className="container footer-bottom">© {new Date().getFullYear()} US Market AI · Estimates only, not financial advice.</div></footer></body></html>;
+  return <html lang="en-US"><body><SiteHeader /><main>{children}</main><footer className="site-footer"><div className="container footer-grid"><div><a href="/" className="brand"><span>US Market</span> <b>AI</b></a><p className="muted">Market intelligence, quantitative forecasts and research for US stocks and crypto.</p></div><div><b>Markets</b><a href="/stocks">Stocks</a><a href="/crypto">Crypto</a><a href="/markets">Market Overview</a></div><div><b>Research</b><a href="/blog">Stock Forecasts</a><a href="/news">News</a><a href="/analysis">AI Analysis</a><a href="/predictions">Predictions</a></div><div><b>Company</b><a href="/about">About</a><a href="/contact">Contact</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div></div><div className="container footer-bottom">© {new Date().getFullYear()} US Market AI · Estimates only, not financial advice.</div></footer></body></html>;
 }
