@@ -40,7 +40,10 @@ const supabase = async (table, options = {}) => {
       if (response.ok) return text ? JSON.parse(text) : null;
 
       lastError = new Error(`Supabase ${response.status} ${table}: ${text}`);
-      const retryable = [408, 409, 429, 500, 502, 503, 504].includes(response.status);
+      // 409 is a real constraint conflict. All writes below explicitly specify
+      // their unique conflict target, so a 409 should surface immediately rather
+      // than wasting 3 retries on an error that cannot resolve by waiting.
+      const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
       if (!retryable || attempt === maxAttempts) throw lastError;
 
       const delay = Math.min(1500 * 2 ** (attempt - 1), 10000);
@@ -99,6 +102,7 @@ for (const symbol of symbols) {
 
     await supabase('latest_quotes', {
       method: 'POST',
+      params: { on_conflict: 'stock_id' },
       prefer: 'resolution=merge-duplicates,return=minimal',
       body: [{
         stock_id: stock.id,
@@ -133,6 +137,7 @@ for (const symbol of symbols) {
       const batch = historyRows.slice(index, index + HISTORY_BATCH_SIZE);
       await supabase('price_history', {
         method: 'POST',
+        params: { on_conflict: 'stock_id,timeframe,timestamp' },
         prefer: 'resolution=merge-duplicates,return=minimal',
         body: batch,
       });
