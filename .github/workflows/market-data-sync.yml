@@ -22,6 +22,7 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
       ARTICLE_BATCH_SIZE: '25'
+      SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -37,11 +38,12 @@ jobs:
         run: node scripts/compute_technical_indicators.mjs
       - name: Evaluate mature predictions
         run: node scripts/evaluate_predictions.mjs
-      - name: Sync fundamentals
+      - name: Sync fundamentals from SEC EDGAR
         run: node scripts/sync_fundamentals.mjs
       - name: Respect Massive request limits before earnings
         run: sleep 65
-      - name: Sync earnings
+      - name: Sync earnings (optional Massive/Benzinga entitlement)
+        continue-on-error: true
         run: node scripts/sync_earnings.mjs
       - name: Respect Massive request limits before news
         run: sleep 65
