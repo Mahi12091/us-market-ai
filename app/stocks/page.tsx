@@ -1,4 +1,69 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
-export const metadata: Metadata={title:'US Stocks',description:'Browse US stocks with market intelligence, technical analysis and quantitative predictions.'};
-export default async function StocksPage(){const supabase=await createClient();const {data:stocks}=await supabase.from('stocks').select('symbol,slug,company_name,sector,exchange').eq('is_active',true).eq('is_indexable',true).order('symbol').limit(3000);return <div className="container"><section className="page-head"><div className="eyebrow">US equities</div><h1>US Stocks</h1><p className="muted">Explore thousands of US-listed companies. Each asset gets a dedicated research page with price, technicals, fundamentals, earnings and AI forecasts.</p></section><div className="grid grid-4">{stocks?.map(s=><a className="panel stock-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-top"><div><div className="ticker">{s.symbol}</div><div className="company">{s.company_name}</div></div><span className="tag">RESEARCH</span></div><div style={{marginTop:20,fontSize:12}}>{s.exchange??'US'} <span className="muted">· {s.sector??'Sector pending'}</span></div></a>)}</div>{!stocks?.length&&<div className="panel stat-card">No stock records yet. The data import will populate this page automatically.</div>}</div>}
+
+export const metadata: Metadata = {
+  title: 'US Stocks',
+  description: 'Browse US-listed stocks with dedicated pages for price, technicals, fundamentals, earnings and AI forecasts.',
+};
+
+export default async function StocksPage() {
+  const supabase = await createClient();
+  const { data: stocks } = await supabase
+    .from('stocks')
+    .select('symbol,slug,company_name,sector,industry,exchange,asset_type')
+    .eq('is_active', true)
+    .eq('is_indexable', true)
+    .eq('asset_type', 'stock')
+    .order('symbol')
+    .limit(3000);
+
+  return (
+    <div className="container stocks-page">
+      <div className="stocks-shell">
+        <section className="page-hero">
+          <div className="page-hero-content">
+            <div className="eyebrow">US Equities · Research Directory</div>
+            <h1>US Stocks</h1>
+            <p>Explore US-listed companies through dedicated research pages with market price, technical indicators, fundamentals, earnings, news and quantitative AI forecasts.</p>
+            <div className="hero-actions">
+              <Link className="blue-btn" href="/markets">Market Overview</Link>
+              <Link className="outline-btn" href="/analysis">Latest AI Analysis</Link>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="stocks-toolbar">
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20 }}>Stock research directory</h2>
+              <p className="muted" style={{ margin: '5px 0 0', fontSize: 11 }}>{stocks?.length ?? 0} indexable stock pages currently available</p>
+            </div>
+            <div className="stocks-filter" aria-label="Stock categories">
+              <span className="active">All stocks</span><span>Technology</span><span>Financials</span><span>Healthcare</span><span>Consumer</span>
+            </div>
+          </div>
+        </section>
+
+        {stocks?.length ? (
+          <div className="stock-directory">
+            {stocks.map((stock) => (
+              <Link className="directory-card" href={`/stocks/${stock.slug}`} key={stock.symbol}>
+                <div className="directory-top">
+                  <div className="ticker-badge">{stock.symbol.length > 6 ? stock.symbol.slice(0, 6) : stock.symbol}</div>
+                  <span className="research-badge">RESEARCH</span>
+                </div>
+                <div className="directory-symbol">{stock.symbol}</div>
+                <div className="directory-name">{stock.company_name}</div>
+                <div className="directory-meta"><span>{stock.exchange ?? 'US'}</span><span>{stock.sector ?? 'Sector pending'}</span>{stock.industry && <span>{stock.industry}</span>}</div>
+                <div className="directory-arrow">→</div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-directory"><strong>No stock records yet</strong><p>The market-data import will populate the research directory automatically.</p></div>
+        )}
+      </div>
+    </div>
+  );
+}
