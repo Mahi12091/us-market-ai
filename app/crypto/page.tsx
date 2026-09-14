@@ -31,10 +31,14 @@ export default function CryptoPage() {
           <h2>Crypto research directory</h2>
           <div className="crypto-table">
             <div>Asset</div><div>Role</div><div>Status</div><div>Research</div>
-            {assets.map(([symbol, name, role, status]) => <div key={symbol}><strong>{symbol} · {name}</strong></div>)}
-            {assets.map(([, , role, status]) => <div key={role}>{role}</div>)}
-            {assets.map(([symbol, , , status]) => <div key={`${symbol}-status`}>{status}</div>)}
-            {assets.map(([symbol]) => <div key={`${symbol}-research`}><Link href="/predictions">Coming soon</Link></div>)}
+            {assets.map(([symbol, name, role, status]) => (
+              <div key={`${symbol}-row`} style={{display:'contents'}}>
+                <div><strong>{symbol} · {name}</strong></div>
+                <div>{role}</div>
+                <div>{status}</div>
+                <div><Link href="/predictions">Coming soon</Link></div>
+              </div>
+            ))}
           </div>
         </section>
 
