@@ -1,4 +1,10 @@
 {
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/market-data/sync",
+      "schedule": "0 21 * * 1-5"
+    }
+  ]
 }
