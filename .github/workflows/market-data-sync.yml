@@ -14,7 +14,7 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -36,3 +36,6 @@ jobs:
 
       - name: Sync Massive directly to Supabase
         run: node scripts/sync_market_data.mjs
+
+      - name: Calculate technical indicators
+        run: node scripts/compute_technical_indicators.mjs
