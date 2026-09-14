@@ -1,0 +1,2 @@
+export const metadata={title:'Disclaimer'};
+export default function Disclaimer(){return <div className="container" style={{padding:'56px 0',maxWidth:900}}><h1>Disclaimer</h1><p className="muted" style={{lineHeight:1.8}}>Predictions are estimates generated from historical and market data. They are not guaranteed and do not constitute financial advice. Market data may be delayed or incomplete. Always independently verify information before making financial decisions.</p></div>}
