@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import './stock-page.css';
 import './market-pages.css';
+import './predictions-page.css';
 import SiteHeader from '@/components/site-header';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://us-market-4msyoejtw-mahi12091s-projects.vercel.app';
