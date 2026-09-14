@@ -1,0 +1,41 @@
+name: Market Data Sync
+
+on:
+  schedule:
+    - cron: '0 21 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sync market data
+        env:
+          SYNC_URL: https://us-market-m5q211z9v-mahi12091s-projects.vercel.app/api/market-data/sync
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not configured in GitHub repository secrets."
+            exit 1
+          fi
+
+          response=$(curl --fail-with-body --silent --show-error \
+            --request GET \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            --header "Accept: application/json" \
+            --write-out '\nHTTP_STATUS:%{http_code}' \
+            "$SYNC_URL")
+
+          echo "$response"
+
+          status=$(printf '%s' "$response" | sed -n 's/^HTTP_STATUS://p')
+          if [ "$status" != "200" ]; then
+            echo "Market data sync failed with HTTP status $status"
+            exit 1
+          fi
