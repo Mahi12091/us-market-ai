@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getDailyAggregates, getLatestTrade, getTicker } from '@/lib/massive';
+import { getDailyAggregates, getLatestTrade } from '@/lib/massive';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 function authorized(request: Request) {
-  const secret = process.env.MARKET_DATA_SYNC_SECRET;
+  const secret = process.env.MARKET_DATA_SYNC_SECRET || process.env.CRON_SECRET;
   if (!secret) return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
 }
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!authorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const supabase = await createClient();
-  const { data: stocks, error } = await supabase.from('stocks').select('id,symbol,slug').eq('is_active', true).limit(100);
+  const { data: stocks, error } = await supabase.from('stocks').select('id,symbol').eq('is_active', true).limit(100);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const to = new Date();
@@ -30,11 +30,10 @@ export async function POST(request: Request) {
         getLatestTrade(stock.symbol),
         getDailyAggregates(stock.symbol, isoDate(from), isoDate(to)),
       ]);
-
+      const bars = aggregates.results ?? [];
       const latest = trade.results;
       if (latest?.p != null) {
-        const previous = (aggregates.results ?? []).slice(-2, -1)[0];
-        const previousClose = previous?.c ?? null;
+        const previousClose = bars.length >= 2 ? bars[bars.length - 2].c : bars.at(-1)?.c ?? null;
         const change = previousClose != null ? latest.p - previousClose : null;
         const changePercent = previousClose ? (change! / previousClose) * 100 : null;
         await supabase.from('latest_quotes').upsert({
@@ -48,8 +47,7 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'stock_id' });
       }
-
-      const rows = (aggregates.results ?? []).map(bar => ({
+      const rows = bars.map(bar => ({
         stock_id: stock.id,
         timeframe: '1d',
         timestamp: new Date(bar.t).toISOString(),
