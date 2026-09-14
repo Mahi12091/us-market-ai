@@ -8,10 +8,13 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
