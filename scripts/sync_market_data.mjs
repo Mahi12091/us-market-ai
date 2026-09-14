@@ -14,28 +14,58 @@ const massive = async (path) => {
   return JSON.parse(body);
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const supabase = async (table, options = {}) => {
-  const url = new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
-  for (const [key, value] of Object.entries(options.params ?? {})) url.searchParams.set(key, value);
-  const response = await fetch(url, {
-    method: options.method ?? 'GET',
-    headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: options.prefer ?? 'return=representation',
-    },
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`Supabase ${response.status} ${table}: ${text}`);
-  return text ? JSON.parse(text) : null;
+  const maxAttempts = options.maxAttempts ?? 4;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const url = new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
+    for (const [key, value] of Object.entries(options.params ?? {})) url.searchParams.set(key, value);
+
+    try {
+      const response = await fetch(url, {
+        method: options.method ?? 'GET',
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+          Prefer: options.prefer ?? 'return=representation',
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      const text = await response.text();
+
+      if (response.ok) return text ? JSON.parse(text) : null;
+
+      lastError = new Error(`Supabase ${response.status} ${table}: ${text}`);
+      const retryable = [408, 409, 429, 500, 502, 503, 504].includes(response.status);
+      if (!retryable || attempt === maxAttempts) throw lastError;
+
+      const delay = Math.min(1500 * 2 ** (attempt - 1), 10000);
+      console.log(`Supabase ${response.status} on ${table}; retry ${attempt + 1}/${maxAttempts} in ${delay}ms`);
+      await sleep(delay);
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const message = lastError.message;
+      const retryableNetwork = /fetch failed|network|socket|timeout|timed out/i.test(message);
+      if (!retryableNetwork || attempt === maxAttempts) throw lastError;
+
+      const delay = Math.min(1500 * 2 ** (attempt - 1), 10000);
+      console.log(`Supabase network error on ${table}; retry ${attempt + 1}/${maxAttempts} in ${delay}ms`);
+      await sleep(delay);
+    }
+  }
+
+  throw lastError ?? new Error(`Supabase ${table} request failed`);
 };
 
 const integerVolume = (value) => Math.round(Number(value ?? 0));
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const to = new Date();
 const from = new Date(to.getTime() - 5 * 24 * 60 * 60 * 1000);
+const HISTORY_BATCH_SIZE = 2;
 
 const stockRows = await supabase('stocks', {
   params: {
@@ -55,7 +85,6 @@ for (const symbol of symbols) {
   }
 
   try {
-    // Use daily aggregates for this first pipeline test. This works with EOD market-data access.
     const aggregateResponse = await massive(
       `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/day/${isoDate(from)}/${isoDate(to)}?adjusted=true&sort=asc&limit=50000`,
     );
@@ -70,7 +99,7 @@ for (const symbol of symbols) {
 
     await supabase('latest_quotes', {
       method: 'POST',
-      prefer: 'resolution=merge-duplicates,return=representation',
+      prefer: 'resolution=merge-duplicates,return=minimal',
       body: [{
         stock_id: stock.id,
         price: latestBar.c,
@@ -100,11 +129,14 @@ for (const symbol of symbols) {
       data_source: 'massive-github-actions',
     }));
 
-    await supabase('price_history', {
-      method: 'POST',
-      prefer: 'resolution=merge-duplicates,return=minimal',
-      body: historyRows,
-    });
+    for (let index = 0; index < historyRows.length; index += HISTORY_BATCH_SIZE) {
+      const batch = historyRows.slice(index, index + HISTORY_BATCH_SIZE);
+      await supabase('price_history', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=minimal',
+        body: batch,
+      });
+    }
 
     results.push({ symbol, ok: true, price: latestBar.c, historyRows: historyRows.length });
   } catch (error) {
