@@ -39,3 +39,6 @@ jobs:
 
       - name: Calculate technical indicators
         run: node scripts/compute_technical_indicators.mjs
+
+      - name: Generate quantitative predictions
+        run: node scripts/generate_predictions.mjs
