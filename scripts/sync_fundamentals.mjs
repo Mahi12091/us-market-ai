@@ -1,7 +1,7 @@
 const required=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
 for(const n of required)if(!process.env[n])throw new Error(`${n} is not configured.`);
 
-const SEC_USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research contact: github.com/Mahi12091/us-market-ai';
+const SEC_USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research bot (GitHub: Mahi12091/us-market-ai)';
 const SEC_BASE='https://data.sec.gov';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
@@ -54,26 +54,26 @@ function annualFacts(facts,tags,units=['USD','USD/shares']){
 function valueAt(facts,tags){return num(latestFact(facts,tags)?.val);}
 function growth(current,previous){return current!=null&&previous!=null&&previous!==0?((current/previous)-1)*100:null;}
 
-const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',limit:5000}});
+const stocks=await db('stocks',{params:{select:'id,symbol,market_cap,asset_type',is_active:'eq.true',limit:5000}});
 const quotes=await db('latest_quotes',{params:{select:'stock_id,price',limit:5000}});
 const priceById=new Map((quotes??[]).map(q=>[Number(q.stock_id),num(q.price)]));
-const tickerData=await sec('/api/xbrl/companyfacts/CIK0000000000.json').catch(()=>null);
 
-// SEC's ticker map gives us the CIK for every listed company. It is a small single request.
-const tickers=await sec('/submissions/CIK0000000000.json').catch(()=>null);
-let map;
+let tickerMap;
 try{
-  const raw=await (async()=>{const r=await fetch('https://www.sec.gov/files/company_tickers.json',{headers:{'User-Agent':SEC_USER_AGENT,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error(`SEC ticker map ${r.status}`);return r.json()})();
-  map=new Map(Object.values(raw).map(x=>[String(x.ticker).toUpperCase(),String(x.cik_str).padStart(10,'0')]));
+  const r=await fetch('https://www.sec.gov/files/company_tickers.json',{headers:{'User-Agent':SEC_USER_AGENT,'Accept-Encoding':'gzip, deflate'}});
+  if(!r.ok)throw new Error(`SEC ticker map ${r.status}`);
+  const raw=await r.json();
+  tickerMap=new Map(Object.values(raw).map(x=>[String(x.ticker).toUpperCase(),String(x.cik_str).padStart(10,'0')]));
 }catch(e){throw new Error(`Unable to load SEC ticker map: ${e.message}`)}
-void tickerData; void tickers;
 
-const rows=[];const failures=[];const eligible=(stocks??[]).filter(s=>s.symbol&&!['crypto'].includes(String(s.asset_type||'').toLowerCase()));
+const rows=[];const failures=[];
+const eligible=(stocks??[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
 let completed=0;
+
 for(let offset=0;offset<eligible.length;offset+=5){
   const batch=eligible.slice(offset,offset+5);
   const results=await Promise.all(batch.map(async stock=>{
-    const cik=map.get(String(stock.symbol).toUpperCase());
+    const cik=tickerMap.get(String(stock.symbol).toUpperCase());
     if(!cik)return {stock,skip:'no-sec-cik'};
     try{
       const facts=await sec(`/api/xbrl/companyfacts/CIK${cik}.json`);
@@ -86,7 +86,6 @@ for(let offset=0;offset<eligible.length;offset+=5){
       const op=valueAt(facts,['OperatingIncomeLoss']);
       const assets=valueAt(facts,['Assets']);
       const equity=valueAt(facts,['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest']);
-      const cash=valueAt(facts,['CashAndCashEquivalentsAtCarryingValue']);
       const debtCurrent=valueAt(facts,['LongTermDebtCurrent','ShortTermBorrowings']);
       const debtNonCurrent=valueAt(facts,['LongTermDebtNoncurrent','LongTermDebt']);
       const cfo=valueAt(facts,['NetCashProvidedByUsedInOperatingActivities']);
@@ -99,7 +98,7 @@ for(let offset=0;offset<eligible.length;offset+=5){
       const pe=price!=null&&eps!=null&&eps>0?price/eps:null;
       const ps=marketCap!=null&&revenue!=null&&revenue>0?marketCap/revenue:null;
       const pb=marketCap!=null&&equity!=null&&equity>0?marketCap/equity:null;
-      const de=debt!=null&&equity!=null&&equity!==0?debt/equity:null;
+      const de=equity!=null&&equity!==0?debt/equity:null;
       const roe=net!=null&&equity!=null&&equity!==0?(net/equity)*100:null;
       const roa=net!=null&&assets!=null&&assets!==0?(net/assets)*100:null;
       const reportDate=revenueFacts[0]?.end||epsFacts[0]?.end||null;
@@ -115,4 +114,4 @@ for(let offset=0;offset<eligible.length;offset+=5){
 for(const row of rows){
   await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
-console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR',failures:failures.slice(0,20)},null,2));
+console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,processed:completed,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR',failures:failures.slice(0,20)},null,2));
