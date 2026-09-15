@@ -115,14 +115,17 @@ if (!stocks.length) throw new Error('No active stocks found in Supabase.');
 const stockMap = new Map(stocks.map((stock) => [stock.symbol, stock]));
 console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
-// EOD-only source: start from yesterday and walk backwards. We collect 30
-// completed sessions so RSI-14, MACD, ATR and Bollinger calculations have
-// enough history. Longer SMAs remain null until a larger history backfill.
+// EOD-only source: start from the previous calendar date and walk backwards.
+// Massive can temporarily return 403 for the current market date before its
+// EOD dataset is published. That date is explicitly skipped rather than being
+// treated as a fatal error; the wider candidate window ensures we still collect
+// the requested number of completed trading sessions.
 const groupedBySymbol = new Map();
 const completedDates = [];
+const skippedUnavailableDates = [];
 const today = new Date();
 const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
-const MAX_CANDIDATE_DATES = 45;
+const MAX_CANDIDATE_DATES = 60;
 const TARGET_SESSIONS = 30;
 
 for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length < TARGET_SESSIONS; candidate += 1) {
@@ -153,7 +156,14 @@ for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`Failed grouped data for ${date}: ${message}`);
+    const unavailableBeforeEod = /NOT_AUTHORIZED/i.test(message) && /today'?s data before end of day/i.test(message);
+
+    if (unavailableBeforeEod) {
+      skippedUnavailableDates.push(date);
+      console.log(`Massive EOD data is not published yet for ${date}; skipping this date and continuing backwards.`);
+    } else {
+      console.error(`Failed grouped data for ${date}: ${message}`);
+    }
   }
 
   cursor.setUTCDate(cursor.getUTCDate() - 1);
@@ -239,6 +249,7 @@ console.log(JSON.stringify({
   mode: 'github-direct-grouped-market-data',
   activeStocks: stocks.length,
   dates,
+  skippedUnavailableDates,
   tested: results.length,
   synced,
   failed,
