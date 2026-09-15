@@ -19,9 +19,6 @@ jobs:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
-      ARTICLE_BATCH_SIZE: '25'
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
     steps:
       - name: Checkout repository
@@ -39,17 +36,8 @@ jobs:
       - name: Evaluate mature predictions
         run: node scripts/evaluate_predictions.mjs
       - name: Sync fundamentals from SEC EDGAR
-        run: node scripts/sync_fundamentals.mjs
-      - name: Respect Massive request limits before earnings
-        run: sleep 65
-      - name: Sync earnings (optional Massive/Benzinga entitlement)
-        continue-on-error: true
-        run: node scripts/sync_earnings.mjs
-      - name: Respect Massive request limits before news
-        run: sleep 65
+        run: node scripts/sync_fundamentals_v2.mjs
       - name: Sync news and sentiment
         run: node scripts/sync_news.mjs
       - name: Generate quantitative predictions
         run: node scripts/generate_predictions.mjs
-      - name: Generate AI market analysis
-        run: node scripts/generate_ai_articles.mjs
