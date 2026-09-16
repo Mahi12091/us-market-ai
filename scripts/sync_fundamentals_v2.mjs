@@ -5,7 +5,8 @@ const SEC='https://data.sec.gov';
 const CIK_FALLBACK='https://raw.githubusercontent.com/jadchaar/sec-cik-mapper/main/mappings/stocks/ticker_to_cik.json';
 const CONTACT_EMAIL=process.env.SEC_CONTACT_EMAIL||process.env.SEC_EMAIL||'';
 const USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research bot';
-const DECLARED_USER_AGENT=CONTACT_EMAIL?`${USER_AGENT} ${CONTACT_EMAIL}`:USER_AGENT;
+if(!CONTACT_EMAIL) throw new Error('SEC_CONTACT_EMAIL is not configured. Add a contact email to GitHub repository secrets so SEC requests use a declared User-Agent.');
+const DECLARED_USER_AGENT=`${USER_AGENT} ${CONTACT_EMAIL}`;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 async function getJson(url,headers={}){
@@ -71,8 +72,8 @@ try{
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
 const rows=[];const failures=[];let processed=0;
 
-// SEC recommends declaring an identifiable User-Agent. Keep company-facts
-// requests sequential and comfortably below the published access limit.
+// SEC asks automated clients to identify themselves with a declared User-Agent.
+// Requests are deliberately sequential and throttled below the SEC's published limit.
 for(const stock of eligible){
   processed++;
   const symbol=String(stock.symbol).toUpperCase();
@@ -118,8 +119,8 @@ for(const row of rows){
   await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
 
-console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,processed,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR companyfacts',mapping_source:'GitHub fallback',user_agent_declared:Boolean(CONTACT_EMAIL),failures:failures.slice(0,20)},null,2));
+console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,processed,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR companyfacts',mapping_source:'GitHub fallback',user_agent_declared:true,failures:failures.slice(0,20)},null,2));
 
-// Fundamentals are an enrichment feed. A temporary SEC block must not stop
+// Fundamentals are enrichment. A temporary SEC block should not stop
 // market data, technicals, news, or predictions from completing.
 if(rows.length===0) console.warn('No SEC fundamentals were written; continuing without failing the workflow.');
