@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 export type ChartPoint = { time: string; close: number };
-
 type Props = { data: ChartPoint[] };
 type Range = '1Y' | '6M' | '3M';
 
@@ -25,22 +24,29 @@ export default function PriceChart({ data }: Props) {
     return () => observer.disconnect();
   }, []);
 
-  // The range controls live in the server-rendered chart header. Keep them as the
-  // single visible control row and let this client chart respond to their clicks.
   useEffect(() => {
     const panel = wrapRef.current?.closest('.chart-panel');
     if (!panel) return;
+    const controls = panel.querySelector<HTMLElement>('.range-tabs');
     const buttons = Array.from(panel.querySelectorAll<HTMLElement>('.range-tabs span'));
-    const onClick = (event: Event) => {
-      const target = event.currentTarget as HTMLElement;
+    if (controls) {
+      controls.style.display = 'flex';
+      controls.style.cursor = 'pointer';
+    }
+    const activate = (target: HTMLElement) => {
       const next = target.textContent?.trim() as Range;
       if (next !== '1Y' && next !== '6M' && next !== '3M') return;
       setRange(next);
       setHover(null);
       buttons.forEach(button => button.classList.toggle('active', button === target));
     };
-    buttons.forEach(button => button.addEventListener('click', onClick));
-    return () => buttons.forEach(button => button.removeEventListener('click', onClick));
+    const handlers = buttons.map(button => {
+      const handler = () => activate(button);
+      button.style.cursor = 'pointer';
+      button.addEventListener('click', handler);
+      return [button, handler] as const;
+    });
+    return () => handlers.forEach(([button, handler]) => button.removeEventListener('click', handler));
   }, [data]);
 
   const points = useMemo(() => {
