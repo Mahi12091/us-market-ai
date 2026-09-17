@@ -49,6 +49,101 @@ export default function PriceChart({ data }: Props) {
     return () => handlers.forEach(([button, handler]) => button.removeEventListener('click', handler));
   }, [data]);
 
+  useEffect(() => {
+    const root = wrapRef.current;
+    if (!root || !data.length) return;
+    const page = root.closest('.stock-page');
+    const hero = page?.querySelector<HTMLElement>('.stock-hero');
+    const quoteBlock = page?.querySelector<HTMLElement>('.quote-block');
+    const metricStrip = page?.querySelector<HTMLElement>('.metric-strip');
+    if (!page || !hero || !quoteBlock || !metricStrip) return;
+
+    const old = page.querySelector('.stock-performance-inline');
+    old?.remove();
+
+    const metricValues = Array.from(metricStrip.children).map(node => ({
+      label: node.querySelector('span')?.textContent?.trim() ?? '',
+      value: node.querySelector('b')?.textContent?.trim() ?? '—',
+    }));
+    const metric = (label: string) => metricValues.find(item => item.label === label)?.value ?? '—';
+    const values = data.map(point => Number(point.close)).filter(Number.isFinite);
+    if (!values.length) return;
+
+    const low52 = Math.min(...values);
+    const high52 = Math.max(...values);
+    const first = values[0];
+    const last = values[values.length - 1];
+    const oneYearChange = first ? ((last - first) / first) * 100 : 0;
+    const oneYearLabel = `${oneYearChange >= 0 ? '+' : ''}${oneYearChange.toFixed(2)}%`;
+
+    const section = document.createElement('section');
+    section.className = 'stock-performance-inline';
+    section.innerHTML = `
+      <div class="stock-performance-head">
+        <div><h2>Performance</h2><span class="stock-performance-info">i</span></div>
+        <small>US market data · Eastern Time (ET)</small>
+      </div>
+      <div class="stock-performance-ranges">
+        <div class="performance-range-card">
+          <div><span>Today's Low</span><b>${metric('Day Low')}</b></div>
+          <div class="performance-range-right"><span>Today's High</span><b>${metric('Day High')}</b></div>
+          <div class="performance-range-track"><i></i></div>
+        </div>
+        <div class="performance-range-card">
+          <div><span>52 Week Low</span><b>${moneyValue(low52)}</b></div>
+          <div class="performance-range-right"><span>52 Week High</span><b>${moneyValue(high52)}</b></div>
+          <div class="performance-range-track"><i></i></div>
+        </div>
+      </div>
+      <div class="stock-performance-grid">
+        <div><span>Open</span><b>${metric('Open')}</b></div>
+        <div><span>Prev. Close</span><b>${metric('Prev. Close')}</b></div>
+        <div><span>Volume</span><b>${metric('Volume')}</b></div>
+        <div><span>Market Cap</span><b>${metric('Market Cap')}</b></div>
+        <div><span>1Y Change</span><b class="${oneYearChange >= 0 ? 'positive' : 'negative'}">${oneYearLabel}</b></div>
+        <div><span>Price Status</span><b>Verified</b></div>
+      </div>
+    `;
+
+    const styleId = 'stock-performance-inline-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .stock-performance-inline{margin:0 0 22px;padding:24px 0 0;border-top:1px solid #e5edf7}
+        .stock-performance-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:20px}
+        .stock-performance-head>div{display:flex;align-items:center;gap:9px}
+        .stock-performance-head h2{margin:0;font-size:24px;line-height:1.1;color:#10213b}
+        .stock-performance-head small{font-size:10px;color:#64748b;font-weight:650}
+        .stock-performance-info{width:20px;height:20px;border:2px solid #9aa8ba;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#6d7c8e}
+        .stock-performance-ranges{display:grid;gap:22px;margin-bottom:22px}
+        .performance-range-card{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-bottom:17px}
+        .performance-range-card span,.stock-performance-grid span{display:block;color:#64748b;font-size:12px;font-weight:600;margin-bottom:6px}
+        .performance-range-card b,.stock-performance-grid b{display:block;color:#10213b;font-size:19px;line-height:1.15}
+        .performance-range-right{text-align:right}
+        .performance-range-track{position:absolute;left:0;right:0;bottom:0;height:8px;border-radius:999px;background:#e8edf3}
+        .performance-range-track i{position:absolute;right:3%;top:-5px;width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:11px solid #10213b}
+        .stock-performance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 18px;padding-top:2px}
+        .stock-performance-grid b{font-size:16px}
+        @media (max-width:560px){.stock-performance-inline{padding-top:20px}.stock-performance-head{align-items:flex-start;flex-direction:column;gap:6px}.stock-performance-head h2{font-size:22px}.stock-performance-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 12px}.stock-performance-grid span{font-size:10px}.stock-performance-grid b{font-size:14px}.performance-range-card b{font-size:17px}}
+      `;
+      document.head.appendChild(style);
+    }
+
+    hero.insertAdjacentElement('afterend', section);
+
+    const updated = quoteBlock.querySelector('small');
+    if (updated?.textContent?.startsWith('Updated ')) {
+      const raw = updated.textContent.replace(/^Updated\s+/, '').trim();
+      const parsed = new Date(`${raw} UTC`);
+      if (!Number.isNaN(parsed.getTime())) {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).formatToParts(parsed);
+        const get = (type: string) => parts.find(part => part.type === type)?.value ?? '';
+        updated.textContent = `As of ${get('month')} ${get('day')}, ${get('year')} · ${get('hour')}:${get('minute')} ${get('dayPeriod')} ${get('timeZoneName')}`;
+      }
+    }
+  }, [data]);
+
   const points = useMemo(() => {
     const count = range === '3M' ? 63 : range === '6M' ? 126 : 250;
     return data.slice(-count);
@@ -99,4 +194,8 @@ export default function PriceChart({ data }: Props) {
       </div>
     </div>
   );
+}
+
+function moneyValue(value: number) {
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
