@@ -42,7 +42,6 @@ export default function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <Link className="search-link" href="/stocks"><span>Browse stocks</span></Link>
           <button className="mobile-menu" type="button" onClick={() => setOpen(open === 'mobile' ? null : 'mobile')} aria-label="Open navigation" aria-expanded={open === 'mobile'}>☰</button>
         </div>
       </div>
