@@ -9,14 +9,14 @@ import './blog/article.css';
 import './ui-polish.css';
 import SiteHeader from '@/components/site-header';
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://us-market-4msyoejtw-mahi12091s-projects.vercel.app';
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
   title: { default: 'US Market AI', template: '%s | US Market AI' },
   description: 'US stocks and crypto market intelligence, technical analysis and quantitative predictions.',
   robots: { index: true, follow: true },
-  openGraph: { title: 'US Market AI', description: 'US market intelligence, AI predictions and research.', type: 'website', url: siteUrl },
+  openGraph: { title: 'US Market AI', description: 'US market intelligence, quantitative predictions and research.', type: 'website', ...(siteUrl ? { url: siteUrl } : {}) },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
