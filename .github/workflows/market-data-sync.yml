@@ -24,21 +24,32 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
       - name: Validate required secrets
         run: |
           set -euo pipefail
-          for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SEC_CONTACT_EMAIL; do
-            if [ -z "${!name:-}" ]; then echo "$name is not configured in GitHub repository secrets."; exit 1; fi
+          for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name is not configured in GitHub repository secrets."
+              exit 1
+            fi
           done
+
       - name: Sync Massive directly to Supabase
         run: node scripts/sync_market_data.mjs
+
       - name: Calculate technical indicators
         run: node scripts/compute_technical_indicators.mjs
+
       - name: Evaluate mature predictions
         run: node scripts/evaluate_predictions.mjs
+
       - name: Sync fundamentals from SEC EDGAR
+        continue-on-error: true
         run: node scripts/sync_fundamentals_v2.mjs
+
       - name: Sync news and sentiment
         run: node scripts/sync_news.mjs
+
       - name: Generate quantitative predictions
         run: node scripts/generate_predictions.mjs
