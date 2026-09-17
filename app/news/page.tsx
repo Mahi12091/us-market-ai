@@ -14,6 +14,10 @@ const feeds = [
   ['Crypto','DIGITAL ASSETS','Crypto coverage remains a separate data pipeline.'],
 ];
 
+const date = (v: string | null | undefined) => v
+  ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(v))
+  : 'Latest';
+
 export default async function News() {
   const supabase = await createClient();
   const { data: news } = await supabase.from('news').select('id,stock_id,title,summary,url,source,published_at,sentiment,sentiment_score').order('published_at',{ascending:false,nullsFirst:false}).limit(40);
@@ -23,7 +27,6 @@ export default async function News() {
   const stockMap = new Map((stocks ?? []).map(s=>[s.id,s]));
   const latest = items.slice(0,8);
   const featured = latest[0];
-  const date = (v:string|null|undefined) => v ? new Date(v).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : 'Latest';
 
   return <div className="container news-page"><section className="news-hero"><div className="news-hero-copy"><div className="eyebrow">News intelligence</div><h1>Market News</h1><p>Verified stories linked to tracked US stocks, with source, publication time and sentiment stored by the market-data workflow.</p><div className="news-actions"><a className="blue-btn" href="#latest">Latest Stories</a><a className="outline-btn" href="#topics">Browse Topics</a></div></div><div className="news-hero-art" aria-hidden="true"><div className="news-terminal"><span>US MARKET AI</span><b>NEWS</b><i>VERIFIED FEED</i></div><div className="news-line line-one"/><div className="news-line line-two"/><div className="news-line line-three"/></div></section>
 
