@@ -39,7 +39,7 @@ export default async function Home() {
   const { data: newsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] };
   const newsStockMap = new Map((newsStocks ?? []).map(s => [s.id, s]));
 
-  const sectorMap = new Map<string, typeof stocks>();
+  const sectorMap = new Map<string, NonNullable<typeof stocks>>();
   for (const stock of stocks ?? []) {
     const sector = prettySector(stock.sector);
     const bucket = sectorMap.get(sector) ?? [];
