@@ -7,6 +7,7 @@ import './info-pages.css';
 import './blog/blog.css';
 import './blog/article.css';
 import './ui-polish.css';
+import './home-premium.css';
 import SiteHeader from '@/components/site-header';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
