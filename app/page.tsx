@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import LongTermResearchSection from '@/components/long-term-research-section';
 
 export const revalidate = 300;
 
@@ -66,7 +67,7 @@ export default async function Home() {
         </div>
         <div className="hero-dashboard" aria-label="US Market AI market dashboard preview">
           <div className="dashboard-top"><span className="live-dot">● LIVE MARKET</span><small>Market intelligence</small></div>
-          <div className="dashboard-main"><div><small>S&P 500</small><strong>{formatPrice(marketBySymbol.get('SPY')?.quote?.price)}</strong><em>{formatChange(marketBySymbol.get('SPY')?.quote?.change_percent)}</em></div><div className="fake-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          <div className="dashboard-main"><div><small>S&P 500</small><strong>{formatPrice(marketBySymbol.get('SPY')?.quote?.price)}</strong><em>{formatChange(marketBySymbol.get('SPY')?.quote?.change_percent)}</em></div><div className="fake-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
           <div className="dashboard-indexes">{Object.entries(marketLabels).map(([symbol, name]) => <div key={symbol}><span>{name}</span><b>{formatPrice(marketBySymbol.get(symbol)?.quote?.price)}</b><em>{formatChange(marketBySymbol.get(symbol)?.quote?.change_percent)}</em></div>)}</div>
           <div className="dashboard-note">Markets move fast. <b>Stay ahead of the signal.</b></div>
         </div>
@@ -75,6 +76,8 @@ export default async function Home() {
       <section className="section category-section"><div className="section-head"><div><div className="eyebrow">EXPLORE THE PLATFORM</div><h2>Everything you need, in one place.</h2><p className="muted">Browse every major research area without hunting through the menu.</p></div></div><div className="category-grid">{categoryTiles.map(([name, desc, href, icon]) => <a className="category-card" href={href} key={href + name}><span className="category-icon">{icon}</span><div><h3>{name}</h3><p>{desc}</p><b>Explore →</b></div></a>)}</div></section>
 
       <section className="section popular-section"><div className="section-head"><div><div className="eyebrow">MOST WATCHED</div><h2>Trending US stocks</h2><p className="muted">A quick view of the largest tracked US companies.</p></div><a href="/stocks">View all stocks →</a></div><div className="stock-list-grid">{popularStocks.map(s => <a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price != null ? `$${formatPrice(quoteMap.get(s.id)?.price)}` : '—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>
+
+      <LongTermResearchSection stocks={stocks ?? []} />
 
       {sectorSections.map(([sector, items]) => <section className="section sector-section" key={sector}><div className="section-head"><div><div className="eyebrow">STOCK CATEGORY</div><h2>{sector}</h2><p className="muted">Top tracked companies in {sector.toLowerCase()}.</p></div><a href={`/stocks?sector=${encodeURIComponent(sector)}`}>View more →</a></div><div className="stock-list-grid sector-grid">{items.slice(0,6).map(s => <a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price != null ? `$${formatPrice(quoteMap.get(s.id)?.price)}` : '—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>)}
 
