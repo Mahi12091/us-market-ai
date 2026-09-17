@@ -58,8 +58,7 @@ export default function PriceChart({ data }: Props) {
     const metricStrip = page?.querySelector<HTMLElement>('.metric-strip');
     if (!page || !hero || !quoteBlock || !metricStrip) return;
 
-    const old = page.querySelector('.stock-performance-inline');
-    old?.remove();
+    page.querySelector('.stock-performance-inline')?.remove();
 
     const metricValues = Array.from(metricStrip.children).map(node => ({
       label: node.querySelector('span')?.textContent?.trim() ?? '',
@@ -90,8 +89,8 @@ export default function PriceChart({ data }: Props) {
           <div class="performance-range-track"><i></i></div>
         </div>
         <div class="performance-range-card">
-          <div><span>52 Week Low</span><b>${moneyValue(low52)}</b></div>
-          <div class="performance-range-right"><span>52 Week High</span><b>${moneyValue(high52)}</b></div>
+          <div><span>52 Week Low (Close)</span><b>${moneyValue(low52)}</b></div>
+          <div class="performance-range-right"><span>52 Week High (Close)</span><b>${moneyValue(high52)}</b></div>
           <div class="performance-range-track"><i></i></div>
         </div>
       </div>
@@ -130,6 +129,7 @@ export default function PriceChart({ data }: Props) {
       document.head.appendChild(style);
     }
 
+    metricStrip.style.display = 'none';
     hero.insertAdjacentElement('afterend', section);
 
     const updated = quoteBlock.querySelector('small');
