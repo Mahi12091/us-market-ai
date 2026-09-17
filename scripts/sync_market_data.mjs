@@ -7,9 +7,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const integerVolume = (value) => Math.round(Number(value ?? 0));
 
-// Massive Basic currently allows 5 REST requests/minute. Grouped daily
-// summaries return all US stocks for one date in one request, so we can sync
-// the entire active universe without making one request per ticker.
+// Stocks Basic is limited to 5 API calls/minute. A single ticker aggregate
+// request can return an entire year of daily bars, so one request per active
+// stock is much more efficient than one request per calendar day.
 const MASSIVE_REQUEST_GAP_MS = 13_000;
 let lastMassiveRequestAt = 0;
 
@@ -111,83 +111,30 @@ const stocks = (stockRows ?? [])
   .map((row) => ({ id: Number(row.id), symbol: String(row.symbol).toUpperCase() }));
 
 if (!stocks.length) throw new Error('No active stocks found in Supabase.');
-
-const stockMap = new Map(stocks.map((stock) => [stock.symbol, stock]));
 console.log(`Loaded ${stocks.length} active stocks from Supabase.`);
 
-// EOD-only source: start from the previous calendar date and walk backwards.
-// Massive can temporarily return 403 for the current market date before its
-// EOD dataset is published. That date is explicitly skipped rather than being
-// treated as a fatal error; the wider candidate window ensures we still collect
-// the requested number of completed trading sessions.
-const groupedBySymbol = new Map();
-const completedDates = [];
-const skippedUnavailableDates = [];
+// Pull roughly one full market year. This gives SMA 200 and long enough
+// history for the stock page without exceeding the Basic plan's request rate.
 const today = new Date();
-const cursor = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
-const MAX_CANDIDATE_DATES = 60;
-const TARGET_SESSIONS = 30;
+const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
+const from = new Date(to);
+from.setUTCDate(from.getUTCDate() - 400);
+const fromDate = isoDate(from);
+const toDate = isoDate(to);
 
-for (let candidate = 0; candidate < MAX_CANDIDATE_DATES && completedDates.length < TARGET_SESSIONS; candidate += 1) {
-  const date = isoDate(cursor);
-  console.log(`Fetching grouped US stock data for completed date ${date}.`);
-
-  try {
-    const response = await massive(`/v2/aggs/grouped/locale/us/market/stocks/${date}?adjusted=true`);
-    const rows = Array.isArray(response.results) ? response.results : [];
-    let matchedRows = 0;
-
-    for (const bar of rows) {
-      const symbol = String(bar.T ?? bar.ticker ?? '').toUpperCase();
-      if (!symbol || !stockMap.has(symbol)) continue;
-      if (!Number.isFinite(Number(bar.c)) || !Number.isFinite(Number(bar.t))) continue;
-
-      const entry = groupedBySymbol.get(symbol) ?? [];
-      entry.push({ ...bar, date });
-      groupedBySymbol.set(symbol, entry);
-      matchedRows += 1;
-    }
-
-    if (matchedRows > 0) {
-      completedDates.push(date);
-      console.log(`Completed trading date ${date}: ${matchedRows} active-stock rows matched.`);
-    } else {
-      console.log(`No active-stock rows for ${date}; treating it as a non-trading/empty date.`);
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const unavailableBeforeEod = /NOT_AUTHORIZED/i.test(message) && /today'?s data before end of day/i.test(message);
-
-    if (unavailableBeforeEod) {
-      skippedUnavailableDates.push(date);
-      console.log(`Massive EOD data is not published yet for ${date}; skipping this date and continuing backwards.`);
-    } else {
-      console.error(`Failed grouped data for ${date}: ${message}`);
-    }
-  }
-
-  cursor.setUTCDate(cursor.getUTCDate() - 1);
-}
-
-if (completedDates.length < TARGET_SESSIONS || !groupedBySymbol.size) {
-  throw new Error(`Could not collect ${TARGET_SESSIONS} completed trading sessions. Found ${completedDates.length}: ${completedDates.join(', ')}`);
-}
-
-const dates = [...completedDates].reverse();
 const results = [];
-const HISTORY_BATCH_SIZE = 50;
+const HISTORY_BATCH_SIZE = 100;
 
 for (const stock of stocks) {
-  const bars = (groupedBySymbol.get(stock.symbol) ?? [])
-    .filter((bar) => Number.isFinite(Number(bar.c)) && Number.isFinite(Number(bar.t)))
-    .sort((a, b) => Number(a.t) - Number(b.t));
-
-  if (!bars.length) {
-    results.push({ symbol: stock.symbol, ok: false, error: 'No grouped market data returned' });
-    continue;
-  }
-
   try {
+    console.log(`Fetching ${stock.symbol} daily history ${fromDate} → ${toDate}.`);
+    const response = await massive(`/v2/aggs/ticker/${encodeURIComponent(stock.symbol)}/range/1/day/${fromDate}/${toDate}?adjusted=true&sort=asc&limit=50000`);
+    const bars = (Array.isArray(response.results) ? response.results : [])
+      .filter((bar) => Number.isFinite(Number(bar.c)) && Number.isFinite(Number(bar.t)))
+      .sort((a, b) => Number(a.t) - Number(b.t));
+
+    if (!bars.length) throw new Error('No daily aggregate data returned');
+
     const latestBar = bars.at(-1);
     const previousClose = bars.length >= 2 ? Number(bars.at(-2).c) : Number(latestBar.c);
     const change = Number(latestBar.c) - previousClose;
@@ -239,6 +186,7 @@ for (const stock of stocks) {
     results.push({ symbol: stock.symbol, ok: true, price: Number(latestBar.c), historyRows: historyRows.length });
   } catch (error) {
     results.push({ symbol: stock.symbol, ok: false, error: error instanceof Error ? error.message : String(error) });
+    console.error(`Failed ${stock.symbol}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -246,14 +194,13 @@ const synced = results.filter((result) => result.ok).length;
 const failed = results.length - synced;
 
 console.log(JSON.stringify({
-  mode: 'github-direct-grouped-market-data',
+  mode: 'ticker-range-production-market-data',
   activeStocks: stocks.length,
-  dates,
-  skippedUnavailableDates,
+  fromDate,
+  toDate,
   tested: results.length,
   synced,
   failed,
-  massiveRequests: completedDates.length,
   results,
 }, null, 2));
 
