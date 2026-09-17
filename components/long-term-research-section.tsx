@@ -36,11 +36,13 @@ export default function LongTermResearchSection({ stocks }: { stocks: ResearchSt
             return stock.sector === category.name;
           }).slice(0, 4);
 
+          const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
+
           return (
             <div className="long-term-category" key={category.name}>
               <div className="long-term-category-head">
                 <div><span className="eyebrow">SECTOR RESEARCH</span><h3>{category.name}</h3><p>{category.description}</p></div>
-                <a href={`/stocks?sector=${encodeURIComponent(category.name)}`}>More →</a>
+                <a href={sectorHref}>More →</a>
               </div>
               <div className="long-term-article-grid">
                 {(items.length ? items : [{ symbol: 'STOCK', slug: '', company_name: 'Long-term research article', sector: category.name }]).map((stock, index) => (
