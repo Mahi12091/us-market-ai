@@ -5,13 +5,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 export type ChartPoint = { time: string; close: number };
 
 type Props = { data: ChartPoint[] };
+type Range = '1Y' | '6M' | '3M';
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
 export default function PriceChart({ data }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
-  const [range, setRange] = useState<'1Y' | '6M' | '3M'>('1Y');
+  const [range, setRange] = useState<Range>('1Y');
   const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
@@ -23,6 +24,24 @@ export default function PriceChart({ data }: Props) {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // The range controls live in the server-rendered chart header. Keep them as the
+  // single visible control row and let this client chart respond to their clicks.
+  useEffect(() => {
+    const panel = wrapRef.current?.closest('.chart-panel');
+    if (!panel) return;
+    const buttons = Array.from(panel.querySelectorAll<HTMLElement>('.range-tabs span'));
+    const onClick = (event: Event) => {
+      const target = event.currentTarget as HTMLElement;
+      const next = target.textContent?.trim() as Range;
+      if (next !== '1Y' && next !== '6M' && next !== '3M') return;
+      setRange(next);
+      setHover(null);
+      buttons.forEach(button => button.classList.toggle('active', button === target));
+    };
+    buttons.forEach(button => button.addEventListener('click', onClick));
+    return () => buttons.forEach(button => button.removeEventListener('click', onClick));
+  }, [data]);
 
   const points = useMemo(() => {
     const count = range === '3M' ? 63 : range === '6M' ? 126 : 250;
@@ -47,7 +66,6 @@ export default function PriceChart({ data }: Props) {
   const y = (v: number) => pad.top + ((yMax - v) / (yMax - yMin)) * innerH;
   const line = points.map((p, i) => `${x(i).toFixed(1)},${y(Number(p.close)).toFixed(1)}`).join(' ');
   const area = `${pad.left},${pad.top + innerH} ${line} ${pad.left + innerW},${pad.top + innerH}`;
-  const last = points[points.length - 1];
   const selected = hover == null ? null : points[hover];
   const selectedX = hover == null ? 0 : x(hover);
   const selectedY = hover == null ? 0 : y(Number(selected?.close ?? 0));
@@ -63,12 +81,6 @@ export default function PriceChart({ data }: Props) {
 
   return (
     <div className="price-chart-native">
-      <div className="chart-toolbar">
-        <div className="chart-range-tabs" role="tablist" aria-label="Chart range">
-          {(['1Y', '6M', '3M'] as const).map(r => <button key={r} type="button" className={range === r ? 'active' : ''} onClick={() => { setRange(r); setHover(null); }}>{r}</button>)}
-        </div>
-        <span className="chart-last">Last: ${Number(last.close).toFixed(2)}</span>
-      </div>
       <div ref={wrapRef} className="chart-svg-wrap" onPointerMove={e => handlePointer(e.clientX)} onPointerLeave={() => setHover(null)}>
         <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Interactive historical stock price chart">
           <defs><linearGradient id="nativePriceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1769e0" stopOpacity=".22"/><stop offset="100%" stopColor="#1769e0" stopOpacity="0"/></linearGradient></defs>
@@ -79,7 +91,6 @@ export default function PriceChart({ data }: Props) {
           {hover != null && <><line x1={selectedX} x2={selectedX} y1={pad.top} y2={pad.top + innerH} stroke="#94a3b8" strokeDasharray="3 3"/><circle cx={selectedX} cy={selectedY} r="4.5" fill="#1769e0" stroke="#fff" strokeWidth="2"/><g transform={`translate(${clamp(selectedX + 10, 4, width - 154)},${clamp(selectedY - 48, 4, height - 58)})`}><rect width="150" height="54" rx="8" fill="#0b1930"/><text x="10" y="20" fontSize="10" fill="#cbd5e1">{selected?.time}</text><text x="10" y="40" fontSize="14" fontWeight="700" fill="#fff">${Number(selected?.close ?? 0).toFixed(2)}</text></g></>}
         </svg>
       </div>
-      <div className="chart-hint">Move your finger or mouse across the chart to inspect price · {points.length} sessions</div>
     </div>
   );
 }
