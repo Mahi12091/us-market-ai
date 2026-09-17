@@ -1,6 +1,9 @@
 name: Market Data Sync
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 21 * * 1-5'
   workflow_dispatch:
