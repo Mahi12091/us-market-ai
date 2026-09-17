@@ -52,8 +52,9 @@ export default async function BlogPage() {
           {categories.map((category) => {
             const items = (stocks ?? []).filter((stock) => categoryMatch(category.name, stock.sector)).slice(0, 6);
             const cards = items.length ? items : Array.from({ length: 4 }, (_, index) => ({ symbol: 'STOCK', slug: '', company_name: `${category.name} research article ${index + 1}`, sector: category.name, industry: null }));
+            const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
             return <section className="blog-category" key={category.name}>
-              <div className="blog-category-head"><div><div className="eyebrow">SECTOR RESEARCH</div><h2>{category.name}</h2><p>{category.description}</p></div><a href={`/stocks?sector=${encodeURIComponent(category.name)}`}>Browse sector →</a></div>
+              <div className="blog-category-head"><div><div className="eyebrow">SECTOR RESEARCH</div><h2>{category.name}</h2><p>{category.description}</p></div><a href={sectorHref}>Browse sector →</a></div>
               <div className="blog-article-grid">
                 {cards.map((stock, index) => <a className="blog-article-card" href={stock.slug ? `/blog/${stock.slug}-stock-price-prediction-2026-2050` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
                   <div className="blog-article-thumbnail"><span>THUMBNAIL<br/>PLACEHOLDER</span></div>
