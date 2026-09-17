@@ -2,7 +2,6 @@ import type { MetadataRoute } from 'next';
 import { createClient } from '@/lib/supabase/server';
 
 const base = process.env.NEXT_PUBLIC_SITE_URL;
-const forecastSuffix = '-stock-price-prediction-2026-2050';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = await createClient();
@@ -13,9 +12,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: base, changeFrequency: 'hourly' as const, priority: 1 },
     { url: `${base}/stocks`, changeFrequency: 'hourly' as const, priority: .9 },
     { url: `${base}/blog`, changeFrequency: 'daily' as const, priority: .9 },
-    ...stocks.flatMap((stock) => [
-      { url: `${base}/stocks/${stock.slug}`, lastModified: stock.updated_at, changeFrequency: 'hourly' as const, priority: .8 },
-      { url: `${base}/blog/${stock.slug}${forecastSuffix}`, lastModified: stock.updated_at, changeFrequency: 'daily' as const, priority: .75 },
-    ]),
+    ...stocks.map((stock) => ({ url: `${base}/stocks/${stock.slug}`, lastModified: stock.updated_at, changeFrequency: 'hourly' as const, priority: .8 })),
   ];
 }
