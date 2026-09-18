@@ -8,7 +8,7 @@ const body = symbols.map((symbol) => ({ symbol, slug: slugify(symbol), company_n
 
 const response = await fetch(`${url}?on_conflict=symbol`, {
   method: 'POST',
-  headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
+  headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
   body: JSON.stringify(body),
 });
 if (!response.ok) throw new Error(`Seed failed: ${response.status} ${await response.text()}`);
