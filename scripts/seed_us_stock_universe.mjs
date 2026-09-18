@@ -6,10 +6,30 @@ const slugify = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 const url = `${process.env.SUPABASE_URL}/rest/v1/stocks`;
 const body = symbols.map((symbol) => ({ symbol, slug: slugify(symbol), company_name: symbol, is_active: true, is_indexable: true, country: 'US', currency: 'USD', asset_type: 'stock' }));
 
+// Market benchmark ETFs used by the homepage and Market Overview.
+// These are separate from the 200-stock universe and are not indexable stock pages.
+const marketProxies = [
+  { symbol: 'SPY', company_name: 'SPDR S&P 500 ETF Trust' },
+  { symbol: 'QQQ', company_name: 'Invesco QQQ Trust' },
+  { symbol: 'DIA', company_name: 'SPDR Dow Jones Industrial Average ETF Trust' },
+  { symbol: 'IWM', company_name: 'iShares Russell 2000 ETF' },
+].map(({ symbol, company_name }) => ({
+  symbol,
+  slug: slugify(symbol),
+  company_name,
+  is_active: true,
+  is_indexable: false,
+  country: 'US',
+  currency: 'USD',
+  asset_type: 'etf',
+}));
+
+const rows = [...body, ...marketProxies];
+
 const response = await fetch(`${url}?on_conflict=symbol`, {
   method: 'POST',
   headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
-  body: JSON.stringify(body),
+  body: JSON.stringify(rows),
 });
 if (!response.ok) throw new Error(`Seed failed: ${response.status} ${await response.text()}`);
-console.log(`US stock universe seeded: ${symbols.length} symbols.`);
+console.log(`US stock universe seeded: ${symbols.length} stocks + ${marketProxies.length} market proxies.`);
