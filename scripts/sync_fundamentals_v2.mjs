@@ -240,7 +240,7 @@ try{
 }catch(e){throw new Error(`Unable to load ticker/CIK mapping fallback: ${e.message}`);}
 
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
-const fundamentalRows=[];const statementRows=[];const failures=[];let processed=0;
+const fundamentalRows=[];const statementRows=[];const ownershipRows=[];const failures=[];let processed=0;
 
 for(const stock of eligible){
   processed++;
@@ -252,7 +252,7 @@ for(const stock of eligible){
     const price=priceById.get(Number(stock.id));
     const fundamental=buildFundamentalRows(facts,stock,price);
     const statements=buildStatementRows(facts,stock,price);
-    if(fundamental) fundamentalRows.push(fundamental);
+    if(fundamental) { fundamentalRows.push(fundamental); if(fundamental.shares_outstanding!=null && fundamental.report_date) ownershipRows.push({stock_id:Number(stock.id),period_end:fundamental.report_date,shares_outstanding:fundamental.shares_outstanding,data_source:'SEC EDGAR companyfacts'}); }
     statementRows.push(...statements);
     if(!fundamental&&!statements.length) failures.push({symbol,reason:'no-standardized-facts'});
   }catch(error){failures.push({symbol,reason:error.message});}
@@ -267,10 +267,15 @@ for(const row of statementRows){
   await db('financial_statements',{method:'POST',params:{on_conflict:'stock_id,statement_type,period_type,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
 
+for(const row of ownershipRows){
+  await db('ownership_snapshots',{method:'POST',body:[row],prefer:'return=minimal'});
+}
+
 console.log(JSON.stringify({
   mode:'sec-fundamentals-and-statements-sync',
   stocks:stocks?.length??0,eligible:eligible.length,processed,
   fundamentals_written:fundamentalRows.length,financial_statement_rows_written:statementRows.length,
+  ownership_rows_written:ownershipRows.length,
   skipped_or_failed:failures.length,source:'SEC EDGAR companyfacts',mapping_source:'GitHub fallback',
   user_agent_declared:true,failures:failures.slice(0,20)
 },null,2));
