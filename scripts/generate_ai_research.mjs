@@ -1,0 +1,63 @@
+const required=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+for(const n of required) if(!process.env[n]) throw new Error(`${n} is not configured.`);
+
+const provider=(process.env.AI_PROVIDER||'openai').toLowerCase();
+const model=process.env.AI_MODEL||(
+  provider==='claude'?'claude-sonnet-4-20250514':
+  provider==='deepseek'?'deepseek-chat':'gpt-5-mini'
+);
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
+  const u=new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
+  for(const [k,v] of Object.entries(params))u.searchParams.set(k,v);
+  const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
+  const t=await r.text(); if(!r.ok) throw new Error(`Supabase ${r.status}: ${t}`); return t?JSON.parse(t):null;
+}
+
+async function ai(prompt){
+  if(provider==='claude'){
+    if(!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not configured.');
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','content-type':'application/json'},body:JSON.stringify({model,max_tokens:1800,temperature:0.2,messages:[{role:'user',content:prompt}]})});
+    const t=await r.text(); if(!r.ok) throw new Error(`Claude ${r.status}: ${t}`); const j=JSON.parse(t); return j.content?.map(x=>x.text||'').join('')||'';
+  }
+  const key=provider==='deepseek'?process.env.DEEPSEEK_API_KEY:process.env.OPENAI_API_KEY;
+  if(!key) throw new Error(`${provider==='deepseek'?'DEEPSEEK_API_KEY':'OPENAI_API_KEY'} is not configured.`);
+  const base=provider==='deepseek'?'https://api.deepseek.com':'https://api.openai.com/v1';
+  const r=await fetch(`${base}/chat/completions`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model,temperature:0.2,messages:[{role:'system',content:'Return valid JSON only. Never invent missing financial facts. Separate verified facts from interpretation.'},{role:'user',content:prompt}]})});
+  const t=await r.text(); if(!r.ok) throw new Error(`${provider} ${r.status}: ${t}`); return JSON.parse(t).choices?.[0]?.message?.content||'';
+}
+
+function parseJson(text){const clean=String(text).replace(/^\s*```json\s*/i,'').replace(/\s*```\s*$/,'').trim(); return JSON.parse(clean);}
+function hashInput(x){let h=2166136261;for(const c of x){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return (h>>>0).toString(16);}
+
+const mode=(process.argv[2]||'monthly').toLowerCase();
+if(!['monthly','quarterly'].includes(mode)) throw new Error('Usage: node scripts/generate_ai_research.mjs monthly|quarterly');
+
+const stocks=await db('stocks',{params:{select:'id,symbol,company_name,sector,industry',is_active:'eq.true',asset_type:'eq.stock',limit:5000}});
+let done=0,failed=0;
+for(const stock of stocks||[]){
+  try{
+    const [quote,tech,fundamentals,earnings,news,predictions]=await Promise.all([
+      db('latest_quotes',{params:{select:'price,change_percent,volume,quote_timestamp',stock_id:`eq.${stock.id}`,limit:1}}),
+      db('technical_indicators',{params:{select:'rsi,macd,sma_50,sma_200,ema_20,atr,adx,support_level,resistance_level,volatility',stock_id:`eq.${stock.id}`,timeframe:'eq.1d',limit:1}}),
+      db('fundamentals',{params:{select:'*',stock_id:`eq.${stock.id}`,order:'updated_at.desc',limit:4}}),
+      db('earnings',{params:{select:'earnings_date,fiscal_period,eps_estimate,eps_actual,eps_surprise,revenue_estimate,revenue_actual,revenue_surprise',stock_id:`eq.${stock.id}`,order:'earnings_date.desc',limit:4}}),
+      db('news',{params:{select:'title,summary,published_at,sentiment,relevance_score',stock_id:`eq.${stock.id}`,order:'published_at.desc',limit:8}}),
+      db('predictions',{params:{select:'horizon,predicted_price,predicted_change_percent,direction,confidence,prediction_time',stock_id:`eq.${stock.id}`,order:'prediction_time.desc',limit:4}})
+    ]);
+    const payload=JSON.stringify({stock,quote:quote?.[0]??null,technical:tech?.[0]??null,fundamentals,earnings,news,predictions});
+    const period=mode==='monthly'?new Date().toISOString().slice(0,7)+'-01':(fundamentals?.[0]?.fiscal_period||new Date().toISOString().slice(0,10));
+    const prompt=`You are the research engine for US Market AI. Analyze this verified structured data for ${stock.company_name} (${stock.symbol}). Mode: ${mode}. Do not invent numbers, dates, guidance or causes. If a field is missing say unavailable. Return JSON with exactly these keys: ai_summary, financial_summary, technical_summary, news_summary, risk_summary, catalyst_summary, earnings_summary, guidance_summary, management_commentary, yoy_summary, qoq_summary, key_events. For monthly mode, focus on what changed during the month and use financial_summary/earnings_summary where relevant. For quarterly mode, focus on the reported quarter, YoY/QoQ changes, earnings surprise, guidance and risks. Keep each text field concise (2-4 sentences). key_events must be an array of short factual event strings. Data: ${payload}`;
+    const raw=await ai(prompt); const out=parseJson(raw);
+    const hash=hashInput(payload);
+    if(mode==='monthly'){
+      await db('monthly_stock_research',{method:'POST',params:{on_conflict:'stock_id,research_month'},prefer:'resolution=merge-duplicates,return=minimal',body:[{stock_id:Number(stock.id),research_month:period,price_change_percent:quote?.[0]?.change_percent??null,technical_summary:out.technical_summary??null,fundamental_summary:out.financial_summary??null,news_summary:out.news_summary??null,risk_summary:out.risk_summary??null,catalyst_summary:out.catalyst_summary??null,key_events:out.key_events??[],ai_summary:out.ai_summary??null,model:`${provider}/${model}`,source_data_hash:hash,updated_at:new Date().toISOString()}]});
+    }else{
+      await db('quarterly_stock_research',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[{stock_id:Number(stock.id),fiscal_period:period,period_end:fundamentals?.[0]?.report_date??null,earnings_summary:out.earnings_summary??null,financial_summary:out.financial_summary??null,guidance_summary:out.guidance_summary??null,management_commentary:out.management_commentary??null,risks_summary:out.risk_summary??null,catalysts_summary:out.catalyst_summary??null,yoy_summary:out.yoy_summary??null,qoq_summary:out.qoq_summary??null,ai_summary:out.ai_summary??null,model:`${provider}/${model}`,source_data_hash:hash,updated_at:new Date().toISOString()}]});
+    }
+    done++; console.log(`${stock.symbol}: ${mode} research written`);
+  }catch(e){failed++; console.error(`${stock.symbol}: ${e.message}`)}
+  await sleep(Number(process.env.AI_REQUEST_DELAY_MS||750));
+}
+console.log(JSON.stringify({mode,provider,model,done,failed},null,2));
