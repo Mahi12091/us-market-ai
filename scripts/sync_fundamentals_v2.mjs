@@ -241,6 +241,7 @@ try{
 
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
 const fundamentalRows=[];const statementRows=[];const ownershipRows=[];const failures=[];let processed=0;
+await db('ownership_snapshots',{method:'DELETE',params:{id:'not.is.null'},prefer:'return=minimal'});
 
 for(const stock of eligible){
   processed++;
