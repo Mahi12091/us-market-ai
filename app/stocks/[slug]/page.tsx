@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
 import StockSeoContent from '@/components/stock-seo-content';
+import StockDataExpansion from '@/components/stock-data-expansion';
 
 export const revalidate = 300;
 
@@ -37,7 +38,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const { data: stock } = await supabase.from('stocks').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
   if (!stock) notFound();
 
-  const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: fundamentals }, { data: earnings }, { data: news }, { data: history }, { data: results }, { data: related }] = await Promise.all([
+  const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: fundamentals }, { data: earnings }, { data: news }, { data: history }, { data: results }, { data: related }, { data: financialStatements }, { data: dividends }, { data: ownership }, { data: monthlyResearch }, { data: quarterlyResearch }] = await Promise.all([
     supabase.from('latest_quotes').select('*').eq('stock_id', stock.id).maybeSingle(),
     supabase.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', '1d').maybeSingle(),
     supabase.from('predictions').select('*').eq('stock_id', stock.id).order('prediction_time', { ascending: false }).limit(4),
@@ -48,6 +49,11 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     supabase.from('price_history').select('timestamp,close').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: true }).limit(250),
     supabase.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     supabase.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
+    supabase.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(12),
+    supabase.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false }).limit(12),
+    supabase.from('ownership_snapshots').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(8),
+    supabase.from('monthly_stock_research').select('*').eq('stock_id', stock.id).order('research_month', { ascending: false }).limit(6),
+    supabase.from('quarterly_stock_research').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(4),
   ]);
 
   const chart: ChartPoint[] = (history ?? []).filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
@@ -81,7 +87,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     description: `Research page for ${stock.company_name} covering price data, technical analysis, quantitative predictions, long-term forecast framework, company information, news and FAQs.`,
     mainEntityOfPage: pageUrl,
     dateModified: modifiedDate,
-    author: { '@type': 'Organization', name: 'US Market AI Research Desk', url: process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL}/about` : '/about' },
+    author: { '@type': 'Organization', name: 'US Market AI Research Desk', url: process.env.NEXT_PUBLIC_SITE_URL ? `${process.env.NEXT_PUBLIC_SITE_URL}/research-author` : '/research-author' },
     publisher: { '@type': 'Organization', name: 'US Market AI', url: process.env.NEXT_PUBLIC_SITE_URL || '/' },
   };
   const graphJsonLd = { '@context': 'https://schema.org', '@graph': [articleJsonLd, breadcrumbJsonLd, datasetJsonLd] };
@@ -108,6 +114,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
 
       <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} article={article} />
+
+      <StockDataExpansion financialStatements={financialStatements ?? []} dividends={dividends ?? []} ownership={ownership ?? []} monthlyResearch={monthlyResearch ?? []} quarterlyResearch={quarterlyResearch ?? []} />
 
       
       <section className="section disclaimer-section" id="disclaimer">
