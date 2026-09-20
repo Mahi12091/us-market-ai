@@ -175,6 +175,8 @@ for(const row of ownershipRows){
   await db('ownership_snapshots',{method:'POST',params:{on_conflict:'stock_id,period_end'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
 
+await import('node:fs/promises').then(fs=>fs.writeFile('.fmp_fallback_symbols.json',JSON.stringify(fallbackSymbols)));
+
 console.log(JSON.stringify({
   source:'FMP',eligible:eligible.length,fundamentals_written:fundamentalRows.length,
   statement_rows_written:statementRows.length,ownership_rows_written:ownershipRows.length,
