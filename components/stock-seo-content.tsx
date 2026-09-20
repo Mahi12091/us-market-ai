@@ -148,8 +148,5 @@ export default function StockSeoContent({ stock, quote, tech, predictions, funda
 <Card id="disclaimer" eyebrow="RESEARCH NOTE" title={`${symbol} Stock Forecast Disclaimer`}>
       <p className="seo-prose">US Market AI forecasts and AI-generated analysis are estimates based on available market data and quantitative models. They are not guaranteed and are not personalized financial advice.</p>
     </Card>
-="disclaimer" eyebrow="RESEARCH NOTE" title={`${symbol} Stock Forecast Disclaimer`}>
-      <p className="seo-prose">US Market AI forecasts and AI-generated analysis are estimates based on available market data and quantitative models. They are not guaranteed and are not personalized financial advice.</p>
-    </Card>
   </div>;
 }
