@@ -1,0 +1,42 @@
+name: Fundamental Data Sync
+
+on:
+  schedule:
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fundamentals:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SEC_CONTACT_EMAIL; do
+            if [ -z "\${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
+          done
+
+      - name: Sync SEC fundamentals and financial statements
+        run: node scripts/sync_fundamentals_v2.mjs
+
+      - name: Sync earnings
+        run: node scripts/sync_earnings.mjs
+
+      - name: Sync dividends
+        run: node scripts/sync_dividends.mjs
