@@ -7,11 +7,12 @@ const CONTACT_EMAIL=process.env.SEC_CONTACT_EMAIL||process.env.SEC_EMAIL||'';
 const USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research bot';
 if(!CONTACT_EMAIL) throw new Error('SEC_CONTACT_EMAIL is not configured. Add a contact email to GitHub repository secrets so SEC requests use a declared User-Agent.');
 const DECLARED_USER_AGENT=`${USER_AGENT} ${CONTACT_EMAIL}`;
+const SEC_HEADERS={'User-Agent':DECLARED_USER_AGENT,'From':CONTACT_EMAIL,'Accept':'application/json','Accept-Encoding':'gzip, deflate'};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 async function getJson(url,headers={}){
   for(let attempt=1;attempt<=5;attempt++){
-    const r=await fetch(url,{headers:{'User-Agent':DECLARED_USER_AGENT,'Accept':'application/json','Accept-Encoding':'gzip, deflate',...headers}});
+    const r=await fetch(url,{headers:{...SEC_HEADERS,...headers}});
     const text=await r.text();
     if(r.ok) return text?JSON.parse(text):{};
     if(![408,429,500,502,503,504].includes(r.status)||attempt===5) throw new Error(`HTTP ${r.status}: ${text.slice(0,500)}`);
