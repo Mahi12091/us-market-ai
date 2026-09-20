@@ -39,7 +39,8 @@ jobs:
       - name: Sync SEC fundamentals and financial statements
         run: node scripts/sync_fundamentals_v2.mjs
 
-      - name: Sync earnings
+      - name: Sync earnings (optional Massive/Benzinga)
+        continue-on-error: true
         run: node scripts/sync_earnings.mjs
 
       - name: Sync dividends
