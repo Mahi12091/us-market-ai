@@ -50,8 +50,3 @@ jobs:
 
       - name: Generate quantitative predictions
         run: node scripts/generate_predictions.mjs
-
-      - name: Verify populated data
-        env:
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: node -e "console.log('Bootstrap ingestion completed; verify Supabase row counts after workflow success.')"
