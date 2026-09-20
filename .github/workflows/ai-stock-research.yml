@@ -1,0 +1,51 @@
+name: AI Stock Research
+
+on:
+  schedule:
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Research mode'
+        required: true
+        default: monthly
+        type: choice
+        options:
+          - monthly
+          - quarterly
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'openai' }}
+      AI_MODEL: ${{ secrets.AI_MODEL || 'gpt-5-mini' }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      AI_REQUEST_DELAY_MS: '750'
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_URL:-}" || (echo "SUPABASE_URL missing" && exit 1)
+          test -n "${SUPABASE_SERVICE_ROLE_KEY:-}" || (echo "SUPABASE_SERVICE_ROLE_KEY missing" && exit 1)
+          case "${AI_PROVIDER:-openai}" in
+            openai) test -n "${OPENAI_API_KEY:-}" ;;
+            claude) test -n "${ANTHROPIC_API_KEY:-}" ;;
+            deepseek) test -n "${DEEPSEEK_API_KEY:-}" ;;
+            *) echo "Unsupported AI_PROVIDER"; exit 1 ;;
+          esac
+      - name: Run monthly research
+        if: github.event_name == 'schedule' || inputs.mode == 'monthly'
+        run: node scripts/generate_ai_research.mjs monthly
+      - name: Run quarterly research
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'quarterly'
+        run: node scripts/generate_ai_research.mjs quarterly
