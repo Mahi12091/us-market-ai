@@ -36,7 +36,7 @@ function growth(current,previous){return current!=null&&previous!=null&&previous
 
 function factRows(facts,tags,units=['USD','USD/shares','shares']){
   for(const tag of tags){
-    const fact=facts?.facts?.['us-gaap']?.[tag]||facts?.facts?.dei?.[tag];
+    const fact=facts?.facts?.['us-gaap']?.[tag]||facts?.facts?.['ifrs-full']?.[tag]||facts?.facts?.dei?.[tag];
     if(!fact?.units) continue;
     for(const unit of units){
       const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end);
