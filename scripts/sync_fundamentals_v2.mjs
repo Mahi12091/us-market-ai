@@ -29,31 +29,204 @@ async function db(table,{method='GET',params={},body,prefer='return=representati
 }
 
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null;}
-function annualFacts(facts,tags,units=['USD','USD/shares']){
-  for(const tag of tags){
-    const fact=facts?.facts?.['us-gaap']?.[tag];
-    if(!fact?.units) continue;
-    for(const unit of units){
-      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end&&x.form==='10-K'&&x.fp==='FY');
-      if(rows.length) return rows.sort((a,b)=>String(b.end).localeCompare(String(a.end)));
-    }
-  }
-  return [];
-}
-function latestFact(facts,tags,units=['USD','USD/shares','shares']){
+function abs(v){return v==null?null:Math.abs(v);}
+function ratio(a,b){return a!=null&&b!=null&&b!==0?a/b:null;}
+function pct(a,b){const r=ratio(a,b);return r==null?null:r*100;}
+function growth(current,previous){return current!=null&&previous!=null&&previous!==0?(current/previous-1)*100:null;}
+
+function factRows(facts,tags,units=['USD','USD/shares','shares']){
   for(const tag of tags){
     const fact=facts?.facts?.['us-gaap']?.[tag]||facts?.facts?.dei?.[tag];
     if(!fact?.units) continue;
     for(const unit of units){
-      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end&&['10-K','10-Q','20-F','6-K'].includes(x.form));
-      rows.sort((a,b)=>String(b.end).localeCompare(String(a.end))||String(b.filed||'').localeCompare(String(a.filed||'')));
-      if(rows[0]) return rows[0];
+      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end);
+      if(rows.length) return rows.map(x=>({...x,val:num(x.val)})).filter(x=>x.val!=null);
     }
   }
-  return null;
+  return [];
 }
-function valueAt(facts,tags){return num(latestFact(facts,tags)?.val)}
-function growth(a,b){return a!=null&&b!=null&&b!==0?((a/b)-1)*100:null}
+
+function latestInstant(facts,tags,units=['USD','shares']){
+  const rows=factRows(facts,tags,units).filter(x=>['10-K','10-Q','20-F','6-K'].includes(x.form));
+  rows.sort((a,b)=>String(b.end).localeCompare(String(a.end))||String(b.filed||'').localeCompare(String(a.filed||'')));
+  return rows[0]||null;
+}
+
+function durationDays(row){
+  if(!row.start||!row.end) return null;
+  const ms=Date.parse(row.end)-Date.parse(row.start);
+  return Number.isFinite(ms)?Math.round(ms/86400000):null;
+}
+
+function uniqueByKey(rows,keyFn){
+  const map=new Map();
+  for(const row of rows){
+    const key=keyFn(row);
+    const existing=map.get(key);
+    if(!existing || String(row.filed||'')>String(existing.filed||'')) map.set(key,row);
+  }
+  return [...map.values()];
+}
+
+function quarterlyRecords(facts,tags,units=['USD','USD/shares']){
+  const rows=factRows(facts,tags,units)
+    .filter(x=>['10-Q','10-K','20-F','6-K'].includes(x.form))
+    .map(x=>({...x,duration:durationDays(x)}))
+    .filter(x=>x.duration!=null && x.duration>=70 && x.duration<=110);
+  return uniqueByKey(rows,x=>`${x.fy||''}|${x.fp||''}|${x.end}`)
+    .sort((a,b)=>String(a.end).localeCompare(String(b.end)));
+}
+
+function annualRecords(facts,tags,units=['USD','USD/shares']){
+  const rows=factRows(facts,tags,units)
+    .filter(x=>['10-K','20-F'].includes(x.form))
+    .map(x=>({...x,duration:durationDays(x)}))
+    .filter(x=>x.duration==null || (x.duration>=300&&x.duration<=430));
+  return uniqueByKey(rows,x=>`${x.fy||''}|${x.end}`)
+    .sort((a,b)=>String(a.end).localeCompare(String(b.end)));
+}
+
+function valueForPeriod(records,end){ 
+  const row=records.filter(x=>x.end===end).sort((a,b)=>String(b.filed||'').localeCompare(String(a.filed||'')))[0];
+  return row?.val??null;
+}
+
+function statementPeriodKey(row,type){
+  return `${type}|${row.end}`;
+}
+
+const TAGS={
+  revenue:['RevenueFromContractWithCustomerExcludingAssessedTax','SalesRevenueNet','Revenues'],
+  cost:['CostOfRevenue','CostOfGoodsAndServicesSold','CostOfGoodsSold'],
+  gross:['GrossProfit'],
+  operatingIncome:['OperatingIncomeLoss'],
+  pretax:['IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest','IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments'],
+  netIncome:['ProfitLoss','NetIncomeLoss','NetIncomeLossAvailableToCommonStockholdersBasic'],
+  epsBasic:['EarningsPerShareBasic'],
+  epsDiluted:['EarningsPerShareDiluted'],
+  sharesBasic:['WeightedAverageNumberOfSharesOutstandingBasic'],
+  sharesDiluted:['WeightedAverageNumberOfDilutedSharesOutstanding'],
+  assets:['Assets'],
+  currentAssets:['AssetsCurrent'],
+  liabilities:['Liabilities'],
+  currentLiabilities:['LiabilitiesCurrent'],
+  debtCurrent:['LongTermDebtCurrent','ShortTermBorrowings','ShortTermDebt'],
+  debtNonCurrent:['LongTermDebtNoncurrent','LongTermDebt','LongTermDebtAndFinanceLeaseObligationsNoncurrent'],
+  equity:['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest'],
+  cash:['CashAndCashEquivalentsAtCarryingValue','CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents'],
+  cfo:['NetCashProvidedByUsedInOperatingActivities'],
+  capex:['PaymentsToAcquirePropertyPlantAndEquipment','PaymentsToAcquireProductiveAssets']
+};
+
+function buildStatementRows(facts,stock,price){
+  const rows=[];
+  const getQ=(key,units)=>quarterlyRecords(facts,TAGS[key],units);
+  const getA=(key,units)=>annualRecords(facts,TAGS[key],units);
+
+  const incomeKeys=['revenue','cost','gross','operatingIncome','pretax','netIncome','epsBasic','epsDiluted','sharesBasic','sharesDiluted'];
+  const qmaps=Object.fromEntries(incomeKeys.map(k=>[k,getQ(k,k.startsWith('eps')?['USD/shares']:k.startsWith('shares')?['shares']:['USD'])]));
+  const ends=[...new Set(Object.values(qmaps).flat().map(x=>x.end))].sort().slice(-12);
+  for(const end of ends){
+    const q={};
+    for(const k of incomeKeys) q[k]=valueForPeriod(qmaps[k],end);
+    if(q.revenue==null&&q.netIncome==null&&q.epsDiluted==null) continue;
+    rows.push({
+      stock_id:Number(stock.id),statement_type:'income_statement',period_type:'quarterly',
+      fiscal_period:`Q-${end}`,period_end:end,revenue:q.revenue,cost_of_revenue:abs(q.cost),gross_profit:q.gross,
+      operating_income:q.operatingIncome,pretax_income:q.pretax,net_income:q.netIncome,eps_basic:q.epsBasic,
+      eps_diluted:q.epsDiluted,shares_basic:q.sharesBasic,shares_diluted:q.sharesDiluted,
+      data_source:'SEC EDGAR companyfacts'
+    });
+  }
+
+  const annualMaps=Object.fromEntries(incomeKeys.map(k=>[k,getA(k,k.startsWith('eps')?['USD/shares']:k.startsWith('shares')?['shares']:['USD'])]));
+  const annualEnds=[...new Set(Object.values(annualMaps).flat().map(x=>x.end))].sort().slice(-5);
+  for(const end of annualEnds){
+    const a={}; for(const k of incomeKeys) a[k]=valueForPeriod(annualMaps[k],end);
+    if(a.revenue==null&&a.netIncome==null&&a.epsDiluted==null) continue;
+    rows.push({
+      stock_id:Number(stock.id),statement_type:'income_statement',period_type:'annual',
+      fiscal_period:`FY-${end}`,period_end:end,revenue:a.revenue,cost_of_revenue:abs(a.cost),gross_profit:a.gross,
+      operating_income:a.operatingIncome,pretax_income:a.pretax,net_income:a.netIncome,eps_basic:a.epsBasic,
+      eps_diluted:a.epsDiluted,shares_basic:a.sharesBasic,shares_diluted:a.sharesDiluted,
+      data_source:'SEC EDGAR companyfacts'
+    });
+  }
+
+  const instantKeys=['assets','currentAssets','liabilities','currentLiabilities','debtCurrent','debtNonCurrent','equity','cash'];
+  const imaps=Object.fromEntries(instantKeys.map(k=>[k,factRows(facts,TAGS[k],['USD','shares'])]));
+  const instantEnds=[...new Set(Object.values(imaps).flat().filter(x=>['10-Q','10-K','20-F','6-K'].includes(x.form)).map(x=>x.end))].sort().slice(-12);
+  for(const end of instantEnds){
+    const b={}; for(const k of instantKeys) b[k]=valueForPeriod(imaps[k],end);
+    if(b.assets==null&&b.liabilities==null&&b.equity==null&&b.cash==null) continue;
+    const debt=(b.debtCurrent||0)+(b.debtNonCurrent||0);
+    rows.push({
+      stock_id:Number(stock.id),statement_type:'balance_sheet',period_type:'quarterly',
+      fiscal_period:`Q-${end}`,period_end:end,cash_and_equivalents:b.cash,total_assets:b.assets,
+      current_assets:b.currentAssets,total_liabilities:b.liabilities,current_liabilities:b.currentLiabilities,
+      total_debt:debt,shareholders_equity:b.equity,data_source:'SEC EDGAR companyfacts'
+    });
+  }
+
+  const cashKeys=['cfo','capex'];
+  const cmaps=Object.fromEntries(cashKeys.map(k=>[k,quarterlyRecords(facts,TAGS[k],['USD'])]));
+  const cashEnds=[...new Set(Object.values(cmaps).flat().map(x=>x.end))].sort().slice(-12);
+  for(const end of cashEnds){
+    const c={}; for(const k of cashKeys) c[k]=valueForPeriod(cmaps[k],end);
+    if(c.cfo==null&&c.capex==null) continue;
+    const fcf=c.cfo!=null&&c.capex!=null?c.cfo-abs(c.capex):null;
+    rows.push({
+      stock_id:Number(stock.id),statement_type:'cash_flow',period_type:'quarterly',
+      fiscal_period:`Q-${end}`,period_end:end,operating_cash_flow:c.cfo,
+      capital_expenditure:abs(c.capex),free_cash_flow:fcf,data_source:'SEC EDGAR companyfacts'
+    });
+  }
+
+  return rows;
+}
+
+function buildFundamentalRows(facts,stock,price){
+  const revenue=annualRecords(facts,TAGS.revenue,['USD']);
+  const eps=annualRecords(facts,TAGS.epsDiluted,['USD/shares']);
+  const latestRevenue=revenue.at(-1)?.val??null, previousRevenue=revenue.at(-2)?.val??null;
+  const latestEps=eps.at(-1)?.val??null, previousEps=eps.at(-2)?.val??null;
+  const latestEnd=revenue.at(-1)?.end||eps.at(-1)?.end||null;
+  const net=latestInstant(facts,TAGS.netIncome,['USD'])?.val??null;
+  const gross=latestInstant(facts,TAGS.gross,['USD'])?.val??null;
+  const op=latestInstant(facts,TAGS.operatingIncome,['USD'])?.val??null;
+  const assets=latestInstant(facts,TAGS.assets,['USD'])?.val??null;
+  const liabilities=latestInstant(facts,TAGS.liabilities,['USD'])?.val??null;
+  const equity=latestInstant(facts,TAGS.equity,['USD'])?.val??null;
+  const cash=latestInstant(facts,TAGS.cash,['USD'])?.val??null;
+  const currentAssets=latestInstant(facts,TAGS.currentAssets,['USD'])?.val??null;
+  const currentLiabilities=latestInstant(facts,TAGS.currentLiabilities,['USD'])?.val??null;
+  const debtCurrent=latestInstant(facts,TAGS.debtCurrent,['USD'])?.val??null;
+  const debtNonCurrent=latestInstant(facts,TAGS.debtNonCurrent,['USD'])?.val??null;
+  const cfo=latestInstant(facts,TAGS.cfo,['USD'])?.val??null;
+  const capex=latestInstant(facts,TAGS.capex,['USD'])?.val??null;
+  const shares=latestInstant(facts,['EntityCommonStockSharesOutstanding','CommonStockSharesOutstanding'],['shares'])?.val??null;
+  const debt=(debtCurrent||0)+(debtNonCurrent||0);
+  const fcf=cfo!=null&&capex!=null?cfo-abs(capex):null;
+  const marketCap=price!=null&&shares!=null?price*shares:num(stock.market_cap);
+  if(latestRevenue==null&&net==null&&assets==null) return null;
+  const fiscalYear=Number(revenue.at(-1)?.fy||eps.at(-1)?.fy)||null;
+  return {
+    stock_id:Number(stock.id),fiscal_period:`annual-${fiscalYear||latestEnd||'latest'}`,fiscal_year:fiscalYear,period_type:'annual',
+    market_cap:marketCap,enterprise_value:null,revenue:latestRevenue,revenue_growth:growth(latestRevenue,previousRevenue),
+    gross_profit:gross,operating_income:op,net_income:net,eps:latestEps,eps_growth:growth(latestEps,previousEps),
+    pe_ratio:price!=null&&latestEps>0?price/latestEps:null,forward_pe:null,peg_ratio:null,
+    price_sales:marketCap!=null&&latestRevenue>0?marketCap/latestRevenue:null,
+    price_book:marketCap!=null&&equity>0?marketCap/equity:null,
+    debt_equity:equity!=null&&equity!==0?debt/equity:null,
+    roe:pct(net,equity),roa:pct(net,assets),free_cash_flow:fcf,dividend_yield:null,report_date:latestEnd,
+    gross_margin:pct(gross,latestRevenue),operating_margin:pct(op,latestRevenue),net_margin:pct(net,latestRevenue),
+    total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cash,total_debt:debt,
+    shareholders_equity:equity,current_assets:currentAssets,current_liabilities:currentLiabilities,
+    operating_cash_flow:cfo,capital_expenditure:abs(capex),fcf_margin:pct(fcf,latestRevenue),
+    shares_outstanding:shares,enterprise_value_to_revenue:null,enterprise_value_to_ebitda:null,
+    earnings_yield:latestEps!=null&&price>0?(latestEps/price)*100:null,data_source:'SEC EDGAR'
+  };
+}
 
 const stocks=await db('stocks',{params:{select:'id,symbol,market_cap,asset_type',is_active:'eq.true',limit:5000}});
 const quotes=await db('latest_quotes',{params:{select:'stock_id,price',limit:5000}});
@@ -64,16 +237,11 @@ try{
   const raw=await getJson(CIK_FALLBACK);
   tickerMap=new Map(Object.entries(raw||{}).map(([ticker,cik])=>[String(ticker).toUpperCase(),String(cik).padStart(10,'0')]).filter(([t,c])=>t&&c!=='0000000000'));
   if(tickerMap.size<100) throw new Error(`unexpected mapping size ${tickerMap.size}`);
-  console.log(`Loaded ${tickerMap.size} ticker/CIK associations from fallback map.`);
-}catch(e){
-  throw new Error(`Unable to load ticker/CIK mapping fallback: ${e.message}`);
-}
+}catch(e){throw new Error(`Unable to load ticker/CIK mapping fallback: ${e.message}`);}
 
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
-const rows=[];const failures=[];let processed=0;
+const fundamentalRows=[];const statementRows=[];const failures=[];let processed=0;
 
-// SEC asks automated clients to identify themselves with a declared User-Agent.
-// Requests are deliberately sequential and throttled below the SEC's published limit.
 for(const stock of eligible){
   processed++;
   const symbol=String(stock.symbol).toUpperCase();
@@ -81,46 +249,30 @@ for(const stock of eligible){
   if(!cik){failures.push({symbol,reason:'no-sec-cik'});continue;}
   try{
     const facts=await getJson(`${SEC}/api/xbrl/companyfacts/CIK${cik}.json`);
-    const revenueFacts=annualFacts(facts,['RevenueFromContractWithCustomerExcludingAssessedTax','SalesRevenueNet','Revenues']);
-    const epsFacts=annualFacts(facts,['EarningsPerShareDiluted','EarningsPerShareBasic'],['USD/shares']);
-    const revenue=num(revenueFacts[0]?.val),previousRevenue=num(revenueFacts[1]?.val);
-    const eps=num(epsFacts[0]?.val),previousEps=num(epsFacts[1]?.val);
-    const net=valueAt(facts,['ProfitLoss','NetIncomeLoss','NetIncomeLossAvailableToCommonStockholdersBasic']);
-    const gross=valueAt(facts,['GrossProfit']);
-    const op=valueAt(facts,['OperatingIncomeLoss']);
-    const assets=valueAt(facts,['Assets']);
-    const equity=valueAt(facts,['StockholdersEquity','StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest']);
-    const debtCurrent=valueAt(facts,['LongTermDebtCurrent','ShortTermBorrowings']);
-    const debtNonCurrent=valueAt(facts,['LongTermDebtNoncurrent','LongTermDebt']);
-    const cfo=valueAt(facts,['NetCashProvidedByUsedInOperatingActivities']);
-    const capex=valueAt(facts,['PaymentsToAcquirePropertyPlantAndEquipment','PaymentsToAcquireProductiveAssets']);
-    const shares=valueAt(facts,['EntityCommonStockSharesOutstanding','CommonStockSharesOutstanding']);
     const price=priceById.get(Number(stock.id));
-    const marketCap=price!=null&&shares!=null?price*shares:num(stock.market_cap);
-    const debt=(debtCurrent||0)+(debtNonCurrent||0);
-    const fcf=cfo!=null&&capex!=null?cfo-Math.abs(capex):null;
-    const pe=price!=null&&eps!=null&&eps>0?price/eps:null;
-    const ps=marketCap!=null&&revenue!=null&&revenue>0?marketCap/revenue:null;
-    const pb=marketCap!=null&&equity!=null&&equity>0?marketCap/equity:null;
-    const de=equity!=null&&equity!==0?debt/equity:null;
-    const roe=net!=null&&equity!=null&&equity!==0?(net/equity)*100:null;
-    const roa=net!=null&&assets!=null&&assets!==0?(net/assets)*100:null;
-    const reportDate=revenueFacts[0]?.end||epsFacts[0]?.end||null;
-    if(revenue==null&&net==null&&assets==null){failures.push({symbol,reason:'no-standardized-facts'});continue;}
-    const fiscalPeriod=`annual-${revenueFacts[0]?.fy??epsFacts[0]?.fy??reportDate??'latest'}`;
-    rows.push({stock_id:Number(stock.id),fiscal_period:fiscalPeriod,market_cap:marketCap,enterprise_value:null,revenue,revenue_growth:growth(revenue,previousRevenue),gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:growth(eps,previousEps),pe_ratio:pe,forward_pe:null,peg_ratio:null,price_sales:ps,price_book:pb,debt_equity:de,roe,roa,free_cash_flow:fcf,dividend_yield:null,report_date:reportDate,data_source:'SEC EDGAR'});
-  }catch(error){
-    failures.push({symbol,reason:error.message});
-  }
+    const fundamental=buildFundamentalRows(facts,stock,price);
+    const statements=buildStatementRows(facts,stock,price);
+    if(fundamental) fundamentalRows.push(fundamental);
+    statementRows.push(...statements);
+    if(!fundamental&&!statements.length) failures.push({symbol,reason:'no-standardized-facts'});
+  }catch(error){failures.push({symbol,reason:error.message});}
   await sleep(750);
 }
 
-for(const row of rows){
+for(const row of fundamentalRows){
   await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
 
-console.log(JSON.stringify({mode:'fundamentals-sync',stocks:stocks?.length??0,eligible:eligible.length,processed,rows_written:rows.length,skipped_or_failed:failures.length,source:'SEC EDGAR companyfacts',mapping_source:'GitHub fallback',user_agent_declared:true,failures:failures.slice(0,20)},null,2));
+for(const row of statementRows){
+  await db('financial_statements',{method:'POST',params:{on_conflict:'stock_id,statement_type,period_type,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
+}
 
-// Fundamentals are enrichment. A temporary SEC block should not stop
-// market data, technicals, news, or predictions from completing.
-if(rows.length===0) console.warn('No SEC fundamentals were written; continuing without failing the workflow.');
+console.log(JSON.stringify({
+  mode:'sec-fundamentals-and-statements-sync',
+  stocks:stocks?.length??0,eligible:eligible.length,processed,
+  fundamentals_written:fundamentalRows.length,financial_statement_rows_written:statementRows.length,
+  skipped_or_failed:failures.length,source:'SEC EDGAR companyfacts',mapping_source:'GitHub fallback',
+  user_agent_declared:true,failures:failures.slice(0,20)
+},null,2));
+
+if(fundamentalRows.length===0&&statementRows.length===0) console.warn('No SEC fundamentals/statements were written; continuing without failing the workflow.');
