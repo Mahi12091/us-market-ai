@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
+import StockSeoContent from '@/components/stock-seo-content';
 
 export const revalidate = 300;
 
@@ -22,8 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!stock) return { title: 'Stock Not Found', robots: { index: false, follow: true } };
   const description = stock.description ?? `${stock.company_name} (${stock.symbol}) stock price, technical analysis, AI predictions, 2026, 2030, 2035, 2040 and 2050 forecast research, market news and company analysis.`;
   return {
-    title: `${stock.company_name} (${stock.symbol}) Stock Price, Analysis & Prediction 2026–2050`,
-    description,
+    title: `${stock.company_name} (${stock.symbol}) Stock Price, Forecast, Prediction & Analysis`,
+    description: `${stock.company_name} (${stock.symbol}) stock price, stock forecast, stock prediction, price target, technical analysis, financials, earnings, valuation, dividend, news and market research.`,
     keywords: [stock.symbol, `${stock.company_name} stock`, `${stock.symbol} stock price`, `${stock.symbol} stock prediction`, `${stock.symbol} forecast 2026`, `${stock.symbol} forecast 2030`, `${stock.symbol} forecast 2035`, `${stock.symbol} forecast 2040`, `${stock.symbol} forecast 2050`, stock.sector, stock.industry].filter(Boolean) as string[],
     alternates: { canonical: `/stocks/${slug}` },
     robots: { index: true, follow: true },
@@ -139,7 +140,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
       <section className="section" id="news"><div className="section-head"><div><div className="eyebrow">MARKET NEWS</div><h2>Latest {stock.symbol} news</h2><p className="muted">Only stories explicitly associated with this stock are shown.</p></div><a className="text-link" href="/news">View all news →</a></div><div className="news-list">{(news ?? []).length ? news?.map(n => <a className="news-item" href={n.url ?? '#'} target={n.url ? '_blank' : undefined} rel={n.url ? 'noreferrer' : undefined} key={n.id}><div><span className="news-source">{n.source ?? 'Market News'} · {n.published_at ? new Date(n.published_at).toLocaleDateString() : 'Latest'}</span><h3>{n.title}</h3><p className="muted">{n.summary ?? 'Read the latest market development.'}</p></div><span className={`signal ${n.sentiment ?? 'neutral'}`}>{n.sentiment ?? 'neutral'}</span></a>) : <div className="panel empty-state">No recent {stock.symbol}-specific news is available.</div>}</div></section>
 
-      <section className="section author-section"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/about">About the research desk →</a></div></section>
+      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} />\n\n      <section className="section author-section"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/about">About the research desk →</a></div></section>
 
       <section className="section faq-section" id="faq"><div className="section-head"><div><div className="eyebrow">FREQUENTLY ASKED QUESTIONS</div><h2>{stock.symbol} stock prediction FAQ</h2><p className="muted">Common questions about price, predictions, long-term forecasts, technicals and research methodology.</p></div></div><div className="faq-list">{faqItems.map((item) => <details key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div></section>
 
