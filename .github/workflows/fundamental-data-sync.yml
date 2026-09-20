@@ -32,7 +32,12 @@ jobs:
             if [ -z "\${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
 
-      - name: Sync SEC fundamentals and financial statements
+      - name: Sync fundamentals from FMP (primary)
+        run: node scripts/sync_fundamentals_fmp.mjs
+
+      - name: Sync missing fundamentals from SEC (fallback)
+        env:
+          FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
         run: node scripts/sync_fundamentals_v2.mjs
 
       - name: Sync earnings
