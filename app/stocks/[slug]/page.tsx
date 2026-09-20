@@ -107,10 +107,32 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       </section>
 
 
-      <section className="section author-section"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/about">About the research desk →</a></div></section>
+      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} article={article} />
 
-      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} />
+      
+      <section className="section disclaimer-section" id="disclaimer">
+        <div className="panel">
+          <div className="eyebrow">RESEARCH NOTE</div>
+          <h2>Stock Forecast Disclaimer</h2>
+          <p className="seo-prose">US Market AI forecasts and AI-generated analysis are estimates based on available market data and quantitative models. They are not guaranteed and are not personalized financial advice.</p>
+          <a className="button" href="/disclaimer">Read full disclaimer →</a>
+        </div>
+      </section>
+
+      <section className="section author-section" id="research-author">
+        <div className="panel author-card">
+          <div className="author-avatar">US</div>
+          <div>
+            <div className="eyebrow">RESEARCH AUTHOR</div>
+            <h2>US Market AI Research Desk</h2>
+            <p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p>
+            <div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div>
+          </div>
+          <a className="button" href="/research-author">About the research desk →</a>
+        </div>
+      </section>
 
     </div>
   </div>;
 }
+
