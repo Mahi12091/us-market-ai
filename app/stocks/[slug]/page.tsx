@@ -107,10 +107,6 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       </section>
 
 
-      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} />\n\n      <section className="section author-section"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/about">About the research desk →</a></div></section>
+      <section className="section author-section"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting the platform's market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/about">About the research desk →</a></div></section>
 
-
-
-    </div>
-  </div>;
-}
+      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} />\n\n
