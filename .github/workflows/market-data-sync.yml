@@ -14,7 +14,7 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -41,7 +41,7 @@ jobs:
       - name: Enrich stock metadata
         run: node scripts/enrich_stock_metadata.mjs
 
-      - name: Sync Massive directly to Supabase
+      - name: Sync Massive market data
         run: node scripts/sync_market_data.mjs
 
       - name: Calculate technical indicators
@@ -53,6 +53,10 @@ jobs:
       - name: Sync fundamentals from SEC EDGAR
         continue-on-error: true
         run: node scripts/sync_fundamentals_v2.mjs
+
+      - name: Sync earnings from Massive/Benzinga
+        continue-on-error: true
+        run: node scripts/sync_earnings.mjs
 
       - name: Sync news and sentiment
         run: node scripts/sync_news.mjs
