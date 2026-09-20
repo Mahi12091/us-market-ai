@@ -191,9 +191,9 @@ function buildFundamentalRows(facts,stock,price){
   const latestRevenue=revenue.at(-1)?.val??null, previousRevenue=revenue.at(-2)?.val??null;
   const latestEps=eps.at(-1)?.val??null, previousEps=eps.at(-2)?.val??null;
   const latestEnd=revenue.at(-1)?.end||eps.at(-1)?.end||null;
-  const net=latestInstant(facts,TAGS.netIncome,['USD'])?.val??null;
-  const gross=latestInstant(facts,TAGS.gross,['USD'])?.val??null;
-  const op=latestInstant(facts,TAGS.operatingIncome,['USD'])?.val??null;
+  const net=annualRecords(facts,TAGS.netIncome,['USD']).at(-1)?.val??null;
+  const gross=annualRecords(facts,TAGS.gross,['USD']).at(-1)?.val??null;
+  const op=annualRecords(facts,TAGS.operatingIncome,['USD']).at(-1)?.val??null;
   const assets=latestInstant(facts,TAGS.assets,['USD'])?.val??null;
   const liabilities=latestInstant(facts,TAGS.liabilities,['USD'])?.val??null;
   const equity=latestInstant(facts,TAGS.equity,['USD'])?.val??null;
@@ -202,8 +202,8 @@ function buildFundamentalRows(facts,stock,price){
   const currentLiabilities=latestInstant(facts,TAGS.currentLiabilities,['USD'])?.val??null;
   const debtCurrent=latestInstant(facts,TAGS.debtCurrent,['USD'])?.val??null;
   const debtNonCurrent=latestInstant(facts,TAGS.debtNonCurrent,['USD'])?.val??null;
-  const cfo=latestInstant(facts,TAGS.cfo,['USD'])?.val??null;
-  const capex=latestInstant(facts,TAGS.capex,['USD'])?.val??null;
+  const cfo=annualRecords(facts,TAGS.cfo,['USD']).at(-1)?.val??null;
+  const capex=annualRecords(facts,TAGS.capex,['USD']).at(-1)?.val??null;
   const shares=latestInstant(facts,['EntityCommonStockSharesOutstanding','CommonStockSharesOutstanding'],['shares'])?.val??null;
   const debt=(debtCurrent||0)+(debtNonCurrent||0);
   const fcf=cfo!=null&&capex!=null?cfo-abs(capex):null;
