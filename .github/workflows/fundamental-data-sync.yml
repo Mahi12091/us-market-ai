@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 60
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
