@@ -129,13 +129,14 @@ function buildStatements(stock,rows){
   return result;
 }
 async function mergeInsert(table,keys,row){
-  const params={}; for(const [k,v] of Object.entries(keys)) params[k]=v;
+  const params={}; for(const [k,v] of Object.entries(keys)) params[k]='eq.'+v;
   const existing=await db(table,{params:{...params,select:'*',limit:1}});
   if(existing?.[0]){
     const merged={...existing[0]};
     for(const [k,v] of Object.entries(row)) if(v!=null && (merged[k]==null||merged[k]==='')) merged[k]=v;
     delete merged.id; delete merged.created_at;
-    await db(table,{method:'PATCH',params:{...keys},prefer:'return=minimal',body:merged});
+    const patchParams={}; for(const [k,v] of Object.entries(keys)) patchParams[k]='eq.'+v;
+    await db(table,{method:'PATCH',params:patchParams,prefer:'return=minimal',body:merged});
     return {action:'merged',fields:Object.keys(row).filter(k=>row[k]!=null)};
   }
   await db(table,{method:'POST',params:{on_conflict:Object.keys(keys).join(',')},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
