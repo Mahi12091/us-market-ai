@@ -47,6 +47,30 @@ function collectLeaves(obj,path=[],out=[],meta={}) {
   }
   return out;
 }
+const aliases={
+ revenue:['revenue','revenues','sales','sales_revenue','total_revenue'],
+ cost_of_revenue:['cost_of_revenue','cost_of_sales','cost_of_goods_sold'],
+ gross_profit:['gross_profit'],
+ operating_income:['operating_income','income_from_operations'],
+ pretax_income:['pretax_income','income_before_tax'],
+ net_income:['net_income','net_income_loss','net_income_attributable_to_parent'],
+ eps_diluted:['eps_diluted','diluted_eps','earnings_per_share_diluted'],
+ eps_basic:['eps_basic','basic_eps','earnings_per_share_basic'],
+ shares_diluted:['shares_diluted','diluted_shares','weighted_average_shares_diluted'],
+ shares_basic:['shares_basic','basic_shares','weighted_average_shares_basic'],
+ cash_and_equivalents:['cash_and_equivalents','cash_and_cash_equivalents','cash_and_short_term_investments','cash'],
+ total_assets:['total_assets','assets'],
+ current_assets:['current_assets','total_current_assets'],
+ total_liabilities:['total_liabilities','liabilities'],
+ current_liabilities:['current_liabilities','total_current_liabilities'],
+ total_debt:['total_debt','debt','debt_and_finance_leases'],
+ shareholders_equity:['shareholders_equity','stockholders_equity','total_equity','equity'],
+ operating_cash_flow:['operating_cash_flow','net_cash_provided_by_operating_activities','cash_from_operations'],
+ capital_expenditure:['capital_expenditure','capital_expenditures','purchases_of_property_plant_and_equipment'],
+ free_cash_flow:['free_cash_flow','fcf']
+};
+const reverse=new Map(Object.entries(aliases).flatMap(([dest,keys])=>keys.map(k=>[norm(k),dest])));
+
 function extractFields(statementJson){
   const leaves=collectLeaves(statementJson);
   const out={};
