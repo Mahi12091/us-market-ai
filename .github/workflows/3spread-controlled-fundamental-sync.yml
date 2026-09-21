@@ -2,6 +2,10 @@ name: 3spread Controlled Fundamental Sync
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/sync_fundamentals_3spread.mjs'
+      - '.github/workflows/3spread-controlled-fundamental-sync.yml'
 
 permissions:
   contents: read
