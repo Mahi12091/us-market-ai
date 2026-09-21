@@ -22,7 +22,18 @@ async function db(table,{method='GET',params={},body,prefer='return=representati
 }
 function periodType(r){
   const p=String(r.period_type??r.period??'').toLowerCase();
-  return p.includes('quarter')||p==='q'? 'quarterly':'annual';
+  if(p.includes('quarter')) return 'quarterly';
+  if(p.includes('semi')) return 'semi_annual';
+  if(p.includes('annual')||p==='fy') return 'annual';
+  if(p.includes('ttm')||p.includes('trailing')) return 'ttm';
+  return p||'unknown';
+}
+function normalizedStatementType(st){
+  const s=String(st||'').toLowerCase();
+  if(s==='inc'||s.includes('income')) return 'income_statement';
+  if(s==='bs'||s.includes('balance')) return 'balance_sheet';
+  if(s==='cf'||s.includes('cash')) return 'cash_flow';
+  return null;
 }
 function fiscalPeriod(r){
   const y=r.fiscal_year??String(r.period_end??'').slice(0,4);
@@ -101,6 +112,19 @@ function metricValue(map,names){
   for(const n of names){const r=map.get(norm(n));if(r)return num(r.value);}
   return null;
 }
+function statementLineItems(r){
+  const sections=r?.statement_json?.sections;
+  if(!sections || typeof sections!=='object') return [];
+  const out=[];
+  for(const [section,items] of Object.entries(sections)){
+    if(!items || typeof items!=='object') continue;
+    for(const [item_key,item] of Object.entries(items)){
+      if(!item || typeof item!=='object') continue;
+      out.push({section,item_key,label:item.label??item_key,value:num(item.value),source:item.source??null,members:item.members??null,raw_item:item});
+    }
+  }
+  return out;
+}
 async function upsertRaw(table,row,conflict){
   await db(table,{method:'POST',params:{on_conflict:conflict},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
@@ -139,7 +163,7 @@ function buildStatements(stock,rows){
     if(Object.keys(fields).length===0) continue;
     const st=String(r.statement_type||'').toLowerCase();
     const statement_type=st.includes('bs')||st.includes('balance')?'balance_sheet':st.includes('cf')||st.includes('cash')?'cash_flow':'income_statement';
-    const row={stock_id:Number(stock.id),statement_type,period_type:periodType(r),fiscal_period:fiscalPeriod(r),period_end:r.period_end??null,data_source:'3spread'};
+    const row={stock_id:stockId,statement_type,period_type:periodType(r),fiscal_period:fiscalPeriod(r),period_end:r.period_end??null,data_source:'3spread'};
     Object.assign(row,fields);
     if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
     if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
@@ -166,6 +190,10 @@ const stocks=await db('stocks',{params:{select:'id,symbol',symbol:'in.(AAPL,MSFT
 if(!stocks?.length) throw new Error('Controlled stock set not found.');
 const summary=[];
 for(const stock of stocks){
+  const stockId=Number(stock.id);
+  await db('financial_statements',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
+  await db('fundamentals',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
+  await db('threespread_statement_line_items',{method:'DELETE',params:{stock_id:'eq.'+stockId},prefer:'return=minimal'});
   const symbol=String(stock.symbol).toUpperCase();
   try{
     const [sBody,mBody,rBody]=await Promise.all([
@@ -191,23 +219,32 @@ for(const stock of stocks){
         statement_json:r.statement_json??null,raw_json:r
       };
       if(raw.block_id) { await upsertRaw('threespread_financial_statements',raw,'stock_id,block_id'); rawStatements++; }
+      const lineItems=statementLineItems(r);
+      for(const li of lineItems){
+        await upsertRaw('threespread_statement_line_items',{
+          stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,
+          statement_type:r.statement_type,section:li.section,item_key:li.item_key,label:li.label,
+          value:li.value,source:li.source,members:li.members,currency:r.currency??null,
+          period_end:r.period_end??null,period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),
+          fiscal_quarter:num(r.fiscal_quarter),raw_item:li.raw_item
+        },'stock_id,block_id,item_key');
+      }
       const fields=extractFields(r.statement_json);
-      if(Object.keys(fields).length){
-        const st=String(r.statement_type||'').toLowerCase();
-        const statement_type=st.includes('bs')||st.includes('balance')?'balance_sheet':st.includes('cf')||st.includes('cash')?'cash_flow':'income_statement';
+      const statement_type=normalizedStatementType(r.statement_type);
+      if(statement_type && Object.keys(fields).length){
         const row={stock_id:Number(stock.id),statement_type,period_type:periodType(r),fiscal_period:fiscalPeriod(r),period_end:r.period_end??null,data_source:'3spread'};
         Object.assign(row,fields);
         if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
         if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
         if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null){
-          await mergeInsert('financial_statements',{stock_id:Number(stock.id),statement_type,period_type:row.period_type,fiscal_period:row.fiscal_period},row);
+          await mergeInsert('financial_statements',{stock_id:stockId,statement_type,period_type:row.period_type,fiscal_period:row.fiscal_period},row);
           normalizedStatements++;
         }
       }
     }
 
     for(const r of metrics){
-      const raw={stock_id:Number(stock.id),ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
+      const raw={stock_id:stockId,ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
         period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),
         category:r.category??null,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,
         derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r};
@@ -215,7 +252,7 @@ for(const stock of stocks){
     }
 
     for(const r of ratios){
-      const raw={stock_id:Number(stock.id),ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name??null,
+      const raw={stock_id:stockId,ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name??null,
         value:num(r.value),value_pctile:num(r.value_pctile),missing_inputs:r.missing_inputs??null,period_end:r.period_end??null,
         period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,
         fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),spine:r.spine??null,derived:r.derived??null,
@@ -225,7 +262,7 @@ for(const stock of stocks){
 
     const fundamental=buildFundamental(stock,metrics);
     if(fundamental){
-      await mergeInsert('fundamentals',{stock_id:Number(stock.id),fiscal_period:fundamental.fiscal_period},fundamental);
+      await mergeInsert('fundamentals',{stock_id:stockId,fiscal_period:fundamental.fiscal_period},fundamental);
       normalizedFundamentals++;
     }
     summary.push({symbol,ok:true,statement_api_rows:statements.length,metric_rows:metrics.length,ratio_rows:ratios.length,
