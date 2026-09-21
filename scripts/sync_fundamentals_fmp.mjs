@@ -134,7 +134,7 @@ const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')===
 const existing=await db('fundamentals',{params:{select:'stock_id',limit:5000}});
 const existingIds=new Set((existing||[]).map(x=>Number(x.stock_id)));
 const candidates=eligible.filter(s=>!existingIds.has(Number(s.id)));
-const batch=candidates.slice(0,80); // 3 statement calls/stock = 240 calls/day max
+const batch=candidates.slice(0,70); // 3 statement calls/stock = 210 calls/day max; leaves quota headroom
 const successfulSymbols=new Set();
 const fundamentalRows=[],statementRows=[],ownershipRows=[],fallbackSymbols=[],failures=[];
 
@@ -161,6 +161,10 @@ for(const stock of batch){
   }catch(e){
     fallbackSymbols.push(symbol);
     failures.push({symbol,reason:e.message});
+    if(/FMP HTTP 429/i.test(e.message) && /Limit Reach/i.test(e.message)){
+      quotaExhausted=true;
+      break;
+    }
   }
   await sleep(150);
 }
@@ -187,6 +191,7 @@ await import('node:fs/promises').then(fs=>fs.writeFile('.fmp_fallback_symbols.js
 console.log(JSON.stringify({
   source:'FMP',eligible:eligible.length,candidates:candidates.length,batch_processed:batch.length,fundamentals_written:fundamentalRows.length,
   statement_rows_written:statementRows.length,ownership_rows_written:ownershipRows.length,
+  quota_exhausted:quotaExhausted,
   fallback_to_sec:fallbackSymbols.length,fallback_symbols:fallbackSymbols.slice(0,100),
   failures:failures.slice(0,20)
 },null,2));
