@@ -244,7 +244,7 @@ let fallbackSymbols=null;
 try{ if(process.env.FUNDAMENTALS_SYMBOLS_FILE){ const fs=await import('node:fs/promises'); fallbackSymbols=new Set(JSON.parse(await fs.readFile(process.env.FUNDAMENTALS_SYMBOLS_FILE,'utf8')).map(x=>String(x).toUpperCase())); } }catch(e){ console.warn('Unable to read FMP fallback symbol list:',e.message); }
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock'&&(!fallbackSymbols||fallbackSymbols.has(String(s.symbol).toUpperCase())));
 const fundamentalRows=[];const statementRows=[];const ownershipRows=[];const failures=[];let processed=0;
-await db('ownership_snapshots',{method:'DELETE',params:{id:'not.is.null'},prefer:'return=minimal'});
+// Keep existing ownership history; source rows are upserted below.
 
 for(const stock of eligible){
   processed++;
