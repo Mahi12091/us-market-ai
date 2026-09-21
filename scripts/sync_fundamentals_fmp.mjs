@@ -136,6 +136,7 @@ const existingIds=new Set((existing||[]).map(x=>Number(x.stock_id)));
 const candidates=eligible.filter(s=>!existingIds.has(Number(s.id)));
 const batch=candidates.slice(0,70); // 3 statement calls/stock = 210 calls/day max; leaves quota headroom
 const successfulSymbols=new Set();
+let quotaExhausted=false;
 const fundamentalRows=[],statementRows=[],ownershipRows=[],fallbackSymbols=[],failures=[];
 
 for(const stock of batch){
