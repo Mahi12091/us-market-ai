@@ -113,17 +113,20 @@ try{const fs=await import('node:fs/promises');fallbackSymbols=JSON.parse(await f
 const bySymbol=new Map((stocks||[]).map(s=>[String(s.symbol).toUpperCase(),s]));
 const existing=await db('fundamentals',{params:{select:'stock_id',limit:5000}});
 const existingIds=new Set((existing||[]).map(x=>Number(x.stock_id)));
-const candidates=fallbackSymbols.map(s=>bySymbol.get(s)).filter(Boolean).filter(s=>!existingIds.has(Number(s.id))).slice(0,8); // 8 stocks x 3 calls = 24/day
+const candidates=fallbackSymbols.map(s=>bySymbol.get(s)).filter(Boolean).filter(s=>!existingIds.has(Number(s.id))).slice(0,7); // 7 stocks x 3 calls = 21/day; leaves quota headroom
 
 const fundamentalRows=[],statementRows=[],ownershipRows=[],failures=[];
 for(const stock of candidates){
   const symbol=String(stock.symbol).toUpperCase();
   try{
-    const [inc,balance,cash]=await Promise.all([
-      getJson('INCOME_STATEMENT',symbol),
-      getJson('BALANCE_SHEET',symbol),
-      getJson('CASH_FLOW',symbol)
-    ]);
+    // Alpha Vantage free keys enforce roughly 1 request/second.
+    // Keep every request serialized with a safety gap; Promise.all would trigger burst throttling.
+    await sleep(1200);
+    const inc=await getJson('INCOME_STATEMENT',symbol);
+    await sleep(1200);
+    const balance=await getJson('BALANCE_SHEET',symbol);
+    await sleep(1200);
+    const cash=await getJson('CASH_FLOW',symbol);
     const rows=[
       ...incomeRows(inc,stock.id),...balanceRows(balance,stock.id),...cashRows(cash,stock.id)
     ];
@@ -132,7 +135,7 @@ for(const stock of candidates){
     statementRows.push(...rows);
     if(f?.shares_outstanding!=null&&f.report_date) ownershipRows.push({stock_id:Number(stock.id),period_end:f.report_date,shares_outstanding:f.shares_outstanding,data_source:'Alpha Vantage'});
   }catch(e){failures.push({symbol,reason:e.message});}
-  await sleep(300);
+  await sleep(1200);
 }
 
 for(const row of fundamentalRows) await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
