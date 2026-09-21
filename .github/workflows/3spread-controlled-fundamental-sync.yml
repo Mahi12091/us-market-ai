@@ -1,0 +1,30 @@
+name: 3spread Controlled Fundamental Sync
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          for name in THREESPREAD_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
+          done
+      - name: Run controlled 5-stock sync
+        run: node scripts/sync_fundamentals_3spread.mjs
