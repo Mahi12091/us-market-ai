@@ -136,9 +136,9 @@ for(const stock of eligible){
   const symbol=String(stock.symbol).toUpperCase();
   try{
     const [inc,balance,cash]=await Promise.all([
-      getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=12&period=quarter`),
-      getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=12&period=quarter`),
-      getJson(`cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=12&period=quarter`)
+      getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`),
+      getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`),
+      getJson(`cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`)
     ]);
     const annualInc=await getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`);
     const annualBalance=await getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`);
