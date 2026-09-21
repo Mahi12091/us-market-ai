@@ -131,30 +131,30 @@ const quotes=await db('latest_quotes',{params:{select:'stock_id,price',limit:500
 const prices=new Map((quotes||[]).map(x=>[Number(x.stock_id),num(x.price)]));
 const eligible=(stocks||[]).filter(s=>s.symbol&&String(s.asset_type||'stock')==='stock');
 
+const existing=await db('fundamentals',{params:{select:'stock_id',limit:5000}});
+const existingIds=new Set((existing||[]).map(x=>Number(x.stock_id)));
+const candidates=eligible.filter(s=>!existingIds.has(Number(s.id)));
+const batch=candidates.slice(0,80); // 3 statement calls/stock = 240 calls/day max
+const successfulSymbols=new Set();
 const fundamentalRows=[],statementRows=[],ownershipRows=[],fallbackSymbols=[],failures=[];
-for(const stock of eligible){
+
+for(const stock of batch){
   const symbol=String(stock.symbol).toUpperCase();
   try{
     const [inc,balance,cash]=await Promise.all([
-      getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`),
-      getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`),
-      getJson(`cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=quarter`)
+      getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`),
+      getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`),
+      getJson(`cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`)
     ]);
-    const annualInc=await getJson(`income-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`);
-    const annualBalance=await getJson(`balance-sheet-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`);
-    const annualCash=await getJson(`cash-flow-statement?symbol=${encodeURIComponent(symbol)}&limit=5&period=annual`);
-    const allInc=[...inc,...annualInc];
-    const allBalance=[...balance,...annualBalance];
-    const allCash=[...cash,...annualCash];
-    const fundamental=buildFundamental(stock,prices.get(Number(stock.id)),annualInc.length?annualInc:inc,annualBalance.length?annualBalance:balance,annualCash.length?annualCash:cash);
+    const fundamental=buildFundamental(stock,prices.get(Number(stock.id)),inc,balance,cash);
     if(!fundamental){fallbackSymbols.push(symbol);continue;}
+    successfulSymbols.add(symbol);
     fundamentalRows.push(fundamental);
-    const normalized=[
-      ...allInc.map(r=>normalizeIncome(r,stock.id)),
-      ...allBalance.map(r=>normalizeBalance(r,stock.id)),
-      ...allCash.map(r=>normalizeCash(r,stock.id))
-    ].filter(Boolean);
-    statementRows.push(...normalized);
+    statementRows.push(...[
+      ...inc.map(r=>normalizeIncome(r,stock.id)),
+      ...balance.map(r=>normalizeBalance(r,stock.id)),
+      ...cash.map(r=>normalizeCash(r,stock.id))
+    ].filter(Boolean));
     if(fundamental.shares_outstanding!=null&&fundamental.report_date){
       ownershipRows.push({stock_id:Number(stock.id),period_end:fundamental.report_date,shares_outstanding:fundamental.shares_outstanding,data_source:'FMP'});
     }
@@ -164,6 +164,13 @@ for(const stock of eligible){
   }
   await sleep(150);
 }
+
+// Anything not attempted today remains in the fallback queue for SEC/Alpha.
+for(const stock of eligible){
+  const symbol=String(stock.symbol).toUpperCase();
+  if(!successfulSymbols.has(symbol) && !fallbackSymbols.includes(symbol)) fallbackSymbols.push(symbol);
+}
+await import('node:fs/promises').then(fs=>fs.writeFile('.fmp_fallback_symbols.json',JSON.stringify(fallbackSymbols)));
 
 for(const row of fundamentalRows){
   await db('fundamentals',{method:'POST',params:{on_conflict:'stock_id,fiscal_period'},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
@@ -178,7 +185,7 @@ for(const row of ownershipRows){
 await import('node:fs/promises').then(fs=>fs.writeFile('.fmp_fallback_symbols.json',JSON.stringify(fallbackSymbols)));
 
 console.log(JSON.stringify({
-  source:'FMP',eligible:eligible.length,fundamentals_written:fundamentalRows.length,
+  source:'FMP',eligible:eligible.length,candidates:candidates.length,batch_processed:batch.length,fundamentals_written:fundamentalRows.length,
   statement_rows_written:statementRows.length,ownership_rows_written:ownershipRows.length,
   fallback_to_sec:fallbackSymbols.length,fallback_symbols:fallbackSymbols.slice(0,100),
   failures:failures.slice(0,20)
