@@ -145,7 +145,7 @@ for(const stock of stocks){
   const symbol=String(stock.symbol).toUpperCase();
   try{
     const [sBody,mBody,rBody]=await Promise.all([
-      getJson('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
+      getJson('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10'),
       getJson('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
       getJson('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100')
     ]);
