@@ -1,0 +1,29 @@
+name: Fundamental API Contract Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  api-contract-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
+      TICKERLAYER_API_KEY: ${{ secrets.TICKERLAYER_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Validate API secrets
+        run: |
+          set -euo pipefail
+          for name in THREESPREAD_API_KEY TICKERLAYER_API_KEY; do
+            if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
+          done
+      - name: Test 3spread and TickerLayer with AAPL
+        run: node scripts/test_fundamental_apis.mjs
