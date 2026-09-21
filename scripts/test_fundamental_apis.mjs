@@ -1,5 +1,5 @@
 const required=['THREESPREAD_API_KEY','TICKERLAYER_API_KEY'];
-for(const n of required) if(!process.env[n]) throw new Error(`${n} is not configured.`);
+for(const n of required) if(!process.env[n]) throw new Error(n+' is not configured.');
 
 const three='https://api.3spread.com';
 const ticker='https://api.tickerlayer.com';
@@ -7,13 +7,30 @@ async function getJson(url,headers){
   const r=await fetch(url,{headers:{Accept:'application/json',...headers}});
   const text=await r.text(); let body={};
   try{body=text?JSON.parse(text):{};}catch{body={raw:text.slice(0,500)};}
-  if(!r.ok) throw new Error(`${r.status} ${url}: ${JSON.stringify(body).slice(0,700)}`);
+  if(!r.ok) throw new Error(r.status+' '+url+': '+JSON.stringify(body).slice(0,700));
   return body;
 }
+
+function summarize(rows){
+  return rows.slice(0,20).map(x=>({
+    statement_type:x.statement_type??null,section:x.section??null,category:x.category??null,
+    value:x.value??null,currency:x.currency??null,period_end:x.period_end??null,
+    period_of_report:x.period_of_report??null,fiscal_year:x.fiscal_year??null,
+    fiscal_quarter:x.fiscal_quarter??null,period_length:x.period_length??null,
+    form_type:x.form_type??null,filing_id:x.filing_id??null
+  }));
+}
+
 const result={symbol:'AAPL',three_spread:{},ticker_layer:{}};
-for(const [name,path] of [['statements','/v1/financials/statements?ticker=AAPL&version=latest&limit=10'],['metrics','/v1/financials/metrics?ticker=AAPL&version=latest&limit=100']]){
-  try{const body=await getJson(three+path,{apikey:process.env.THREESPREAD_API_KEY}); const data=Array.isArray(body?.data)?body.data:[];
-    result.three_spread[name]={ok:true,count:data.length,keys:data[0]?Object.keys(data[0]).slice(0,40):[],sample:data[0]||null};
+for(const [name,path] of [
+  ['statements','/v1/financials/statements?ticker=AAPL&version=latest&limit=10'],
+  ['metrics','/v1/financials/metrics?ticker=AAPL&version=latest&limit=100'],
+  ['ratios','/v1/financials/ratios?ticker=AAPL&version=latest&limit=100']
+]){
+  try{
+    const body=await getJson(three+path,{apikey:process.env.THREESPREAD_API_KEY});
+    const data=Array.isArray(body?.data)?body.data:[];
+    result.three_spread[name]={ok:true,count:data.length,keys:data[0]?Object.keys(data[0]).slice(0,60):[],samples:summarize(data),raw_first:data[0]||null};
   }catch(e){result.three_spread[name]={ok:false,error:e.message};}
 }
 for(const [name,path] of [['fundamentals','/fundamentals/stocks/US:AAPL'],['snapshot','/stocks/snapshot/US:AAPL']]){
@@ -21,4 +38,4 @@ for(const [name,path] of [['fundamentals','/fundamentals/stocks/US:AAPL'],['snap
   catch(e){result.ticker_layer[name]={ok:false,error:e.message};}
 }
 console.log(JSON.stringify(result,null,2));
-if(!result.three_spread.statements.ok || !result.three_spread.metrics.ok || !result.ticker_layer.snapshot.ok) process.exitCode=1;
+if(!result.three_spread.statements.ok || !result.three_spread.metrics.ok || !result.three_spread.ratios.ok || !result.ticker_layer.snapshot.ok) process.exitCode=1;
