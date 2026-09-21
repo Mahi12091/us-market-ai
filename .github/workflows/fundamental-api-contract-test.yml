@@ -2,6 +2,10 @@ name: Fundamental API Contract Test
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/test_fundamental_apis.mjs'
+      - '.github/workflows/fundamental-api-contract-test.yml'
 
 permissions:
   contents: read
