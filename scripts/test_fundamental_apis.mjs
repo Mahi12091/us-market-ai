@@ -11,7 +11,7 @@ async function getJson(url,headers){
   return body;
 }
 const result={symbol:'AAPL',three_spread:{},ticker_layer:{}};
-for(const [name,path] of [['statements','/v1/financials/statements?ticker=AAPL&version=latest&limit=20'],['metrics','/v1/financials/metrics?ticker=AAPL&version=latest&limit=100']]){
+for(const [name,path] of [['statements','/v1/financials/statements?ticker=AAPL&version=latest&limit=10'],['metrics','/v1/financials/metrics?ticker=AAPL&version=latest&limit=100']]){
   try{const body=await getJson(three+path,{apikey:process.env.THREESPREAD_API_KEY}); const data=Array.isArray(body?.data)?body.data:[];
     result.three_spread[name]={ok:true,count:data.length,keys:data[0]?Object.keys(data[0]).slice(0,40):[],sample:data[0]||null};
   }catch(e){result.three_spread[name]={ok:false,error:e.message};}
