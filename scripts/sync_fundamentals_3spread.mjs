@@ -42,6 +42,16 @@ async function db(table,{method='GET',params={},body,prefer='return=representati
   }
   throw new Error('Supabase '+lastStatus+': '+lastText);
 }
+async function dbAll(table,params={},pageSize=500){
+  const rows=[];
+  for(let offset=0;;offset+=pageSize){
+    const page=await db(table,{params:{...params,limit:pageSize,offset}});
+    if(!Array.isArray(page)||!page.length) break;
+    rows.push(...page);
+    if(page.length<pageSize) break;
+  }
+  return rows;
+}
 function periodType(r){
   const p=String(r.period_type??r.period??'').toLowerCase();
   if(p.includes('quarter')) return 'quarterly';
@@ -292,12 +302,12 @@ async function upsertNormalizedBatch(table,rows,conflict,chunkSize=500){
   }
 }
 
-const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc',limit:500}});
+const stocks=await dbAll('stocks',{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc'},500);
 if(!stocks?.length) throw new Error('No active stocks found.');
 
 // Read existing 3spread fundamentals once instead of making one Supabase request per stock.
 // This avoids hundreds of REST round-trips and greatly reduces the chance of Supabase 504s.
-const existingFundamentals=await db('fundamentals',{params:{select:'stock_id',data_source:'eq.3spread',limit:5000}});
+const existingFundamentals=await dbAll('fundamentals',{select:'stock_id',data_source:'eq.3spread',order:'stock_id.asc'},500);
 const existing3spreadStocks=new Set((existingFundamentals||[]).map(r=>Number(r.stock_id)));
 
 const summary=[];
