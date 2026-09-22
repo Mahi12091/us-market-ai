@@ -305,8 +305,8 @@ for(const stock of stocks){
   try{
     const [statements,metrics,ratios]=await Promise.all([
       getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
-      getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300'),
-      getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300')
+      getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
+      getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100')
     ]);
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
     const rawStatementRows=[];
