@@ -3,6 +3,7 @@ for(const n of REQUIRED) if(!process.env[n]) throw new Error(n+' is not configur
 
 const THREE='https://api.3spread.com';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const DEEP_SYNC=process.env.SYNC_3SPREAD_METRICS_RATIOS==='true';
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
 const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
@@ -290,16 +291,21 @@ if(!stocks?.length) throw new Error('No active stocks found.');
 const summary=[];
 for(const stock of stocks){
   const stockId=Number(stock.id);
-  await db('financial_statements',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
-  await db('fundamentals',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
-  await db('threespread_statement_line_items',{method:'DELETE',params:{stock_id:'eq.'+stockId},prefer:'return=minimal'});
+
   const symbol=String(stock.symbol).toUpperCase();
   try{
-    const [statements,metrics,ratios]=await Promise.all([
-      getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10'),
+    // Statements are sufficient for normalized fundamentals and use far fewer API requests.
+    // Metrics/ratios remain supported as an optional deep pass for later enrichment.
+    const statements=await getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10');
+    const [metrics,ratios]=DEEP_SYNC?await Promise.all([
       getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10'),
       getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10')
-    ]);
+    ]):[[],[]];
+
+    // Only replace existing normalized 3spread rows after the source fetch succeeded.
+    await db('financial_statements',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
+    await db('fundamentals',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
+    await db('threespread_statement_line_items',{method:'DELETE',params:{stock_id:'eq.'+stockId},prefer:'return=minimal'});
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
     const rawStatementRows=[];
     const lineItemRows=[];
@@ -380,5 +386,5 @@ for(const stock of stocks){
   }catch(e){summary.push({symbol,ok:false,error:e.message});}
   await sleep(150);
 }
-console.log(JSON.stringify({source:'3spread',mode:'full-active-universe-raw-plus-normalized',summary},null,2));
+console.log(JSON.stringify({source:'3spread',mode:DEEP_SYNC?'full-active-universe-deep':'full-active-universe-statements',summary},null,2));
 if(summary.some(x=>!x.ok)) process.exitCode=1;
