@@ -89,13 +89,38 @@ const aliases={
 const reverse=new Map(Object.entries(aliases).flatMap(([dest,keys])=>keys.map(k=>[norm(k),dest])));
 
 function extractFields(statementJson){
-  const leaves=collectLeaves(statementJson);
+  const sections=statementJson?.sections;
   const out={};
-  for(const x of leaves){
-    const candidates=[x.key,x.label||''].flatMap(v=>String(v).split(/[.\s/:-]+/).map(norm));
-    const joined=candidates.filter(Boolean).join('_');
-    const direct=reverse.get(norm(x.key))||reverse.get(norm(x.label||''))||reverse.get(joined);
-    if(direct && out[direct]==null) out[direct]=x.value;
+  const pick=(section,keys)=>{
+    const obj=sections?.[section];
+    if(!obj) return null;
+    for(const k of keys){ const v=obj?.[k]?.value; const n=num(v); if(n!=null) return n; }
+    return null;
+  };
+  const direct={
+    revenue:pick('revenue',['total_revenue','net_revenue']),
+    gross_profit:pick('cost_and_expenses',['gross_profit']),
+    operating_income:pick('cost_and_expenses',['operating_income']),
+    pretax_income:pick('non_operating',['income_before_taxes','pretax_income']),
+    net_income:pick('net_income',['net_income','net_income_to_common','net_income_to_parent']),
+    eps_diluted:pick('per_share',['eps_diluted']), eps_basic:pick('per_share',['eps_basic']),
+    shares_diluted:pick('per_share',['shares_diluted']), shares_basic:pick('per_share',['shares_basic']),
+    cash_and_equivalents:pick('assets',['cash_and_equivalents']), total_assets:pick('assets',['total_assets']), current_assets:pick('assets',['total_current_assets']),
+    total_liabilities:pick('liabilities',['total_liabilities']), current_liabilities:pick('liabilities',['total_current_liabilities']),
+    shareholders_equity:pick('equity',['total_equity','total_common_equity']),
+    total_debt:pick('liabilities',['total_borrowings','long_term_debt','short_term_borrowings']),
+    operating_cash_flow:pick('operating',['net_cash_provided_by_used_in_operating_activities','net_cash_operating','cash_from_operations','operating_cash_flow']),
+    capital_expenditure:pick('investing',['capital_expenditures','capital_expenditure','payments_to_acquire_property_plant_and_equipment','purchases_of_property_plant_and_equipment']),
+    free_cash_flow:pick('operating',['free_cash_flow','fcf']), depreciation_amortization:pick('operating',['depreciation_and_amortization']),
+    ebitda:pick('operating',['ebitda'])
+  };
+  for(const [k,v] of Object.entries(direct)) if(v!=null) out[k]=v;
+  // Fallback for future/alternate statement shapes.
+  if(Object.keys(out).length<2){
+    const leaves=collectLeaves(statementJson); for(const x of leaves){
+      const dest=reverse.get(norm(x.label||''))||reverse.get(norm(x.key));
+      if(dest && out[dest]==null) out[dest]=x.value;
+    }
   }
   return out;
 }
