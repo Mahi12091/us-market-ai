@@ -24,6 +24,9 @@ function periodType(r){
   const p=String(r.period_type??r.period??'').toLowerCase();
   if(p.includes('quarter')) return 'quarterly';
   if(p.includes('semi')) return 'semi_annual';
+  if(p.includes('nine') && p.includes('month')) return 'nine_month';
+  if(p.includes('six') && p.includes('month')) return 'six_month';
+  if(p.includes('three') && p.includes('month')) return 'three_month';
   if(p.includes('annual')||p==='fy') return 'annual';
   if(p.includes('ttm')||p.includes('trailing')) return 'ttm';
   if(p.includes('point')) return 'point_in_time';
