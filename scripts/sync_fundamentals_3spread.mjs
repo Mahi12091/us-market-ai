@@ -209,7 +209,7 @@ function buildFundamental(stock, metrics, statements, quote){
   const price=num(quote?.price);
   // latest_quotes does not contain market_cap and weighted-average shares are not
   // equivalent to current shares outstanding, so never manufacture market cap.
-  const marketCap=num(stock.market_cap);
+  const marketCap=num(stock.market_cap)!=null&&num(stock.market_cap)>0?num(stock.market_cap):null;
   const enterpriseValue=marketCap!=null&&debt!=null&&cash!=null?marketCap+debt-cash:null;
   const pe=price!=null&&ttmEps!=null&&ttmEps>0?price/ttmEps:null;
   const priceSales=marketCap!=null&&ttmRevenue!=null&&ttmRevenue>0?marketCap/ttmRevenue:null;
