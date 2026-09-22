@@ -296,7 +296,7 @@ for(const stock of stocks){
 
   // Skip stocks that already have 3spread normalized fundamental data.
   // This makes reruns/resumes fetch only missing stocks and avoids wasting API quota.
-  const existing=await db('fundamentals',{params:{select:'id',stock_id:'eq.'+stockId,data_source:'eq.3spread',limit:1}});
+  const existing=await db('fundamentals',{params:{select:'stock_id',stock_id:'eq.'+stockId,data_source:'eq.3spread',limit:1}});
   if(existing?.length){
     summary.push({symbol,ok:true,skipped:true,reason:'already has 3spread fundamental data'});
     continue;
