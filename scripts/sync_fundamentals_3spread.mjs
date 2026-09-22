@@ -129,6 +129,13 @@ function statementLineItems(r){
 async function upsertRaw(table,row,conflict){
   await db(table,{method:'POST',params:{on_conflict:conflict},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
 }
+async function upsertRawBatch(table,rows,conflict,chunkSize=500){
+  for(let i=0;i<rows.length;i+=chunkSize){
+    const chunk=rows.slice(i,i+chunkSize);
+    if(!chunk.length) continue;
+    await db(table,{method:'POST',params:{on_conflict:conflict},prefer:'resolution=merge-duplicates,return=minimal',body:chunk});
+  }
+}
 function buildFundamental(stock, metrics){
   const map=latestByCategory(metrics);
   const revenue=metricValue(map,['revenue','revenues','sales']);
@@ -207,6 +214,9 @@ for(const stock of stocks){
     const ratios=ratioRows(rBody);
 
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
+    const rawStatementRows=[];
+    const lineItemRows=[];
+    const normalizedStatementRows=[];
     for(const r of statements){
       const raw={
         stock_id:Number(stock.id),ticker:symbol,block_id:r.block_id??null,filing_id:r.filing_id??null,cik:r.cik??null,
@@ -219,16 +229,16 @@ for(const stock of stocks){
         score_composite:num(r.score_composite),scores:r.scores??null,currency:r.currency??null,
         statement_json:r.statement_json??null,raw_json:r
       };
-      if(raw.block_id) { await upsertRaw('threespread_financial_statements',raw,'stock_id,block_id'); rawStatements++; }
+      if(raw.block_id) rawStatementRows.push(raw);
       const lineItems=statementLineItems(r);
       for(const li of lineItems){
-        await upsertRaw('threespread_statement_line_items',{
+        lineItemRows.push({
           stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,
           statement_type:r.statement_type,section:li.section,item_key:li.item_key,label:li.label,
           value:li.value,source:li.source,members:li.members,currency:r.currency??null,
           period_end:r.period_end??null,period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),
           fiscal_quarter:num(r.fiscal_quarter),raw_item:li.raw_item
-        },'stock_id,block_id,item_key');
+        });
       }
       const fields=extractFields(r.statement_json);
       const statement_type=normalizedStatementType(r.statement_type);
@@ -237,29 +247,37 @@ for(const stock of stocks){
         Object.assign(row,fields);
         if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
         if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
-        if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null){
-          await mergeInsert('financial_statements',{stock_id:stockId,statement_type,period_type:row.period_type,fiscal_period:row.fiscal_period},row);
-          normalizedStatements++;
-        }
+        if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null) normalizedStatementRows.push({row,statement_type});
       }
     }
+    await upsertRawBatch('threespread_financial_statements',rawStatementRows,'stock_id,block_id');
+    await upsertRawBatch('threespread_statement_line_items',lineItemRows,'stock_id,block_id,item_key');
+    rawStatements=rawStatementRows.length;
 
-    for(const r of metrics){
-      const raw={stock_id:stockId,ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
-        period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),
-        category:r.category??null,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,
-        derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r};
-      if(raw.category && raw.period_end) { await upsertRaw('threespread_metrics',raw,'stock_id,category,period_end,period_type'); rawMetrics++; }
+    // Keep source precedence intact: merge normalized rows one-by-one only where needed.
+    for(const {row,statement_type} of normalizedStatementRows){
+      await mergeInsert('financial_statements',{stock_id:stockId,statement_type,period_type:row.period_type,fiscal_period:row.fiscal_period},row);
+      normalizedStatements++;
     }
 
-    for(const r of ratios){
-      const raw={stock_id:stockId,ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name??null,
-        value:num(r.value),value_pctile:num(r.value_pctile),missing_inputs:r.missing_inputs??null,period_end:r.period_end??null,
-        period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,
-        fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),spine:r.spine??null,derived:r.derived??null,
-        is_valid:r.is_valid??null,raw_json:r};
-      if(raw.ratio_name && raw.period_end) { await upsertRaw('threespread_ratios',raw,'stock_id,ratio_name,period_end,period_type'); rawRatios++; }
-    }
+    const rawMetricRows=metrics.filter(r=>r?.category&&r?.period_end).map(r=>({
+      stock_id:stockId,ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
+      period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),
+      category:r.category??null,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,
+      derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r
+    }));
+    await upsertRawBatch('threespread_metrics',rawMetricRows,'stock_id,category,period_end,period_type');
+    rawMetrics=rawMetricRows.length;
+
+    const rawRatioRows=ratios.filter(r=>r?.ratio_name&&r?.period_end).map(r=>({
+      stock_id:stockId,ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name??null,
+      value:num(r.value),value_pctile:num(r.value_pctile),missing_inputs:r.missing_inputs??null,period_end:r.period_end??null,
+      period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,
+      fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),spine:r.spine??null,derived:r.derived??null,
+      is_valid:r.is_valid??null,raw_json:r
+    }));
+    await upsertRawBatch('threespread_ratios',rawRatioRows,'stock_id,ratio_name,period_end,period_type');
+    rawRatios=rawRatioRows.length;
 
     const fundamental=buildFundamental(stock,metrics);
     if(fundamental){
