@@ -84,10 +84,13 @@ export default function StockSeoContent({ stock, quote, tech, predictions, funda
       <ResearchText>The fundamentals snapshot brings revenue, profit, free cash flow, EPS, EPS growth, ROE and leverage into one place. Missing fields remain marked as unavailable.</ResearchText>
       {fundamentals ? <div className="seo-data-table"><table><tbody>{[
         ['Revenue', money(fundamentals.revenue)], ['Revenue Growth', pct(fundamentals.revenue_growth)],
-        ['Gross Profit', money(fundamentals.gross_profit)], ['Operating Income', money(fundamentals.operating_income)],
-        ['Net Income', money(fundamentals.net_income)], ['EPS', num(fundamentals.eps)],
-        ['EPS Growth', pct(fundamentals.eps_growth)], ['ROE', pct(fundamentals.roe)],
-        ['Free Cash Flow', money(fundamentals.free_cash_flow)], ['Debt / Equity', num(fundamentals.debt_equity)]
+        ['Gross Profit', money(fundamentals.gross_profit)], ['Gross Margin', pct(fundamentals.gross_margin)],
+        ['Operating Income', money(fundamentals.operating_income)], ['Operating Margin', pct(fundamentals.operating_margin)],
+        ['Net Income', money(fundamentals.net_income)], ['Net Margin', pct(fundamentals.net_margin)],
+        ['EPS', num(fundamentals.eps)], ['EPS Growth', pct(fundamentals.eps_growth)],
+        ['ROE', pct(fundamentals.roe)], ['ROA', pct(fundamentals.roa)],
+        ['Free Cash Flow', money(fundamentals.free_cash_flow)], ['FCF Margin', pct(fundamentals.fcf_margin)],
+        ['Debt / Equity', num(fundamentals.debt_equity)]
       ].map(([k,v]) => <tr key={String(k)}><th>{k}</th><td>{v}</td></tr>)}</tbody></table></div> : <div className="seo-empty">Fundamentals data is pending API connection.</div>}
       <h3>{company} ({symbol}) Revenue & Revenue Growth</h3><ResearchText>Revenue and revenue growth help describe the scale and direction of the business. Use the verified figures above when available; no missing growth rate is estimated.</ResearchText>
       <h3>{company} ({symbol}) EPS, Free Cash Flow & ROE</h3><ResearchText>EPS, free cash flow and return on equity provide additional profitability and capital-efficiency context. Each metric should be interpreted with the company's industry and reporting period in mind.</ResearchText>
@@ -99,6 +102,9 @@ export default function StockSeoContent({ stock, quote, tech, predictions, funda
         ['P/E Ratio', num(fundamentals.pe_ratio)], ['Forward P/E', num(fundamentals.forward_pe)],
         ['PEG Ratio', num(fundamentals.peg_ratio)], ['Price / Sales', num(fundamentals.price_sales)],
         ['Price / Book', num(fundamentals.price_book)], ['Enterprise Value', money(fundamentals.enterprise_value)],
+        ['EV / Revenue', num(fundamentals.enterprise_value_to_revenue)],
+        ['EV / EBITDA', num(fundamentals.enterprise_value_to_ebitda)],
+        ['Earnings Yield', pct(fundamentals.earnings_yield)],
         ['Market Cap', money(fundamentals.market_cap ?? stock.market_cap)]
       ].map(([k,v]) => <tr key={String(k)}><th>{k}</th><td>{v}</td></tr>)}</tbody></table></div> : <div className="seo-empty">Valuation data is pending fundamentals ingestion.</div>}
       <h3>{company} ({symbol}) Fair Value & Valuation</h3><ResearchText>US Market AI does not label a missing fair-value estimate as a fact. If a validated valuation model is connected later, its methodology and assumptions can be displayed here.</ResearchText>
