@@ -80,7 +80,7 @@ const aliases={
  current_liabilities:['current_liabilities','total_current_liabilities'],
  total_debt:['total_debt','debt','debt_and_finance_leases'],
  shareholders_equity:['shareholders_equity','stockholders_equity','total_equity','equity'],
- operating_cash_flow:['operating_cash_flow','net_cash_provided_by_operating_activities','cash_from_operations'],
+ operating_cash_flow:['operating_cash_flow','net_cash_operating','net_cash_provided_by_operating_activities','net_cash_provided_by_used_in_operating_activities','cash_from_operations'],
  capital_expenditure:['capital_expenditure','capital_expenditures','purchases_of_property_plant_and_equipment'],
  free_cash_flow:['free_cash_flow','fcf']
 };
