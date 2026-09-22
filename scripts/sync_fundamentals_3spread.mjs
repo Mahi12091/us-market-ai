@@ -293,8 +293,8 @@ async function mergeInsert(table,keys,row){
   return {action:'inserted',fields:Object.keys(row).filter(k=>row[k]!=null)};
 }
 
-const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',symbol:'in.(AAPL,MSFT,NVDA,AMZN,GOOGL)',is_active:'eq.true',limit:10}});
-if(!stocks?.length) throw new Error('Controlled stock set not found.');
+const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc',limit:500}});
+if(!stocks?.length) throw new Error('No active stocks found.');
 const summary=[];
 for(const stock of stocks){
   const stockId=Number(stock.id);
@@ -394,5 +394,5 @@ for(const stock of stocks){
   }catch(e){summary.push({symbol,ok:false,error:e.message});}
   await sleep(150);
 }
-console.log(JSON.stringify({source:'3spread',mode:'controlled-5-stock-raw-plus-normalized',summary},null,2));
+console.log(JSON.stringify({source:'3spread',mode:'full-active-universe-raw-plus-normalized',summary},null,2));
 if(summary.some(x=>!x.ok)) process.exitCode=1;
