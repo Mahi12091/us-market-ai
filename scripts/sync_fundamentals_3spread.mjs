@@ -6,14 +6,6 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
 const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
-const TICKER='https://api.tickerlayer.com';
-async function getTickerFundamental(symbol){
-  if(!process.env.TICKERLAYER_API_KEY) return null;
-  const r=await fetch(TICKER+'/fundamentals/stocks/US:'+encodeURIComponent(symbol),{headers:{Accept:'application/json','x-api-key':process.env.TICKERLAYER_API_KEY}});
-  const text=await r.text(); let body={}; try{body=text?JSON.parse(text):{};}catch{}
-  if(!r.ok){ console.warn('TickerLayer '+symbol+' '+r.status+': '+text.slice(0,250)); return null; }
-  return body;
-}
 async function getJson(path){
   const r=await fetch(THREE+path,{headers:{Accept:'application/json',apikey:process.env.THREESPREAD_API_KEY}});
   const text=await r.text();
@@ -239,7 +231,7 @@ function buildFundamental(stock, metrics, statements, quote, tl){
   }
 
   const price=num(quote?.price);
-  const marketCap=num(tl?.market_cap)>0?num(tl.market_cap):(num(stock.market_cap)>0?num(stock.market_cap):null);
+  const marketCap=num(stock.market_cap)>0?num(stock.market_cap):null;
   const enterpriseValue=marketCap!=null&&debt!=null&&cash!=null?marketCap+debt-cash:null;
   const pe=price!=null&&ttmEps!=null&&ttmEps>0?price/ttmEps:null;
   const priceSales=marketCap!=null&&ttmRevenue!=null&&ttmRevenue>0?marketCap/ttmRevenue:null;
@@ -252,7 +244,7 @@ function buildFundamental(stock, metrics, statements, quote, tl){
   const out={stock_id:Number(stock.id),fiscal_period:fp,fiscal_year:fy,period_type:'quarterly',report_date:latestDate,data_source:'3spread',
     market_cap:marketCap,enterprise_value:enterpriseValue,revenue,revenue_growth:revenueGrowth,gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:epsGrowth,
     total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cash,total_debt:debt,shareholders_equity:equity,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,
-    shares_outstanding:num(tl?.shares_total)>0?num(tl.shares_total):null,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,enterprise_value_to_revenue:evRevenue,enterprise_value_to_ebitda:evEbitda,earnings_yield:earningsYield};
+    shares_outstanding:null,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,enterprise_value_to_revenue:evRevenue,enterprise_value_to_ebitda:evEbitda,earnings_yield:earningsYield};
   if(revenue!=null&&gross!=null) out.gross_margin=gross/revenue*100;
   if(revenue!=null&&op!=null) out.operating_margin=op/revenue*100;
   if(revenue!=null&&net!=null) out.net_margin=net/revenue*100;
@@ -377,13 +369,7 @@ for(const stock of stocks){
 
     const quoteRows=await db('latest_quotes',{params:{select:'price',stock_id:'eq.'+stockId,limit:1}});
     const quote=quoteRows?.[0]??null;
-    const tl=await getTickerFundamental(symbol);
-    if(tl){
-      await db('stocks',{method:'PATCH',params:{id:'eq.'+stockId},prefer:'return=minimal',body:{market_cap:num(tl.market_cap)>0?num(tl.market_cap):null,updated_at:new Date().toISOString()}});
-      const asOf=tl.as_of?String(tl.as_of).slice(0,10):new Date().toISOString().slice(0,10);
-      await db('ownership_snapshots',{method:'POST',params:{on_conflict:'stock_id,period_end'},prefer:'resolution=merge-duplicates,return=minimal',body:[{stock_id:stockId,period_end:asOf,shares_outstanding:num(tl.shares_total)>0?num(tl.shares_total):null,institutional_ownership_percent:num(tl.institutional_ownership)!=null?num(tl.institutional_ownership)*100:null,insider_ownership_percent:num(tl.insider_ownership)!=null?num(tl.insider_ownership)*100:null,float_shares:num(tl.free_float)>0?num(tl.free_float):null,data_source:'TickerLayer'}]});
-    }
-    const fundamental=buildFundamental(stock,metrics,statements,quote,tl);
+      const fundamental=buildFundamental(stock,metrics,statements,quote,null);
     if(fundamental){
       await mergeInsert('fundamentals',{stock_id:stockId,fiscal_period:fundamental.fiscal_period},fundamental);
       normalizedFundamentals++;
