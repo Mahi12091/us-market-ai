@@ -224,7 +224,8 @@ function buildStatements(stock,rows){
     const st=String(r.statement_type||'').toLowerCase();
     const statement_type=st.includes('bs')||st.includes('balance')?'balance_sheet':st.includes('cf')||st.includes('cash')?'cash_flow':'income_statement';
     const row={stock_id:stockId,statement_type,period_type:periodType(r),fiscal_period:fiscalPeriod(r),period_end:r.period_end??null,data_source:'3spread'};
-    Object.assign(row,fields);
+    const normalizedFields={...fields}; delete normalizedFields.ebitda; delete normalizedFields.depreciation_amortization;
+    Object.assign(row,normalizedFields);
     if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
     if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
     if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null) result.push(row);
@@ -296,7 +297,8 @@ for(const stock of stocks){
       const statement_type=normalizedStatementType(r.statement_type);
       if(statement_type && Object.keys(fields).length){
         const row={stock_id:Number(stock.id),statement_type,period_type:periodType(r),fiscal_period:fiscalPeriod(r),period_end:r.period_end??null,data_source:'3spread'};
-        Object.assign(row,fields);
+        const normalizedFields={...fields}; delete normalizedFields.ebitda; delete normalizedFields.depreciation_amortization;
+        Object.assign(row,normalizedFields);
         if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
         if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
         if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null) normalizedStatementRows.push({row,statement_type});
