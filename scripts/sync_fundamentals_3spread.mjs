@@ -139,21 +139,26 @@ async function upsertRawBatch(table,rows,conflict,chunkSize=500){
     await db(table,{method:'POST',params:{on_conflict:conflict},prefer:'resolution=merge-duplicates,return=minimal',body:chunk});
   }
 }
-function buildFundamental(stock, metrics){
+function buildFundamental(stock, metrics, statements){
   const map=latestByCategory(metrics);
-  const revenue=metricValue(map,['revenue','revenues','sales']);
-  const gross=metricValue(map,['gross_profit']);
-  const op=metricValue(map,['operating_income']);
-  const net=metricValue(map,['net_income']);
-  const eps=metricValue(map,['eps_diluted','diluted_eps','earnings_per_share_diluted']);
-  const assets=metricValue(map,['total_assets','assets']);
-  const liabilities=metricValue(map,['total_liabilities','liabilities']);
-  const cash=metricValue(map,['cash_and_equivalents','cash_and_cash_equivalents','cash']);
-  const debt=metricValue(map,['total_debt','debt']);
-  const equity=metricValue(map,['shareholders_equity','stockholders_equity','total_equity','equity']);
-  const cfo=metricValue(map,['operating_cash_flow']);
-  const capex=metricValue(map,['capital_expenditure','capital_expenditures']);
-  const fcf=metricValue(map,['free_cash_flow']);
+  const latestMetricDate=metrics.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0]?.period_end ?? null;
+  const latestStatementRows=statements.filter(r=>String(r.period_end??'')===String(latestMetricDate)).map(r=>extractFields(r.statement_json));
+  const statementFields={};
+  for(const fields of latestStatementRows) for(const [k,v] of Object.entries(fields)) if(statementFields[k]==null && v!=null) statementFields[k]=v;
+  const valueFrom=(names)=>metricValue(map,names) ?? names.map(n=>statementFields[n]).find(v=>v!=null) ?? null;
+  const revenue=valueFrom(['revenue','revenues','sales','total_revenue']);
+  const gross=valueFrom(['gross_profit']);
+  const op=valueFrom(['operating_income']);
+  const net=valueFrom(['net_income']);
+  const eps=valueFrom(['eps_diluted','diluted_eps','earnings_per_share_diluted']);
+  const assets=valueFrom(['total_assets','assets']);
+  const liabilities=valueFrom(['total_liabilities','liabilities']);
+  const cash=valueFrom(['cash_and_equivalents','cash_and_cash_equivalents','cash']);
+  const debt=valueFrom(['total_debt','debt']);
+  const equity=valueFrom(['shareholders_equity','stockholders_equity','total_equity','equity']);
+  const cfo=valueFrom(['operating_cash_flow','net_cash_operating']);
+  const capex=valueFrom(['capital_expenditure','capital_expenditures']);
+  const fcf=valueFrom(['free_cash_flow','fcf']);
   if([revenue,gross,op,net,eps,assets,liabilities,cash,debt,equity,cfo,capex,fcf].every(v=>v==null)) return null;
   const latest=metrics.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0]||{};
   const out={stock_id:Number(stock.id),fiscal_period:fiscalPeriod(latest),fiscal_year:num(latest.fiscal_year),period_type:periodType(latest),report_date:latest.period_end,data_source:'3spread'};
@@ -282,7 +287,7 @@ for(const stock of stocks){
     await upsertRawBatch('threespread_ratios',rawRatioRows,'stock_id,ratio_name,period_end,period_type');
     rawRatios=rawRatioRows.length;
 
-    const fundamental=buildFundamental(stock,metrics);
+    const fundamental=buildFundamental(stock,metrics,statements);
     if(fundamental){
       await mergeInsert('fundamentals',{stock_id:stockId,fiscal_period:fundamental.fiscal_period},fundamental);
       normalizedFundamentals++;
