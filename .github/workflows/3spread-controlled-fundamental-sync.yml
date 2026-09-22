@@ -17,7 +17,7 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 360
     env:
       TICKERLAYER_API_KEY: ${{ secrets.TICKERLAYER_API_KEY }}
       THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
