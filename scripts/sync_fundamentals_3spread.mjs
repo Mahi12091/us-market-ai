@@ -179,7 +179,18 @@ function buildFundamental(stock, metrics, statements, quote){
     ?latestFour.reduce((s,x)=>s+value(x.f,['revenue']),0):null;
   const ttmEps=latestFour.length===4 && latestFour.every(x=>value(x.f,['eps_diluted','eps_basic'])!=null)
     ?latestFour.reduce((s,x)=>s+value(x.f,['eps_diluted','eps_basic']),0):null;
-  const ttmEbitda=latestFour.length===4 ? latestFour.map(x=>{const direct=value(x.f,['ebitda']); const oi=value(x.f,['operating_income']); const d=value(fields(cf.find(r=>String(r.period_end)===String(x.r.period_end))),['depreciation_amortization']); return direct!=null?direct:(oi!=null&&d!=null?oi+d:null);}).every(v=>v!=null) ? latestFour.reduce((s,x)=>{const direct=value(x.f,['ebitda']); const oi=value(x.f,['operating_income']); const d=value(fields(cf.find(r=>String(r.period_end)===String(x.r.period_end))),['depreciation_amortization']); return s+(direct!=null?direct:oi+d);},0):null:null;
+  let ttmEbitda=null;
+  if(latestFour.length===4){
+    const ebitdaValues=latestFour.map(x=>{
+      const direct=value(x.f,['ebitda']);
+      if(direct!=null) return direct;
+      const oi=value(x.f,['operating_income']);
+      const cfRow=cf.find(r=>String(r.period_end)===String(x.r.period_end));
+      const d=cfRow?value(fields(cfRow),['depreciation_amortization']):null;
+      return oi!=null&&d!=null?oi+d:null;
+    });
+    if(ebitdaValues.every(v=>v!=null)) ttmEbitda=ebitdaValues.reduce((s,v)=>s+v,0);
+  }
 
   const price=num(quote?.price);
   const marketCap=num(stock.market_cap)>0?num(stock.market_cap):null;
