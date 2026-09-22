@@ -140,29 +140,103 @@ async function upsertRawBatch(table,rows,conflict,chunkSize=500){
   }
 }
 function buildFundamental(stock, metrics, statements, quote){
-  const map=latestByCategory(metrics);
-  const sorted=metrics.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)));
-  const latest=sorted[0]||{}; const latestDate=latest.period_end??null;
-  const statementFields={};
-  for(const r of statements.filter(x=>String(x.period_end??'')===String(latestDate))) for(const [k,v] of Object.entries(extractFields(r.statement_json))) if(statementFields[k]==null&&v!=null) statementFields[k]=v;
-  const valueFrom=names=>metricValue(map,names)??names.map(n=>statementFields[n]).find(v=>v!=null)??null;
-  const revenue=valueFrom(['revenue','revenues','sales','total_revenue']), gross=valueFrom(['gross_profit']), op=valueFrom(['operating_income']), net=valueFrom(['net_income']), eps=valueFrom(['eps_diluted','diluted_eps','earnings_per_share_diluted']);
-  const assets=valueFrom(['total_assets','assets']), liabilities=valueFrom(['total_liabilities','liabilities']), cash=valueFrom(['cash_and_equivalents','cash_and_cash_equivalents','cash']), debt=valueFrom(['total_debt','debt']), equity=valueFrom(['shareholders_equity','stockholders_equity','total_equity','equity']);
-  const shares=valueFrom(['shares_diluted','diluted_shares','weighted_average_shares_diluted','shares_outstanding']), cfo=valueFrom(['operating_cash_flow','net_cash_operating']);
-  const capexRaw=valueFrom(['capital_expenditure','capital_expenditures']), capex=capexRaw==null?null:Math.abs(capexRaw), reportedFcf=valueFrom(['free_cash_flow','fcf']), fcf=reportedFcf!=null?reportedFcf:(cfo!=null&&capex!=null?cfo-capex:null);
-  if([revenue,gross,op,net,eps,assets,liabilities,cash,debt,equity,cfo,capex,fcf].every(v=>v==null)) return null;
-  const pt=periodType(latest), fy=num(latest.fiscal_year), fq=num(latest.fiscal_quarter), fundamentalPt=(fq!=null&&fq>0&&fq<=4)?'quarterly':(pt==='unknown'&&fy!=null?'annual':pt);
-  const fp=fiscalPeriod(latest);
-  const prior=statements.filter(r=>normalizedStatementType(r.statement_type)==='income_statement'&&String(r.period_end??'')<String(latestDate??'')&&periodType(r)===fundamentalPt).sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0];
-  const pf=prior?extractFields(prior.statement_json):{}; const prevRevenue=pf.revenue??pf.revenues??pf.sales??pf.total_revenue??null, prevEps=pf.eps_diluted??pf.eps_basic??null;
-  const revenueGrowth=revenue!=null&&prevRevenue!=null&&prevRevenue!==0?(revenue/prevRevenue-1)*100:null, epsGrowth=eps!=null&&prevEps!=null&&prevEps!==0?(eps/prevEps-1)*100:null;
-  const price=num(quote?.price), marketCap=num(quote?.market_cap)??(price!=null&&shares!=null?price*shares:null);
-  const enterpriseValue=marketCap!=null&&debt!=null&&cash!=null?marketCap+debt-cash:null, pe=price!=null&&eps!=null&&eps>0?price/eps:null;
-  const priceSales=marketCap!=null&&revenue!=null&&revenue>0?marketCap/revenue:null, priceBook=marketCap!=null&&equity!=null&&equity>0?marketCap/equity:null;
-  const earningsYield=price!=null&&eps!=null&&price>0?eps/price*100:null, peg=pe!=null&&epsGrowth!=null&&epsGrowth>0?pe/epsGrowth:null, evRevenue=enterpriseValue!=null&&revenue!=null&&revenue>0?enterpriseValue/revenue:null;
-  const out={stock_id:Number(stock.id),fiscal_period:fp,fiscal_year:fy,period_type:fundamentalPt,report_date:latest.period_end,data_source:'3spread',market_cap:marketCap,enterprise_value:enterpriseValue,revenue,revenue_growth:revenueGrowth,gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:epsGrowth,total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cash,total_debt:debt,shareholders_equity:equity,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,shares_outstanding:shares,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,enterprise_value_to_revenue:evRevenue,earnings_yield:earningsYield};
-  if(revenue!=null&&gross!=null) out.gross_margin=gross/revenue*100; if(revenue!=null&&op!=null) out.operating_margin=op/revenue*100; if(revenue!=null&&net!=null) out.net_margin=net/revenue*100; if(revenue!=null&&fcf!=null) out.fcf_margin=fcf/revenue*100;
-  if(equity!=null&&net!=null&&equity!==0) out.roe=net/equity*100; if(assets!=null&&net!=null&&assets!==0) out.roa=net/assets*100; if(equity!=null&&debt!=null&&equity!==0) out.debt_equity=debt/equity;
+  const sortedStatements=statements.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)));
+  const income=sortedStatements.filter(r=>normalizedStatementType(r.statement_type)==='income_statement'&&periodType(r)==='quarterly');
+  const balance=sortedStatements.filter(r=>normalizedStatementType(r.statement_type)==='balance_sheet');
+  const cashflows=sortedStatements.filter(r=>normalizedStatementType(r.statement_type)==='cash_flow'&&periodType(r)==='quarterly');
+
+  const latestIncome=income[0]||null;
+  const latestBalance=balance[0]||null;
+  const latestCf=cashflows[0]||null;
+  if(!latestIncome && !latestBalance && !latestCf) return null;
+
+  const incomeFields=latestIncome?extractFields(latestIncome.statement_json):{};
+  const balanceFields=latestBalance?extractFields(latestBalance.statement_json):{};
+  const cfFields=latestCf?extractFields(latestCf.statement_json):{};
+
+  const value=(fields,names)=>{
+    for(const n of names){if(fields[n]!=null)return num(fields[n]);}
+    return null;
+  };
+
+  const revenue=value(incomeFields,['revenue','revenues','sales','total_revenue']);
+  const gross=value(incomeFields,['gross_profit']);
+  const op=value(incomeFields,['operating_income']);
+  const net=value(incomeFields,['net_income']);
+  const eps=value(incomeFields,['eps_diluted','diluted_eps','earnings_per_share_diluted']);
+
+  const assets=value(balanceFields,['total_assets','assets']);
+  const liabilities=value(balanceFields,['total_liabilities','liabilities']);
+  const cash=value(balanceFields,['cash_and_equivalents','cash_and_cash_equivalents','cash']);
+  const debt=value(balanceFields,['total_debt','debt']);
+  const equity=value(balanceFields,['shareholders_equity','stockholders_equity','total_equity','equity']);
+
+  const cfo=value(cfFields,['operating_cash_flow','net_cash_operating']);
+  const capexRaw=value(cfFields,['capital_expenditure','capital_expenditures']);
+  const capex=capexRaw==null?null:Math.abs(capexRaw);
+  const reportedFcf=value(cfFields,['free_cash_flow','fcf']);
+  const fcf=reportedFcf!=null?reportedFcf:(cfo!=null&&capex!=null?cfo-capex:null);
+
+  const latestDate=latestIncome?.period_end??latestBalance?.period_end??latestCf?.period_end;
+  const fy=num(latestIncome?.fiscal_year);
+  const fq=num(latestIncome?.fiscal_quarter);
+  const fp=fiscalPeriod(latestIncome||latestBalance||latestCf);
+  const fundamentalPt='quarterly';
+
+  const metricPeriod=(r)=>periodType(r)==='quarterly'&&String(r.period_end)<=String(latestDate);
+  const quarterlyMetrics=metrics.filter(metricPeriod);
+  const byCategory=(names)=>quarterlyMetrics
+    .filter(r=>names.includes(norm(r.category)))
+    .sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)));
+
+  const revenueRows=byCategory(['total_revenue','revenue','revenues','sales']);
+  const epsRows=byCategory(['eps_diluted','diluted_eps','eps_basic','basic_eps']);
+
+  const priorRevenueRow=revenueRows.find(r=>num(r.fiscal_year)===fy-1&&num(r.fiscal_quarter)===fq);
+  const priorEpsRow=epsRows.find(r=>num(r.fiscal_year)===fy-1&&num(r.fiscal_quarter)===fq);
+  const revenueGrowth=revenue!=null&&priorRevenueRow&&num(priorRevenueRow.value)!=null&&num(priorRevenueRow.value)!==0
+    ?(revenue/num(priorRevenueRow.value)-1)*100:null;
+  const epsGrowth=eps!=null&&priorEpsRow&&num(priorEpsRow.value)!=null&&num(priorEpsRow.value)!==0
+    ?(eps/num(priorEpsRow.value)-1)*100:null;
+
+  const ttmRevenueRows=revenueRows.slice(0,4);
+  const ttmEpsRows=epsRows.slice(0,4);
+  const ttmRevenue=ttmRevenueRows.length===4&&ttmRevenueRows.every(r=>num(r.value)!=null)
+    ?ttmRevenueRows.reduce((s,r)=>s+num(r.value),0):null;
+  const ttmEps=ttmEpsRows.length===4&&ttmEpsRows.every(r=>num(r.value)!=null)
+    ?ttmEpsRows.reduce((s,r)=>s+num(r.value),0):null;
+
+  const price=num(quote?.price);
+  // latest_quotes does not contain market_cap and weighted-average shares are not
+  // equivalent to current shares outstanding, so never manufacture market cap.
+  const marketCap=num(stock.market_cap);
+  const enterpriseValue=marketCap!=null&&debt!=null&&cash!=null?marketCap+debt-cash:null;
+  const pe=price!=null&&ttmEps!=null&&ttmEps>0?price/ttmEps:null;
+  const priceSales=marketCap!=null&&ttmRevenue!=null&&ttmRevenue>0?marketCap/ttmRevenue:null;
+  const priceBook=marketCap!=null&&equity!=null&&equity>0?marketCap/equity:null;
+  const earningsYield=price!=null&&ttmEps!=null&&price>0?ttmEps/price*100:null;
+  const peg=pe!=null&&epsGrowth!=null&&epsGrowth>0?pe/epsGrowth:null;
+  const evRevenue=enterpriseValue!=null&&ttmRevenue!=null&&ttmRevenue>0?enterpriseValue/ttmRevenue:null;
+
+  const out={
+    stock_id:Number(stock.id),fiscal_period:fp,fiscal_year:fy,period_type:fundamentalPt,
+    report_date:latestDate,data_source:'3spread',
+    market_cap:marketCap,enterprise_value:enterpriseValue,revenue,revenue_growth:revenueGrowth,
+    gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:epsGrowth,
+    total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cash,total_debt:debt,
+    shareholders_equity:equity,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,
+    shares_outstanding:null,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,
+    enterprise_value_to_revenue:evRevenue,earnings_yield:earningsYield
+  };
+
+  if(revenue!=null&&gross!=null) out.gross_margin=gross/revenue*100;
+  if(revenue!=null&&op!=null) out.operating_margin=op/revenue*100;
+  if(revenue!=null&&net!=null) out.net_margin=net/revenue*100;
+  if(revenue!=null&&fcf!=null) out.fcf_margin=fcf/revenue*100;
+  if(equity!=null&&net!=null&&equity!==0) out.roe=net/equity*100;
+  if(assets!=null&&net!=null&&assets!==0) out.roa=net/assets*100;
+  if(equity!=null&&debt!=null&&equity!==0) out.debt_equity=debt/equity;
+
   return out;
 }
 function buildStatements(stock,rows){
@@ -195,7 +269,7 @@ async function mergeInsert(table,keys,row){
   return {action:'inserted',fields:Object.keys(row).filter(k=>row[k]!=null)};
 }
 
-const stocks=await db('stocks',{params:{select:'id,symbol',symbol:'in.(AAPL,MSFT,NVDA,AMZN,GOOGL)',is_active:'eq.true',limit:10}});
+const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',symbol:'in.(AAPL,MSFT,NVDA,AMZN,GOOGL)',is_active:'eq.true',limit:10}});
 if(!stocks?.length) throw new Error('Controlled stock set not found.');
 const summary=[];
 for(const stock of stocks){
