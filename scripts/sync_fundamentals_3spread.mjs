@@ -157,8 +157,10 @@ function buildFundamental(stock, metrics, statements){
   const debt=valueFrom(['total_debt','debt']);
   const equity=valueFrom(['shareholders_equity','stockholders_equity','total_equity','equity']);
   const cfo=valueFrom(['operating_cash_flow','net_cash_operating']);
-  const capex=valueFrom(['capital_expenditure','capital_expenditures']);
-  const fcf=valueFrom(['free_cash_flow','fcf']);
+  const capexRaw=valueFrom(['capital_expenditure','capital_expenditures']);
+  const capex=capexRaw==null?null:Math.abs(capexRaw);
+  const reportedFcf=valueFrom(['free_cash_flow','fcf']);
+  const fcf=reportedFcf!=null?reportedFcf:(cfo!=null&&capex!=null?cfo-capex:null);
   if([revenue,gross,op,net,eps,assets,liabilities,cash,debt,equity,cfo,capex,fcf].every(v=>v==null)) return null;
   const latest=metrics.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)))[0]||{};
   const out={stock_id:Number(stock.id),fiscal_period:fiscalPeriod(latest),fiscal_year:num(latest.fiscal_year),period_type:periodType(latest),report_date:latest.period_end,data_source:'3spread'};
