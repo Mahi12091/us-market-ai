@@ -26,6 +26,7 @@ function periodType(r){
   if(p.includes('semi')) return 'semi_annual';
   if(p.includes('annual')||p==='fy') return 'annual';
   if(p.includes('ttm')||p.includes('trailing')) return 'ttm';
+  if(p.includes('point')) return 'point_in_time';
   return p||'unknown';
 }
 function normalizedStatementType(st){
