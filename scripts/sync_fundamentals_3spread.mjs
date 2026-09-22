@@ -279,19 +279,17 @@ function buildStatements(stock,rows){
   }
   return result;
 }
-async function mergeInsert(table,keys,row){
-  const params={}; for(const [k,v] of Object.entries(keys)) params[k]='eq.'+v;
-  const existing=await db(table,{params:{...params,select:'*',limit:1}});
-  if(existing?.[0]){
-    const merged={...existing[0]};
-    for(const [k,v] of Object.entries(row)) if(v!=null && (merged[k]==null||merged[k]==='')) merged[k]=v;
-    delete merged.id; delete merged.created_at;
-    const patchParams={}; for(const [k,v] of Object.entries(keys)) patchParams[k]='eq.'+v;
-    await db(table,{method:'PATCH',params:patchParams,prefer:'return=minimal',body:merged});
-    return {action:'merged',fields:Object.keys(row).filter(k=>row[k]!=null)};
+async function upsertNormalizedBatch(table,rows,conflict,chunkSize=500){
+  for(let i=0;i<rows.length;i+=chunkSize){
+    const chunk=rows.slice(i,i+chunkSize);
+    if(!chunk.length) continue;
+    await db(table,{
+      method:'POST',
+      params:{on_conflict:conflict},
+      prefer:'resolution=merge-duplicates,return=minimal',
+      body:chunk
+    });
   }
-  await db(table,{method:'POST',params:{on_conflict:Object.keys(keys).join(',')},prefer:'resolution=merge-duplicates,return=minimal',body:[row]});
-  return {action:'inserted',fields:Object.keys(row).filter(k=>row[k]!=null)};
 }
 
 const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc',limit:500}});
@@ -303,7 +301,8 @@ const existingFundamentals=await db('fundamentals',{params:{select:'stock_id',da
 const existing3spreadStocks=new Set((existingFundamentals||[]).map(r=>Number(r.stock_id)));
 
 const summary=[];
-for(const stock of stocks){
+for(const [index,stock] of stocks.entries()){
+  console.log('[3spread] '+(index+1)+'/'+stocks.length+' '+String(stock.symbol).toUpperCase()+' start');
   const stockId=Number(stock.id);
 
   const symbol=String(stock.symbol).toUpperCase();
@@ -323,10 +322,8 @@ for(const stock of stocks){
       getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10')
     ]):[[],[]];
 
-    // Only replace existing normalized 3spread rows after the source fetch succeeded.
-    await db('financial_statements',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
-    await db('fundamentals',{method:'DELETE',params:{stock_id:'eq.'+stockId,data_source:'eq.3spread'},prefer:'return=minimal'});
-    await db('threespread_statement_line_items',{method:'DELETE',params:{stock_id:'eq.'+stockId},prefer:'return=minimal'});
+    // Source fetch succeeded. Upsert in bulk; never do one GET+PATCH per statement row.
+    // Existing 3spread rows are preserved/updated by their unique keys.
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
     const rawStatementRows=[];
     const lineItemRows=[];
@@ -362,18 +359,19 @@ for(const stock of stocks){
         Object.assign(row,normalizedFields);
         if(row.capital_expenditure!=null) row.capital_expenditure=Math.abs(row.capital_expenditure);
         if(row.operating_cash_flow!=null&&row.capital_expenditure!=null&&row.free_cash_flow==null) row.free_cash_flow=row.operating_cash_flow-row.capital_expenditure;
-        if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null) normalizedStatementRows.push({row,statement_type});
+        if(row.revenue!=null||row.net_income!=null||row.total_assets!=null||row.operating_cash_flow!=null) normalizedStatementRows.push(row);
       }
     }
     await upsertRawBatch('threespread_financial_statements',rawStatementRows,'stock_id,block_id');
     await upsertRawBatch('threespread_statement_line_items',lineItemRows,'stock_id,block_id,item_key');
     rawStatements=rawStatementRows.length;
 
-    // Keep source precedence intact: merge normalized rows one-by-one only where needed.
-    for(const {row,statement_type} of normalizedStatementRows){
-      await mergeInsert('financial_statements',{stock_id:stockId,statement_type,period_type:row.period_type,fiscal_period:row.fiscal_period},row);
-      normalizedStatements++;
-    }
+    await upsertNormalizedBatch(
+      'financial_statements',
+      normalizedStatementRows,
+      'stock_id,statement_type,period_type,fiscal_period'
+    );
+    normalizedStatements=normalizedStatementRows.length;
 
     const rawMetricRows=metrics.filter(r=>r?.category&&r?.period_end).map(r=>({
       stock_id:stockId,ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
@@ -398,14 +396,33 @@ for(const stock of stocks){
     const quote=quoteRows?.[0]??null;
       const fundamental=buildFundamental(stock,metrics,statements,quote,null);
     if(fundamental){
-      await mergeInsert('fundamentals',{stock_id:stockId,fiscal_period:fundamental.fiscal_period},fundamental);
-      normalizedFundamentals++;
+      await upsertNormalizedBatch('fundamentals',[fundamental],'stock_id,fiscal_period');
+      normalizedFundamentals=1;
     }
     summary.push({symbol,ok:true,statement_api_rows:statements.length,metric_rows:metrics.length,ratio_rows:ratios.length,
       raw_statements:rawStatements,raw_metrics:rawMetrics,raw_ratios:rawRatios,
       normalized_statements:normalizedStatements,fundamental:!!fundamental,normalized_fundamentals:normalizedFundamentals});
-  }catch(e){summary.push({symbol,ok:false,error:e.message});}
-  await sleep(150);
+  }catch(e){
+    console.error('[3spread] '+symbol+' failed: '+e.message);
+    summary.push({symbol,ok:false,error:e.message});
+    if(String(e.message).includes('3spread 429')) {
+      console.error('[3spread] Daily API quota reached; stopping cleanly so completed stocks remain intact.');
+      break;
+    }
+  }
+  console.log('[3spread] '+symbol+' done');
+  await sleep(75);
 }
-console.log(JSON.stringify({source:'3spread',mode:DEEP_SYNC?'full-active-universe-deep':'full-active-universe-statements',summary},null,2));
-if(summary.some(x=>!x.ok)) process.exitCode=1;
+const failed=summary.filter(x=>!x.ok).length;
+const skipped=summary.filter(x=>x.skipped).length;
+const completed=summary.filter(x=>x.ok&&!x.skipped).length;
+console.log(JSON.stringify({
+  source:'3spread',
+  mode:DEEP_SYNC?'full-active-universe-deep':'full-active-universe-statements',
+  total_stocks:stocks.length,
+  completed,
+  skipped,
+  failed,
+  summary
+},null,2));
+if(failed>0) process.exitCode=1;
