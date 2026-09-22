@@ -82,7 +82,9 @@ const aliases={
  shareholders_equity:['shareholders_equity','stockholders_equity','total_equity','equity'],
  operating_cash_flow:['operating_cash_flow','net_cash_operating','net_cash_provided_by_operating_activities','net_cash_provided_by_used_in_operating_activities','cash_from_operations'],
  capital_expenditure:['capital_expenditure','capital_expenditures','purchases_of_property_plant_and_equipment'],
- free_cash_flow:['free_cash_flow','fcf']
+ free_cash_flow:['free_cash_flow','fcf'],
+ ebitda:['ebitda'],
+ depreciation_amortization:['depreciation_amortization','depreciation_and_amortization','depreciation_depletion_and_amortization']
 };
 const reverse=new Map(Object.entries(aliases).flatMap(([dest,keys])=>keys.map(k=>[norm(k),dest])));
 
@@ -150,6 +152,8 @@ function buildFundamental(stock, metrics, statements, quote){
   const value=(f,names)=>{for(const n of names){if(f[n]!=null)return num(f[n]);}return null;};
   const inf=fields(latestIncome), bsf=fields(latestBalance), cff=fields(latestCf);
   const revenue=value(inf,['revenue']), gross=value(inf,['gross_profit']), op=value(inf,['operating_income']), net=value(inf,['net_income']);
+  const ebitdaDirect=value(inf,['ebitda']);
+  const da=value(cff,['depreciation_amortization']);
   const eps=value(inf,['eps_diluted','eps_basic']);
   const assets=value(bsf,['total_assets']), liabilities=value(bsf,['total_liabilities']), cash=value(bsf,['cash_and_equivalents']), debt=value(bsf,['total_debt']), equity=value(bsf,['shareholders_equity']);
   const cfo=value(cff,['operating_cash_flow']), capex0=value(cff,['capital_expenditure']);
@@ -175,6 +179,7 @@ function buildFundamental(stock, metrics, statements, quote){
     ?latestFour.reduce((s,x)=>s+value(x.f,['revenue']),0):null;
   const ttmEps=latestFour.length===4 && latestFour.every(x=>value(x.f,['eps_diluted','eps_basic'])!=null)
     ?latestFour.reduce((s,x)=>s+value(x.f,['eps_diluted','eps_basic']),0):null;
+  const ttmEbitda=latestFour.length===4 ? latestFour.map(x=>{const direct=value(x.f,['ebitda']); const oi=value(x.f,['operating_income']); const d=value(fields(cf.find(r=>String(r.period_end)===String(x.r.period_end))),['depreciation_amortization']); return direct!=null?direct:(oi!=null&&d!=null?oi+d:null);}).every(v=>v!=null) ? latestFour.reduce((s,x)=>{const direct=value(x.f,['ebitda']); const oi=value(x.f,['operating_income']); const d=value(fields(cf.find(r=>String(r.period_end)===String(x.r.period_end))),['depreciation_amortization']); return s+(direct!=null?direct:oi+d);},0):null:null;
 
   const price=num(quote?.price);
   const marketCap=num(stock.market_cap)>0?num(stock.market_cap):null;
@@ -185,11 +190,12 @@ function buildFundamental(stock, metrics, statements, quote){
   const earningsYield=price!=null&&ttmEps!=null&&price>0?ttmEps/price*100:null;
   const peg=pe!=null&&epsGrowth!=null&&epsGrowth>0?pe/epsGrowth:null;
   const evRevenue=enterpriseValue!=null&&ttmRevenue!=null&&ttmRevenue>0?enterpriseValue/ttmRevenue:null;
+  const evEbitda=enterpriseValue!=null&&ttmEbitda!=null&&ttmEbitda>0?enterpriseValue/ttmEbitda:null;
 
   const out={stock_id:Number(stock.id),fiscal_period:fp,fiscal_year:fy,period_type:'quarterly',report_date:latestDate,data_source:'3spread',
     market_cap:marketCap,enterprise_value:enterpriseValue,revenue,revenue_growth:revenueGrowth,gross_profit:gross,operating_income:op,net_income:net,eps,eps_growth:epsGrowth,
     total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cash,total_debt:debt,shareholders_equity:equity,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,
-    shares_outstanding:null,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,enterprise_value_to_revenue:evRevenue,earnings_yield:earningsYield};
+    shares_outstanding:null,pe_ratio:pe,peg_ratio:peg,price_sales:priceSales,price_book:priceBook,enterprise_value_to_revenue:evRevenue,enterprise_value_to_ebitda:evEbitda,earnings_yield:earningsYield};
   if(revenue!=null&&gross!=null) out.gross_margin=gross/revenue*100;
   if(revenue!=null&&op!=null) out.operating_margin=op/revenue*100;
   if(revenue!=null&&net!=null) out.net_margin=net/revenue*100;
