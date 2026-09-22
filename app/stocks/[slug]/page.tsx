@@ -49,7 +49,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     supabase.from('price_history').select('timestamp,close').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: true }).limit(250),
     supabase.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     supabase.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
-    supabase.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(12),
+    supabase.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(36),
     supabase.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false }).limit(12),
     supabase.from('ownership_snapshots').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(8),
     supabase.from('monthly_stock_research').select('*').eq('stock_id', stock.id).order('research_month', { ascending: false }).limit(6),
