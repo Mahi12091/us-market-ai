@@ -296,6 +296,12 @@ async function mergeInsert(table,keys,row){
 
 const stocks=await db('stocks',{params:{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc',limit:500}});
 if(!stocks?.length) throw new Error('No active stocks found.');
+
+// Read existing 3spread fundamentals once instead of making one Supabase request per stock.
+// This avoids hundreds of REST round-trips and greatly reduces the chance of Supabase 504s.
+const existingFundamentals=await db('fundamentals',{params:{select:'stock_id',data_source:'eq.3spread',limit:5000}});
+const existing3spreadStocks=new Set((existingFundamentals||[]).map(r=>Number(r.stock_id)));
+
 const summary=[];
 for(const stock of stocks){
   const stockId=Number(stock.id);
@@ -304,8 +310,7 @@ for(const stock of stocks){
 
   // Skip stocks that already have 3spread normalized fundamental data.
   // This makes reruns/resumes fetch only missing stocks and avoids wasting API quota.
-  const existing=await db('fundamentals',{params:{select:'stock_id',stock_id:'eq.'+stockId,data_source:'eq.3spread',limit:1}});
-  if(existing?.length){
+  if(existing3spreadStocks.has(stockId)){
     summary.push({symbol,ok:true,skipped:true,reason:'already has 3spread fundamental data'});
     continue;
   }
