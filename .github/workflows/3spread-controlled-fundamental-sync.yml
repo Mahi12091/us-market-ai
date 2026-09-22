@@ -1,5 +1,5 @@
 name: 3spread Controlled Fundamental Sync
-# Data sync: 3spread statements + optional TickerLayer share structure
+# Data sync: 3spread statements and normalized fundamentals
 
 on:
   workflow_dispatch:
@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      TICKERLAYER_API_KEY: ${{ secrets.TICKERLAYER_API_KEY }}
       THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
