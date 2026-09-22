@@ -1,5 +1,5 @@
 name: 3spread Controlled Fundamental Sync
-# Data sync: 3spread statements + TickerLayer share structure
+# Data sync: 3spread statements + optional TickerLayer share structure
 
 on:
   workflow_dispatch:
@@ -29,8 +29,8 @@ jobs:
       - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in THREESPREAD_API_KEY TICKERLAYER_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+          for name in THREESPREAD_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
-      - name: Run optimized controlled 5-stock sync
+      - name: Run full active-universe fundamental sync
         run: node scripts/sync_fundamentals_3spread.mjs
