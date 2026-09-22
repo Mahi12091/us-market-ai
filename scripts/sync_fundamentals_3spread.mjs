@@ -30,9 +30,17 @@ async function getAll(path){
 async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
   const u=new URL(process.env.SUPABASE_URL+'/rest/v1/'+table);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k,v);
-  const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+process.env.SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
-  const text=await r.text(); if(!r.ok) throw new Error('Supabase '+r.status+': '+text);
-  return text?JSON.parse(text):null;
+  let lastStatus=null, lastText='';
+  for(let attempt=1;attempt<=5;attempt++){
+    const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+process.env.SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
+    const text=await r.text();
+    if(r.ok) return text?JSON.parse(text):null;
+    lastStatus=r.status; lastText=text;
+    // Supabase/Cloudflare transient failures should not abort the whole sync.
+    if(![429,500,502,503,504,520,521,522,523,524].includes(r.status) || attempt===5) break;
+    await sleep(Math.min(30000,2000*Math.pow(2,attempt-1)));
+  }
+  throw new Error('Supabase '+lastStatus+': '+lastText);
 }
 function periodType(r){
   const p=String(r.period_type??r.period??'').toLowerCase();
