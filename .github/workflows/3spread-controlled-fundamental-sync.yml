@@ -22,6 +22,7 @@ jobs:
       THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SYNC_3SPREAD_METRICS_RATIOS: 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
