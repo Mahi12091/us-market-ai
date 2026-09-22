@@ -1,4 +1,4 @@
-const REQUIRED=['THREESPREAD_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+const REQUIRED=['THREESPREAD_API_KEY2','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
 for(const n of REQUIRED) if(!process.env[n]) throw new Error(n+' is not configured.');
 
 const THREE='https://api.3spread.com';
@@ -8,7 +8,7 @@ const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
 const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 async function getJson(path){
-  const r=await fetch(THREE+path,{headers:{Accept:'application/json',apikey:process.env.THREESPREAD_API_KEY}});
+  const r=await fetch(THREE+path,{headers:{Accept:'application/json',apikey:process.env.THREESPREAD_API_KEY2}});
   const text=await r.text();
   let body={}; try{body=text?JSON.parse(text):{};}catch{}
   if(!r.ok) throw new Error('3spread '+r.status+': '+text.slice(0,500));
