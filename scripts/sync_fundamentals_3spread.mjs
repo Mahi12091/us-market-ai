@@ -304,9 +304,9 @@ for(const stock of stocks){
   const symbol=String(stock.symbol).toUpperCase();
   try{
     const [statements,metrics,ratios]=await Promise.all([
-      getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
-      getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
-      getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100')
+      getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10'),
+      getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10'),
+      getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=10')
     ]);
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
     const rawStatementRows=[];
