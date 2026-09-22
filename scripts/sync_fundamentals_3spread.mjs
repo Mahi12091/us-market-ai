@@ -13,6 +13,19 @@ async function getJson(path){
   if(!r.ok) throw new Error('3spread '+r.status+': '+text.slice(0,500));
   return body;
 }
+async function getAll(path){
+  const rows=[]; let cursor=null; let guard=0;
+  do{
+    const u=new URL(THREE+path);
+    if(cursor) u.searchParams.set('cursor',cursor);
+    const body=await getJson(u.pathname+u.search);
+    rows.push(...(Array.isArray(body?.data)?body.data:[]));
+    const next=body?.next_cursor??body?.pagination?.next_cursor??null;
+    if(!next || next===cursor || ++guard>100) break;
+    cursor=next;
+  }while(cursor);
+  return rows;
+}
 async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
   const u=new URL(process.env.SUPABASE_URL+'/rest/v1/'+table);
   for(const [k,v] of Object.entries(params)) u.searchParams.set(k,v);
@@ -282,15 +295,11 @@ for(const stock of stocks){
   await db('threespread_statement_line_items',{method:'DELETE',params:{stock_id:'eq.'+stockId},prefer:'return=minimal'});
   const symbol=String(stock.symbol).toUpperCase();
   try{
-    const [sBody,mBody,rBody]=await Promise.all([
-      getJson('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=30'),
-      getJson('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300'),
-      getJson('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300')
+    const [statements,metrics,ratios]=await Promise.all([
+      getAll('/v1/financials/statements?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=100'),
+      getAll('/v1/financials/metrics?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300'),
+      getAll('/v1/financials/ratios?ticker='+encodeURIComponent(symbol)+'&version=latest&limit=300')
     ]);
-    const statements=Array.isArray(sBody?.data)?sBody.data:[];
-    const metrics=metricRows(mBody);
-    const ratios=ratioRows(rBody);
-
     let rawStatements=0, rawMetrics=0, rawRatios=0, normalizedStatements=0, normalizedFundamentals=0;
     const rawStatementRows=[];
     const lineItemRows=[];
