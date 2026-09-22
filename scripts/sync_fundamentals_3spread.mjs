@@ -280,7 +280,7 @@ for(const stock of stocks){
     await upsertRawBatch('threespread_ratios',rawRatioRows,'stock_id,ratio_name,period_end,period_type');
     rawRatios=rawRatioRows.length;
 
-    const quoteRows=await db('latest_quotes',{params:{select:'price,market_cap',stock_id:'eq.'+stockId,limit:1}});
+    const quoteRows=await db('latest_quotes',{params:{select:'price',stock_id:'eq.'+stockId,limit:1}});
     const quote=quoteRows?.[0]??null;
     const fundamental=buildFundamental(stock,metrics,statements,quote);
     if(fundamental){
