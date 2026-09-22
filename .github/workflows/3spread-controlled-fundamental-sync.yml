@@ -1,4 +1,5 @@
 name: 3spread Controlled Fundamental Sync
+# Data sync: 3spread statements + TickerLayer share structure
 
 on:
   workflow_dispatch:
