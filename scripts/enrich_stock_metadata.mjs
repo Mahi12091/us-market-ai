@@ -1,4 +1,6 @@
-const required = ['MASSIVE_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+import { Client } from '@neondatabase/serverless';
+
+const required = ['MASSIVE_API_KEY', 'NEON_DATABASE_URL'];
 for (const name of required) if (!process.env[name]) throw new Error(`${name} is not configured.`);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -8,9 +10,8 @@ let lastRequest = 0;
 async function fetchWithRetry(url, init = {}, attempts = 4) {
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      return await fetch(url, init);
-    } catch (error) {
+    try { return await fetch(url, init); }
+    catch (error) {
       lastError = error;
       if (attempt === attempts) throw lastError;
       await sleep(2000 * attempt);
@@ -31,59 +32,50 @@ async function massive(path) {
   return JSON.parse(text);
 }
 
-async function supabase(symbol, patch) {
-  const url = new URL(`${process.env.SUPABASE_URL}/rest/v1/stocks`);
-  url.searchParams.set('symbol', `eq.${symbol}`);
-  const response = await fetchWithRetry(url, {
-    method: 'PATCH',
-    headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    body: JSON.stringify(patch),
-  });
-  if (!response.ok) throw new Error(`Supabase ${response.status}: ${await response.text()}`);
-}
+const client = new Client(process.env.NEON_DATABASE_URL);
+await client.connect();
 
-const targets = await (async () => {
-  const url = new URL(`${process.env.SUPABASE_URL}/rest/v1/stocks`);
-  url.searchParams.set('select', 'symbol');
-  url.searchParams.set('is_active', 'eq.true');
-  url.searchParams.set('asset_type', 'eq.stock');
-  url.searchParams.set('limit', '500');
-  const response = await fetchWithRetry(url, { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } });
-  if (!response.ok) throw new Error(`Supabase ${response.status}: ${await response.text()}`);
-  return await response.json();
-})();
+try {
+  const targets = await client.query(`
+    SELECT symbol FROM public.stocks
+    WHERE is_active = true AND asset_type = 'stock'
+    ORDER BY id LIMIT 500
+  `);
+  const wanted = new Set(targets.rows.map((row) => String(row.symbol).toUpperCase()));
+  if (!wanted.size) throw new Error('No active stocks found in Neon.');
 
-const wanted = new Set(targets.map((row) => String(row.symbol).toUpperCase()));
-let next = '/v3/reference/tickers?market=stocks&type=CS&active=true&order=asc&sort=ticker&limit=1000';
-let matched = 0;
-let pages = 0;
+  let next = '/v3/reference/tickers?market=stocks&type=CS&active=true&order=asc&sort=ticker&limit=1000';
+  let matched = 0;
+  let pages = 0;
 
-while (next) {
-  const response = await massive(next);
-  pages += 1;
-  for (const ticker of response.results ?? []) {
-    const symbol = String(ticker.ticker ?? '').toUpperCase();
-    if (!wanted.has(symbol)) continue;
-    const patch = {
-      company_name: ticker.name ?? symbol,
-      exchange: ticker.primary_exchange ?? null,
-      market_cap: Number.isFinite(Number(ticker.market_cap)) ? Number(ticker.market_cap) : null,
-      description: ticker.description ?? ticker.sic_description ?? null,
-      website_url: ticker.homepage_url ?? null,
-      logo_url: ticker.branding?.logo_url ?? null,
-      currency: ticker.currency_name?.toUpperCase() ?? 'USD',
-      country: 'US',
-      updated_at: new Date().toISOString(),
-    };
-    await supabase(symbol, patch);
-    matched += 1;
+  while (next) {
+    const response = await massive(next);
+    pages += 1;
+    for (const ticker of response.results ?? []) {
+      const symbol = String(ticker.ticker ?? '').toUpperCase();
+      if (!wanted.has(symbol)) continue;
+      await client.query(`
+        UPDATE public.stocks SET
+          company_name = $1, exchange = $2, market_cap = $3,
+          description = $4, website_url = $5, logo_url = $6,
+          currency = $7, country = 'US', updated_at = now()
+        WHERE symbol = $8
+      `, [
+        ticker.name ?? symbol,
+        ticker.primary_exchange ?? null,
+        Number.isFinite(Number(ticker.market_cap)) ? Number(ticker.market_cap) : null,
+        ticker.description ?? ticker.sic_description ?? null,
+        ticker.homepage_url ?? null,
+        ticker.branding?.logo_url ?? null,
+        ticker.currency_name?.toUpperCase() ?? 'USD',
+        symbol,
+      ]);
+      matched += 1;
+    }
+    next = response.next_url ? new URL(response.next_url).pathname + new URL(response.next_url).search : null;
   }
-  next = response.next_url ? new URL(response.next_url).pathname + new URL(response.next_url).search : null;
-}
 
-console.log(JSON.stringify({ targets: wanted.size, matched, pages }, null, 2));
+  console.log(JSON.stringify({ targets: wanted.size, matched, pages, database: 'Neon' }, null, 2));
+} finally {
+  await client.end();
+}
