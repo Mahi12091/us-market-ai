@@ -56,9 +56,9 @@ try {
       if (!wanted.has(symbol)) continue;
       await client.query(`
         UPDATE public.stocks SET
-          company_name = $1, exchange = $2, market_cap = $3,
-          description = $4, website_url = $5, logo_url = $6,
-          currency = $7, country = 'US', updated_at = now()
+          company_name = COALESCE($1, company_name), exchange = COALESCE($2, exchange), market_cap = COALESCE($3, market_cap),
+          description = COALESCE($4, description), website_url = COALESCE($5, website_url), logo_url = COALESCE($6, logo_url),
+          currency = COALESCE($7, currency), country = COALESCE(country, 'US'), updated_at = now()
         WHERE symbol = $8
       `, [
         ticker.name ?? symbol,
