@@ -1,47 +1,87 @@
-const REQUIRED=['THREESPREAD_API_KEY2','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+import { neon } from '@neondatabase/serverless';
+
+const REQUIRED=['THREESPREAD_API_KEY2','NEON_DATABASE_URL'];
 for(const n of REQUIRED) if(!process.env[n]) throw new Error(n+' is not configured.');
 
 const THREE='https://api.3spread.com';
+const sql=neon(process.env.NEON_DATABASE_URL);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const DEEP_SYNC=process.env.SYNC_3SPREAD_METRICS_RATIOS==='true';
 const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
 const norm=s=>String(s??'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
 
 async function getJson(path){
-  const r=await fetch(THREE+path,{headers:{Accept:'application/json',apikey:process.env.THREESPREAD_API_KEY2}});
-  const text=await r.text();
-  let body={}; try{body=text?JSON.parse(text):{};}catch{}
-  if(!r.ok) throw new Error('3spread '+r.status+': '+text.slice(0,500));
-  return body;
+  for(let attempt=1;attempt<=5;attempt++){
+    const r=await fetch(THREE+path,{headers:{Accept:'application/json',apikey:process.env.THREESPREAD_API_KEY2}});
+    const text=await r.text();
+    let body={}; try{body=text?JSON.parse(text):{};}catch{}
+    if(r.ok) return body;
+    if(![408,429,500,502,503,504].includes(r.status)||attempt===5) throw new Error('3spread '+r.status+': '+text.slice(0,500));
+    await sleep(r.status===429?65000:Math.min(30000,3000*2**(attempt-1)));
+  }
+  throw new Error('3spread request failed');
 }
+
 async function getAll(path){
   const rows=[]; let cursor=null; let guard=0;
   do{
     const u=new URL(THREE+path);
-    if(cursor) u.searchParams.set('cursor',cursor);
+    if(cursor)u.searchParams.set('cursor',cursor);
     const body=await getJson(u.pathname+u.search);
     rows.push(...(Array.isArray(body?.data)?body.data:[]));
     const next=body?.next_cursor??body?.pagination?.next_cursor??null;
-    if(!next || next===cursor || ++guard>100) break;
+    if(!next||next===cursor||++guard>100)break;
     cursor=next;
   }while(cursor);
   return rows;
 }
-async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
-  const u=new URL(process.env.SUPABASE_URL+'/rest/v1/'+table);
-  for(const [k,v] of Object.entries(params)) u.searchParams.set(k,v);
-  let lastStatus=null, lastText='';
-  for(let attempt=1;attempt<=5;attempt++){
-    const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+process.env.SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
-    const text=await r.text();
-    if(r.ok) return text?JSON.parse(text):null;
-    lastStatus=r.status; lastText=text;
-    // Supabase/Cloudflare transient failures should not abort the whole sync.
-    if(![429,500,502,503,504,520,521,522,523,524].includes(r.status) || attempt===5) break;
-    await sleep(Math.min(30000,2000*Math.pow(2,attempt-1)));
+
+async function db(table,{method='GET',params={},body}={}){
+  const ident=/^[A-Za-z_][A-Za-z0-9_]*$/;
+  const qid=x=>{if(!ident.test(x))throw new Error('Unsafe identifier: '+x);return '"' + x + '"';};
+  const values=[]; const filters=[];
+  for(const [key,value] of Object.entries(params)){
+    if(['select','limit','offset','order','on_conflict'].includes(key))continue;
+    const m=String(value).match(/^(eq|neq|gt|gte|lt|lte|is|in)\.(.*)$/); if(!m)continue;
+    const [,op,raw]=m; const col=qid(key);
+    if(op==='is') filters.push(raw==='null'?col+' IS NULL':raw==='true'?col+' IS TRUE':raw==='false'?col+' IS FALSE':'1=0');
+    else if(op==='in'){
+      const items=raw.replace(/^\(|\)$/g,'').split(',').filter(Boolean);
+      const ph=items.map(item=>{values.push(item.replace(/^["']|["']$/g,''));return '$'+values.length;}).join(',');
+      filters.push(col+' IN ('+(ph||'NULL')+')');
+    }else{
+      values.push(raw);
+      filters.push(col+' '+({eq:'=',neq:'<>',gt:'>',gte:'>=',lt:'<',lte:'<='}[op])+' $'+values.length);
+    }
   }
-  throw new Error('Supabase '+lastStatus+': '+lastText);
+  if(method==='GET'){
+    const cols=(params.select||'*')==='*'?'*':String(params.select).split(',').map(x=>qid(x.trim())).join(',');
+    let q='SELECT '+cols+' FROM '+qid(table)+(filters.length?' WHERE '+filters.join(' AND '):'');
+    if(params.order){
+      q+=' ORDER BY '+String(params.order).split(',').map(part=>{const [col,dir]=part.split('.');return qid(col)+' '+(dir==='desc'?'DESC':'ASC');}).join(', ');
+    }
+    if(params.limit!=null)q+=' LIMIT '+Math.max(0,Number(params.limit));
+    if(params.offset!=null)q+=' OFFSET '+Math.max(0,Number(params.offset));
+    return await sql.query(q,values);
+  }
+  if(method==='POST'){
+    const rows=Array.isArray(body)?body:[body||{}]; if(!rows.length)return [];
+    const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))]; const vals=[];
+    const tuples=rows.map(row=>'('+keys.map(k=>{vals.push(row[k]??null);return '$'+vals.length;}).join(',')+')').join(',');
+    let q='INSERT INTO '+qid(table)+' ('+keys.map(qid).join(',')+') VALUES '+tuples;
+    const conflict=String(params.on_conflict||'').split(',').map(x=>x.trim()).filter(Boolean);
+    if(conflict.length){
+      const updates=keys.filter(k=>!conflict.includes(k)).map(k=>qid(k)+'=EXCLUDED.'+qid(k)).join(',');
+      q+=' ON CONFLICT ('+conflict.map(qid).join(',')+') DO '+(updates?'UPDATE SET '+updates:'NOTHING');
+    }
+    return await sql.query(q+' RETURNING *',vals);
+  }
+  if(method==='DELETE'){
+    return await sql.query('DELETE FROM '+qid(table)+(filters.length?' WHERE '+filters.join(' AND '):'')+' RETURNING *',values);
+  }
+  throw new Error('Unsupported db method: '+method);
 }
+
 async function dbAll(table,params={},pageSize=500){
   const rows=[];
   for(let offset=0;;offset+=pageSize){
