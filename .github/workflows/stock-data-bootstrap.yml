@@ -18,6 +18,10 @@ jobs:
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      # Compatibility layer for legacy scripts: all Supabase REST calls are
+      # transparently routed to the Neon database by the local proxy below.
+      SUPABASE_URL: http://127.0.0.1:8787
+      SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
     steps:
@@ -39,6 +43,21 @@ jobs:
           for name in MASSIVE_API_KEY NEON_DATABASE_URL SEC_CONTACT_EMAIL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
+
+      - name: Ensure Neon schema is current
+        run: node scripts/migrate_neon.mjs
+
+      - name: Start Neon REST compatibility proxy
+        run: |
+          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null; then
+              echo "[neon-rest] proxy ready"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null
 
       - name: Seed US stock universe
         run: node scripts/seed_us_stock_universe.mjs
