@@ -58,3 +58,15 @@ jobs:
       - name: Run active-universe 3spread statement sync
         continue-on-error: true
         run: node scripts/sync_fundamentals_3spread.mjs
+
+      - name: Verify 3spread raw tables
+        continue-on-error: true
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          for (const table of ['threespread_financial_statements','threespread_statement_line_items','threespread_metrics','threespread_ratios']) {
+            const rows = await sql.query(`SELECT COUNT(*)::int AS rows FROM public.${table}`);
+            console.log(`${table}: ${rows[0]?.rows ?? 0}`);
+          }
+          NODE
