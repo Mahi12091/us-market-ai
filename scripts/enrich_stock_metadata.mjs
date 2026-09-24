@@ -39,7 +39,7 @@ try {
   const targets = await client.query(`
     SELECT symbol FROM public.stocks
     WHERE is_active = true AND asset_type = 'stock'
-    ORDER BY id LIMIT 500
+    ORDER BY id LIMIT 5000
   `);
   const wanted = new Set(targets.rows.map((row) => String(row.symbol).toUpperCase()));
   if (!wanted.size) throw new Error('No active stocks found in Neon.');
