@@ -21,15 +21,14 @@ try {
       continue;
     }
 
-    let sql = await fs.readFile(path.join(dir, file), 'utf8');
-    // Supabase RLS roles/policies are intentionally removed: Neon is being used
-    // as the application Postgres backend and the app uses server-side DB access.
-    sql = sql
+    let migrationSql = await fs.readFile(path.join(dir, file), 'utf8');
+    // Neon is the application database; Supabase-specific RLS roles/policies are removed.
+    migrationSql = migrationSql
       .replace(/alter table [^;]+ enable row level security;\s*/gi, '')
       .replace(/create policy[\s\S]*?;\s*/gi, '');
 
     console.log(`[neon] applying ${file}`);
-    await client.query(sql);
+    await client.query(migrationSql);
     await client.query('insert into public._schema_migrations(version) values ($1)', [version]);
   }
 
@@ -37,3 +36,5 @@ try {
 } finally {
   await client.end();
 }
+
+// Neon migration runner is intentionally idempotent via _schema_migrations.
