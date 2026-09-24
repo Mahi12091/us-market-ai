@@ -1,9 +1,9 @@
-const required=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+const required=['NEON_DATABASE_URL','SEC_CONTACT_EMAIL'];
 const SEC='https://data.sec.gov';
 const CIK_FALLBACK='https://raw.githubusercontent.com/jadchaar/sec-cik-mapper/main/mappings/stocks/ticker_to_cik.json';
 const CONTACT_EMAIL=process.env.SEC_CONTACT_EMAIL||process.env.SEC_EMAIL||'';
 const USER_AGENT=process.env.SEC_USER_AGENT||'US Market AI research bot';
-if(!CONTACT_EMAIL) throw new Error('SEC_CONTACT_EMAIL is not configured. Add a contact email to GitHub repository secrets so SEC requests use a declared User-Agent.');
+if(!CONTACT_EMAIL) throw new Error('SEC_CONTACT_EMAIL is not configured.');
 const DECLARED_USER_AGENT=`${USER_AGENT} ${CONTACT_EMAIL}`;
 const SEC_HEADERS={'User-Agent':DECLARED_USER_AGENT,'From':CONTACT_EMAIL,'Accept':'application/json','Accept-Encoding':'gzip, deflate'};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
