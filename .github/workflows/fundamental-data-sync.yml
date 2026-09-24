@@ -14,42 +14,68 @@ env:
 jobs:
   fundamentals:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SUPABASE_URL: http://127.0.0.1:8787
+      SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Validate required secrets
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY SEC_CONTACT_EMAIL; do
-            if [ -z "\${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
+          for name in FMP_API_KEY NEON_DATABASE_URL SEC_CONTACT_EMAIL; do
+            if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
-
-      - name: Sync fundamentals from FMP (primary)
+      - name: Apply Neon schema
+        run: node scripts/migrate_neon.mjs
+      - name: Start Neon REST compatibility layer
+        run: |
+          set -euo pipefail
+          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
+              echo "[neon-rest] proxy ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
+          exit 1
+      - name: Refresh 2,000-stock universe
+        run: node scripts/seed_us_stock_universe.mjs
+      - name: Enrich stock metadata
+        continue-on-error: true
+        run: node scripts/enrich_stock_metadata.mjs
+      - name: Sync fundamentals from FMP
+        continue-on-error: true
         run: node scripts/sync_fundamentals_fmp.mjs
-
-      - name: Sync missing fundamentals from SEC (fallback)
+      - name: Sync missing fundamentals from SEC
+        continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
         run: node scripts/sync_fundamentals_v2.mjs
-
       - name: Sync earnings
+        continue-on-error: true
         run: node scripts/sync_earnings.mjs
-
-      - name: Sync missing fundamentals from Alpha Vantage (fallback)
+      - name: Sync missing fundamentals from Alpha Vantage
+        continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
-        continue-on-error: true
         run: node scripts/sync_fundamentals_alpha_vantage.mjs
-
       - name: Sync dividends
+        continue-on-error: true
         run: node scripts/sync_dividends.mjs
