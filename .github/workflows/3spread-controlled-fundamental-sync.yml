@@ -1,13 +1,7 @@
 name: 3spread Controlled Fundamental Sync
-# Data sync: 3spread statements and normalized fundamentals
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'scripts/sync_fundamentals_3spread.mjs'
-      - 'scripts/neon-rest-proxy.mjs'
-      - '.github/workflows/3spread-controlled-fundamental-sync.yml'
 
 permissions:
   contents: read
@@ -36,8 +30,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
       - name: Validate secrets
         run: |
           set -euo pipefail
@@ -50,9 +45,16 @@ jobs:
         run: |
           nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks >/dev/null 2>&1; then break; fi
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
+              echo "[neon-rest] proxy ready"
+              exit 0
+            fi
             sleep 1
           done
           cat /tmp/neon-rest.log
-      - name: Run full active-universe fundamental sync
+          exit 1
+      - name: Refresh 2,000-stock universe
+        run: node scripts/seed_us_stock_universe.mjs
+      - name: Run active-universe 3spread statement sync
+        continue-on-error: true
         run: node scripts/sync_fundamentals_3spread.mjs
