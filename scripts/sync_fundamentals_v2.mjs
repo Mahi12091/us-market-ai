@@ -1,6 +1,4 @@
 const required=['SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
-for(const n of required) if(!process.env[n]) throw new Error(`${n} is not configured.`);
-
 const SEC='https://data.sec.gov';
 const CIK_FALLBACK='https://raw.githubusercontent.com/jadchaar/sec-cik-mapper/main/mappings/stocks/ticker_to_cik.json';
 const CONTACT_EMAIL=process.env.SEC_CONTACT_EMAIL||process.env.SEC_EMAIL||'';
@@ -20,13 +18,65 @@ async function getJson(url,headers={}){
   }
 }
 
+import { neon } from '@neondatabase/serverless';
+
+const NEON_DATABASE_URL=process.env.NEON_DATABASE_URL;
+if(!NEON_DATABASE_URL) throw new Error('NEON_DATABASE_URL is not configured.');
+const sql=neon(NEON_DATABASE_URL);
+
 async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
-  const u=new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
-  for(const [k,v] of Object.entries(params)) u.searchParams.set(k,v);
-  const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
-  const text=await r.text();
-  if(!r.ok) throw new Error(`Supabase ${r.status}: ${text}`);
-  return text?JSON.parse(text):null;
+  const filters=[];
+  const values=[];
+  const ident=/^[A-Za-z_][A-Za-z0-9_]*$/;
+  const qid=(x)=>{if(!ident.test(x))throw new Error(`Unsafe identifier: ${x}`);return `"${x}"`;};
+  for(const [k,v] of Object.entries(params)){
+    if(k==='select'||k==='limit'||k==='offset'||k==='order'||k==='on_conflict')continue;
+    const m=String(v).match(/^(eq|neq|gt|gte|lt|lte|is|in)\.(.*)$/);
+    if(!m)continue;
+    const [,op,raw]=m;
+    const col=qid(k);
+    if(op==='is') filters.push(raw==='null'?`${col} IS NULL`:raw==='true'?`${col} IS TRUE`:raw==='false'?`${col} IS FALSE`:'1=0');
+    else if(op==='in'){
+      const items=raw.replace(/^\(|\)$/g,'').split(',').filter(Boolean);
+      const ph=items.map((x)=>{values.push(x.replace(/^["']|["']$/g,''));return `$${values.length}`;}).join(',');
+      filters.push(`${col} IN (${ph||'NULL'})`);
+    }else{values.push(raw);const sqlop={eq:'=',neq:'<>',gt:'>',gte:'>=',lt:'<',lte:'<='}[op];filters.push(`${col} ${sqlop} $${values.length}`);}
+  }
+  if(method==='GET'){
+    const cols=(params.select||'*').split(',').map((x)=>qid(x.trim())).join(',');
+    let q=`SELECT ${cols} FROM ${qid(table)}`;
+    if(filters.length)q+=` WHERE ${filters.join(' AND ')}`;
+    const order=String(params.order||''); if(order){
+      const parts=order.split(',').map((part)=>{const [col,dir]=part.split('.');return `${qid(col)} ${dir==='desc'?'DESC':'ASC'}`;});
+      q+=` ORDER BY ${parts.join(',')}`;
+    }
+    if(params.limit!=null)q+=` LIMIT ${Math.max(0,Number(params.limit))}`;
+    if(params.offset!=null)q+=` OFFSET ${Math.max(0,Number(params.offset))}`;
+    return await sql.query(q,values);
+  }
+  const rows=Array.isArray(body)?body:[body||{}];
+  if(method==='POST'){
+    if(!rows.length)return [];
+    const keys=[...new Set(rows.flatMap((r)=>Object.keys(r)))];
+    const vals=[];
+    const tuples=rows.map((row)=>`(${keys.map((k)=>{vals.push(row[k]??null);return `$${vals.length}`;}).join(',')})`).join(',');
+    let q=`INSERT INTO ${qid(table)} (${keys.map(qid).join(',')}) VALUES ${tuples}`;
+    const conflict=String(params.on_conflict||'').split(',').map((x)=>x.trim()).filter(Boolean);
+    if(conflict.length){
+      const updates=keys.filter((k)=>!conflict.includes(k)).map((k)=>`${qid(k)}=EXCLUDED.${qid(k)}`).join(',');
+      q+=` ON CONFLICT (${conflict.map(qid).join(',')}) DO ${updates?`UPDATE SET ${updates}`:'NOTHING'}`;
+    }
+    return await sql.query(q+' RETURNING *',vals);
+  }
+  if(method==='DELETE'){
+    let q=`DELETE FROM ${qid(table)}`; if(filters.length)q+=` WHERE ${filters.join(' AND ')}`; return await sql.query(q,values);
+  }
+  if(method==='PATCH'){
+    const row=rows[0]||{};const vals=[...values];
+    const assignments=Object.keys(row).map(k=>{vals.push(row[k]);return `${qid(k)}=$${vals.length}`;}).join(',');
+    let q=`UPDATE ${qid(table)} SET ${assignments}`;if(filters.length)q+=` WHERE ${filters.join(' AND ')}`;return await sql.query(q+' RETURNING *',vals);
+  }
+  throw new Error(`Unsupported db method: ${method}`);
 }
 
 function num(v){const n=Number(v);return Number.isFinite(n)?n:null;}
