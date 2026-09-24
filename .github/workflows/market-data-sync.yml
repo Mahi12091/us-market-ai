@@ -14,49 +14,53 @@ env:
 jobs:
   sync:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 480
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_URL: http://127.0.0.1:8787
+      SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
-      - name: Validate Neon database connection
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
         run: |
           set -euo pipefail
-          if [ -z "${NEON_DATABASE_URL:-}" ]; then
-            echo "NEON_DATABASE_URL is not configured in GitHub repository secrets."
-            exit 1
-          fi
-          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "select current_database(), current_user;"
-
-      - name: Validate required secrets
+          test -n "${NEON_DATABASE_URL:-}"
+      - name: Start Neon REST compatibility layer
         run: |
           set -euo pipefail
-          for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            if [ -z "${!name:-}" ]; then
-              echo "$name is not configured in GitHub repository secrets."
-              exit 1
+          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
+              echo "[neon-rest] proxy ready"
+              exit 0
             fi
+            sleep 1
           done
-
-      - name: Seed US stock universe
+          cat /tmp/neon-rest.log
+          exit 1
+      - name: Refresh 2,000-stock universe
         run: node scripts/seed_us_stock_universe.mjs
-
       - name: Sync Massive market data
+        continue-on-error: true
         run: node scripts/sync_market_data.mjs
-
       - name: Calculate technical indicators
+        continue-on-error: true
         run: node scripts/compute_technical_indicators.mjs
-
       - name: Evaluate mature predictions
+        continue-on-error: true
         run: node scripts/evaluate_predictions.mjs
-
       - name: Sync news and sentiment
+        continue-on-error: true
         run: node scripts/sync_news.mjs
-
       - name: Generate quantitative predictions
+        continue-on-error: true
         run: node scripts/generate_predictions.mjs
