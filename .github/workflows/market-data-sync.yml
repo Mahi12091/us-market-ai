@@ -17,17 +17,27 @@ jobs:
     timeout-minutes: 45
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Validate Neon database connection
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_DATABASE_URL:-}" ]; then
+            echo "NEON_DATABASE_URL is not configured in GitHub repository secrets."
+            exit 1
+          fi
+          psql "$NEON_DATABASE_URL" -v ON_ERROR_STOP=1 -c "select current_database(), current_user;"
+
       - name: Validate required secrets
         run: |
           set -euo pipefail
           for name in MASSIVE_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            if [ -z "\${!name:-}" ]; then
+            if [ -z "${!name:-}" ]; then
               echo "$name is not configured in GitHub repository secrets."
               exit 1
             fi
