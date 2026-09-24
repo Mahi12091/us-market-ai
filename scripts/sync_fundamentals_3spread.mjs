@@ -342,7 +342,7 @@ async function upsertNormalizedBatch(table,rows,conflict,chunkSize=500){
   }
 }
 
-const stocks=await dbAll('stocks',{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc'},500);
+const stocks=await dbAll('stocks',{select:'id,symbol,market_cap',is_active:'eq.true',order:'id.asc'},5000);
 if(!stocks?.length) throw new Error('No active stocks found.');
 
 // Read existing 3spread fundamentals once instead of making one Supabase request per stock.
