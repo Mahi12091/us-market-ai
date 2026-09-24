@@ -1,36 +1,26 @@
-const required=['ALPHA_VANTAGE_API_KEY','SUPABASE_URL','SUPABASE_SERVICE_ROLE_KEY'];
+import { neon } from '@neondatabase/serverless';
+
+const required=['ALPHA_VANTAGE_API_KEY','NEON_DATABASE_URL'];
 for(const n of required) if(!process.env[n]) throw new Error(`${n} is not configured.`);
 
-const BASE='https://www.alphavantage.co/query';
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const num=v=>{const n=Number(v);return Number.isFinite(n)?n:null;};
-const abs=v=>v==null?null:Math.abs(v);
-const pct=(a,b)=>a!=null&&b!=null&&b!==0?(a/b)*100:null;
-const growth=(a,b)=>a!=null&&b!=null&&b!==0?(a/b-1)*100:null;
+const sql=neon(process.env.NEON_DATABASE_URL);
+const db=async(table,{method='GET',params={},body}={})=>{
+  const ident=/^[A-Za-z_][A-Za-z0-9_]*$/; const qid=x=>{if(!ident.test(x))throw new Error('Unsafe identifier: '+x);return '"'+x+'"';};
+  const filters=[],values=[];
+  for(const [k,v] of Object.entries(params)){
+    if(['select','limit','offset','order','on_conflict'].includes(k))continue;
+    const m=String(v).match(/^(eq|neq|gt|gte|lt|lte|is|in)\.(.*)$/);if(!m)continue;
+    const [,op,raw]=m, col=qid(k);
+    if(op==='is')filters.push(raw==='null'?col+' IS NULL':raw==='true'?col+' IS TRUE':raw==='false'?col+' IS FALSE':'1=0');
+    else if(op==='in'){const items=raw.replace(/^\(|\)$/g,'').split(',').filter(Boolean);const ph=items.map(x=>{values.push(x.replace(/^["']|["']$/g,''));return '$'+values.length;}).join(',');filters.push(col+' IN ('+(ph||'NULL')+')');}
+    else{values.push(raw);filters.push(col+' '+({eq:'=',neq:'<>',gt:'>',gte:'>=',lt:'<',lte:'<='}[op])+' $'+values.length);}
+  }
+  const where=filters.length?' WHERE '+filters.join(' AND '):'';
+  if((method||'GET')==='GET'){const cols=(params.select||'*')==='*'?'*':String(params.select).split(',').map(x=>qid(x.trim())).join(',');let q='SELECT '+cols+' FROM '+qid(table)+where;if(params.order)q+=' ORDER BY '+String(params.order).split(',').map(part=>{const [col,dir]=part.split('.');return qid(col)+' '+(dir==='desc'?'DESC':'ASC');}).join(', ');if(params.limit!=null)q+=' LIMIT '+Math.max(0,Number(params.limit));if(params.offset!=null)q+=' OFFSET '+Math.max(0,Number(params.offset));return await sql.query(q,values);}
+  if((method||'GET')==='POST'){const rows=Array.isArray(body)?body:[body||{}];if(!rows.length)return[];const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))];const vals=[];const tuples=rows.map(row=>'('+keys.map(k=>{vals.push(row[k]??null);return '$'+vals.length;}).join(',')+')').join(',');let q='INSERT INTO '+qid(table)+' ('+keys.map(qid).join(',')+') VALUES '+tuples;const conflict=String(params.on_conflict||'').split(',').map(x=>x.trim()).filter(Boolean);if(conflict.length){const updates=keys.filter(k=>!conflict.includes(k)).map(k=>qid(k)+'=EXCLUDED.'+qid(k)).join(',');q+=' ON CONFLICT ('+conflict.map(qid).join(',')+') DO '+(updates?'UPDATE SET '+updates:'NOTHING');}return await sql.query(q+' RETURNING *',vals);}
+  throw new Error('Unsupported method '+method);
+};
 
-async function getJson(fn,symbol){
-  const u=new URL(BASE);
-  u.searchParams.set('function',fn);
-  u.searchParams.set('symbol',symbol);
-  u.searchParams.set('apikey',process.env.ALPHA_VANTAGE_API_KEY);
-  const r=await fetch(u,{headers:{Accept:'application/json'}});
-  const text=await r.text();
-  if(!r.ok) throw new Error(`Alpha Vantage HTTP ${r.status}: ${text.slice(0,400)}`);
-  const data=text?JSON.parse(text):{};
-  if(data['Error Message']) throw new Error(data['Error Message']);
-  if(data['Note']) throw new Error(data['Note']);
-  if(data['Information']) throw new Error(data['Information']);
-  return data;
-}
-
-async function db(table,{method='GET',params={},body,prefer='return=representation'}={}){
-  const u=new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
-  for(const [k,v] of Object.entries(params)) u.searchParams.set(k,v);
-  const r=await fetch(u,{method,headers:{apikey:process.env.SUPABASE_SERVICE_ROLE_KEY,Authorization:`Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,'Content-Type':'application/json',Prefer:prefer},body:body?JSON.stringify(body):undefined});
-  const text=await r.text();
-  if(!r.ok) throw new Error(`Supabase ${r.status}: ${text}`);
-  return text?JSON.parse(text):null;
-}
 
 function periodType(row){return String(row.fiscalDateEnding||'').length? 'annual':'annual';}
 function fiscalLabel(row,period){return `${period||'FY'}-${String(row.fiscalDateEnding||'').slice(0,4)}`;}
