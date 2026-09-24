@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - 'scripts/sync_fundamentals_3spread.mjs'
+      - 'scripts/neon-rest-proxy.mjs'
       - '.github/workflows/3spread-controlled-fundamental-sync.yml'
 
 permissions:
@@ -18,23 +19,42 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+auto_cancel: true
+
 jobs:
   sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SUPABASE_URL: http://127.0.0.1:8787
+      SUPABASE_SERVICE_ROLE_KEY: neon-compat
       SYNC_3SPREAD_METRICS_RATIOS: 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
       - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in THREESPREAD_API_KEY2 SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+          for name in THREESPREAD_API_KEY2 NEON_DATABASE_URL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
+      - name: Apply Neon schema
+        run: node scripts/migrate_neon.mjs
+      - name: Start Neon REST compatibility layer
+        run: |
+          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
       - name: Run full active-universe fundamental sync
         run: node scripts/sync_fundamentals_3spread.mjs
