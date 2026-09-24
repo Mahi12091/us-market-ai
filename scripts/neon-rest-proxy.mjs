@@ -63,7 +63,7 @@ async function query(req, res) {
       }
       if (url.searchParams.has('limit')) q += ` LIMIT ${Math.max(0, Number(url.searchParams.get('limit')))}`;
       if (url.searchParams.has('offset')) q += ` OFFSET ${Math.max(0, Number(url.searchParams.get('offset')))}`;
-      return send(res, 200, await sql(q, values));
+      return send(res, 200, await sql.query(q, values));
     }
 
     const data = await body(req);
@@ -76,7 +76,7 @@ async function query(req, res) {
         const row = rows[0];
         const assignments = Object.keys(row).map((key) => { values.push(row[key]); return `${ident(key)} = $${values.length}`; }).join(', ');
         const q = `UPDATE ${table} SET ${assignments}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} RETURNING *`;
-        return send(res, 200, await sql(q, values));
+        return send(res, 200, await sql.query(q, values));
       }
       const keys = [...new Set(rows.flatMap((row) => Object.keys(row)))];
       const values = [];
@@ -89,7 +89,7 @@ async function query(req, res) {
         q += ` ON CONFLICT (${conflictCols.map(ident).join(',')}) DO ${updates ? `UPDATE SET ${updates}` : 'NOTHING'}`;
       }
       q += ' RETURNING *';
-      return send(res, 201, await sql(q, values));
+      return send(res, 201, await sql.query(q, values));
     }
 
     if (method === 'DELETE') {
@@ -97,7 +97,7 @@ async function query(req, res) {
       const where = [];
       for (const [key, value] of url.searchParams.entries()) { const c = parseFilter(key, value, values); if (c) where.push(c); }
       const q = `DELETE FROM ${table}${where.length ? ` WHERE ${where.join(' AND ')}` : ''} RETURNING *`;
-      return send(res, 200, await sql(q, values));
+      return send(res, 200, await sql.query(q, values));
     }
     return send(res, 405, { message: 'Method not allowed' });
   } catch (error) {
