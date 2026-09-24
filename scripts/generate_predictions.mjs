@@ -1,35 +1,54 @@
-const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
-for (const name of required) {
-  if (!process.env[name]) throw new Error(`${name} is not configured in GitHub Actions secrets.`);
-}
+import { neon } from '@neondatabase/serverless';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const required = ['NEON_DATABASE_URL'];
+for (const name of required) if (!process.env[name]) throw new Error(`${name} is not configured in GitHub Actions secrets.`);
+const sql = neon(process.env.NEON_DATABASE_URL);
 
 async function supabase(table, options = {}) {
-  const url = new URL(`${process.env.SUPABASE_URL}/rest/v1/${table}`);
-  for (const [key, value] of Object.entries(options.params ?? {})) url.searchParams.set(key, value);
-  for (let attempt = 1; attempt <= 4; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        method: options.method ?? 'GET',
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-          Prefer: options.prefer ?? 'return=representation',
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
-      const text = await response.text();
-      if (response.ok) return text ? JSON.parse(text) : null;
-      if (![408, 429, 500, 502, 503, 504].includes(response.status) || attempt === 4) {
-        throw new Error(`Supabase ${response.status} ${table}: ${text}`);
-      }
-    } catch (error) {
-      if (attempt === 4) throw error;
+  const ident = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const qid = (x) => { if (!ident.test(x)) throw new Error(`Unsafe identifier: ${x}`); return '"'+x+'"'; };
+  const params = options.params ?? {};
+  const values = [];
+  const filters = [];
+  for (const [key, raw] of Object.entries(params)) {
+    if (['select','limit','offset','order','on_conflict'].includes(key)) continue;
+    const m = String(raw).match(/^(eq|neq|gt|gte|lt|lte|is|in)\.(.*)$/);
+    if (!m) continue;
+    const [, op, val] = m;
+    const col = qid(key);
+    if (op === 'is') filters.push(val === 'null' ? col+' IS NULL' : val === 'true' ? col+' IS TRUE' : val === 'false' ? col+' IS FALSE' : '1=0');
+    else if (op === 'in') {
+      const items = val.replace(/^\(|\)$/g,'').split(',').filter(Boolean);
+      const ph = items.map((item) => { values.push(item.replace(/^["']|["']$/g,'')); return '$'+values.length; }).join(',');
+      filters.push(col+' IN ('+(ph||'NULL')+')');
+    } else {
+      values.push(val);
+      filters.push(col+' '+({eq:'=',neq:'<>',gt:'>',gte:'>=',lt:'<',lte:'<='}[op])+' $'+values.length);
     }
-    await sleep(Math.min(1000 * 2 ** (attempt - 1), 8000));
   }
+  const where = filters.length ? ' WHERE '+filters.join(' AND ') : '';
+  if ((options.method ?? 'GET') === 'GET') {
+    const columns = params.select === '*' || !params.select ? '*' : String(params.select).split(',').map((x)=>qid(x.trim())).join(',');
+    let q = 'SELECT '+columns+' FROM '+qid(table)+where;
+    if (params.order) q += ' ORDER BY '+String(params.order).split(',').map((part)=>{const [col,dir]=part.split('.');return qid(col)+' '+(dir==='desc'?'DESC':'ASC');}).join(', ');
+    if (params.limit != null) q += ' LIMIT '+Math.max(0,Number(params.limit));
+    if (params.offset != null) q += ' OFFSET '+Math.max(0,Number(params.offset));
+    return await sql.query(q,values);
+  }
+  if ((options.method ?? 'GET') === 'POST') {
+    const rows = Array.isArray(options.body) ? options.body : [options.body ?? {}];
+    if (!rows.length) return [];
+    const keys = [...new Set(rows.flatMap((r)=>Object.keys(r)))];
+    const vals=[]; const tuples=rows.map((row)=>'('+keys.map((k)=>{vals.push(row[k]??null);return '$'+vals.length;}).join(',')+')').join(',');
+    let q='INSERT INTO '+qid(table)+' ('+keys.map(qid).join(',')+') VALUES '+tuples;
+    const conflict=String(params.on_conflict||'').split(',').map((x)=>x.trim()).filter(Boolean);
+    if(conflict.length){
+      const updates=keys.filter((k)=>!conflict.includes(k)).map((k)=>qid(k)+'=EXCLUDED.'+qid(k)).join(',');
+      q+=' ON CONFLICT ('+conflict.map(qid).join(',')+') DO '+(updates?'UPDATE SET '+updates:'NOTHING');
+    }
+    return await sql.query(q+' RETURNING *',vals);
+  }
+  throw new Error('Unsupported method '+(options.method ?? 'GET'));
 }
 
 function clamp(value, min, max) {
