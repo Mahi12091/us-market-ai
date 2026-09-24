@@ -12,14 +12,13 @@ env:
 jobs:
   bootstrap:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 360
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      # Compatibility layer for legacy scripts: all Supabase REST calls are
-      # transparently routed to the Neon database by the local proxy below.
+      # Compatibility layer for legacy data scripts. Database is Neon.
       SUPABASE_URL: http://127.0.0.1:8787
       SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
@@ -35,7 +34,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Validate required secrets
         run: |
@@ -49,45 +48,55 @@ jobs:
 
       - name: Start Neon REST compatibility proxy
         run: |
+          set -euo pipefail
           nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
-          for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null; then
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
               echo "[neon-rest] proxy ready"
-              break
+              exit 0
             fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null
+          cat /tmp/neon-rest.log
+          exit 1
 
-      - name: Seed US stock universe
+      - name: Seed and verify 2,000 US stocks
         run: node scripts/seed_us_stock_universe.mjs
 
-      - name: Enrich stock metadata once
+      - name: Enrich stock metadata
+        continue-on-error: true
         run: node scripts/enrich_stock_metadata.mjs
 
+      # The remaining data providers are quota/plan dependent. They run after
+      # the 2,000-stock master is present and must not delete the master universe.
       - name: Sync fundamentals from FMP (primary)
+        continue-on-error: true
         run: node scripts/sync_fundamentals_fmp.mjs
 
       - name: Sync missing fundamentals from SEC (fallback)
+        continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
         run: node scripts/sync_fundamentals_v2.mjs
 
-      - name: Sync earnings (optional Massive/Benzinga)
+      - name: Sync earnings
         continue-on-error: true
         run: node scripts/sync_earnings.mjs
 
       - name: Sync missing fundamentals from Alpha Vantage (fallback)
+        continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
-        continue-on-error: true
         run: node scripts/sync_fundamentals_alpha_vantage.mjs
 
       - name: Sync dividends
+        continue-on-error: true
         run: node scripts/sync_dividends.mjs
 
       - name: Calculate technical indicators
+        continue-on-error: true
         run: node scripts/compute_technical_indicators.mjs
 
       - name: Generate quantitative predictions
+        continue-on-error: true
         run: node scripts/generate_predictions.mjs
