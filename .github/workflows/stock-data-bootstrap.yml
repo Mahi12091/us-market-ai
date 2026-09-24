@@ -67,6 +67,9 @@ jobs:
         continue-on-error: true
         run: node scripts/enrich_stock_metadata.mjs
 
+      - name: Verify 2,000-stock universe
+        run: node scripts/verify_neon_universe.mjs
+
       # The remaining data providers are quota/plan dependent. They run after
       # the 2,000-stock master is present and must not delete the master universe.
       - name: Sync fundamentals from FMP (primary)
