@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import { neon } from '@neondatabase/serverless';
 import { getDailyAggregates, getLatestTrade } from '@/lib/massive';
 
 export const dynamic = 'force-dynamic';
@@ -23,16 +23,20 @@ function tradeTimestamp(value: number | undefined) {
 }
 
 async function syncTestStocks() {
-  const supabase = createAdminClient();
-  const { data: stocks, error: stockError } = await supabase
-    .from('stocks')
-    .select('id,symbol')
-    .in('symbol', [...TEST_SYMBOLS])
-    .eq('is_active', true);
+  const databaseUrl = process.env.NEON_DATABASE_URL;
+  if (!databaseUrl) throw new Error('NEON_DATABASE_URL is not configured.');
 
-  if (stockError) throw new Error(`Supabase stock lookup failed: ${stockError.message}`);
+  const sql = neon(databaseUrl);
+  const rows = await sql.query(`
+    SELECT id,symbol
+    FROM public.stocks
+    WHERE is_active = true
+      AND asset_type = 'stock'
+      AND symbol = ANY($1)
+    ORDER BY id
+  `, [[...TEST_SYMBOLS]]);
 
-  const stockMap = new Map((stocks ?? []).map((stock) => [stock.symbol, stock]));
+  const stockMap = new Map(rows.map((stock) => [stock.symbol, stock]));
   const to = new Date();
   const from = new Date(to.getTime() - 5 * 24 * 60 * 60 * 1000);
   const results: Array<{ symbol: string; ok: boolean; historyRows?: number; error?: string }> = [];
@@ -40,7 +44,7 @@ async function syncTestStocks() {
   for (const symbol of TEST_SYMBOLS) {
     const stock = stockMap.get(symbol);
     if (!stock) {
-      results.push({ symbol, ok: false, error: 'Active stock not found in Supabase' });
+      results.push({ symbol, ok: false, error: 'Active stock not found in Neon' });
       continue;
     }
 
@@ -61,25 +65,20 @@ async function syncTestStocks() {
       const changePercent = previousClose ? (change / previousClose) * 100 : null;
       const now = new Date().toISOString();
 
-      const { error: quoteError } = await supabase.from('latest_quotes').upsert({
-        stock_id: stock.id,
-        price: latestTrade.p,
-        open: latestBar.o,
-        high: latestBar.h,
-        low: latestBar.l,
-        previous_close: previousClose,
-        change,
-        change_percent: changePercent,
-        volume: latestBar.v,
-        market_status: 'unknown',
-        quote_timestamp: tradeTimestamp(latestTrade.t),
-        data_source: 'massive',
-        updated_at: now,
-      }, { onConflict: 'stock_id' });
+      await sql.query(
+        `INSERT INTO public.latest_quotes
+          (stock_id,price,open,high,low,previous_close,change,change_percent,volume,market_status,quote_timestamp,data_source,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'unknown',$10,'massive',$11)
+         ON CONFLICT (stock_id) DO UPDATE SET
+           price=EXCLUDED.price,open=EXCLUDED.open,high=EXCLUDED.high,low=EXCLUDED.low,
+           previous_close=EXCLUDED.previous_close,change=EXCLUDED.change,
+           change_percent=EXCLUDED.change_percent,volume=EXCLUDED.volume,
+           market_status=EXCLUDED.market_status,quote_timestamp=EXCLUDED.quote_timestamp,
+           data_source=EXCLUDED.data_source,updated_at=EXCLUDED.updated_at`,
+        [stock.id, latestTrade.p, latestBar.o, latestBar.h, latestBar.l, previousClose, change, changePercent, latestBar.v, tradeTimestamp(latestTrade.t), now],
+      );
 
-      if (quoteError) throw new Error(`latest_quotes upsert failed: ${quoteError.message}`);
-
-      const rows = bars.map((bar) => ({
+      const historyRows = bars.map((bar) => ({
         stock_id: stock.id,
         timeframe: '1d',
         timestamp: new Date(bar.t).toISOString(),
@@ -91,13 +90,19 @@ async function syncTestStocks() {
         data_source: 'massive',
       }));
 
-      const { error: historyError } = await supabase
-        .from('price_history')
-        .upsert(rows, { onConflict: 'stock_id,timeframe,timestamp' });
+      for (const bar of historyRows) {
+        await sql.query(
+          `INSERT INTO public.price_history
+            (stock_id,timeframe,timestamp,open,high,low,close,volume,data_source)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+           ON CONFLICT (stock_id,timeframe,timestamp) DO UPDATE SET
+             open=EXCLUDED.open,high=EXCLUDED.high,low=EXCLUDED.low,
+             close=EXCLUDED.close,volume=EXCLUDED.volume,data_source=EXCLUDED.data_source`,
+          [bar.stock_id, bar.timeframe, bar.timestamp, bar.open, bar.high, bar.low, bar.close, bar.volume, bar.data_source],
+        );
+      }
 
-      if (historyError) throw new Error(`price_history upsert failed: ${historyError.message}`);
-
-      results.push({ symbol, ok: true, historyRows: rows.length });
+      results.push({ symbol, ok: true, historyRows: historyRows.length });
     } catch (error) {
       results.push({
         symbol,
