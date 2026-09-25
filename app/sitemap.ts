@@ -1,10 +1,10 @@
 import type { MetadataRoute } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://usmarketai.com').replace(/\/$/, '');
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const { data } = await supabase
     .from('stocks')
     .select('slug,updated_at')
