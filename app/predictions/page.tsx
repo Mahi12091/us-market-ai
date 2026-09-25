@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 export const metadata: Metadata = { title: 'AI Predictions', description: 'Quantitative market predictions for US stocks and crypto across multiple time horizons.' };
 const horizons=['24h','7d','30d','90d'];
