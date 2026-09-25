@@ -6,7 +6,9 @@ import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.NEON_DATABASE_URL);
 const MASSIVE = 'https://api.massive.com';
 const PAGE_SIZE = 1000;
-const TARGET_STOCKS = 5000;
+// Select the full eligible active common-stock universe returned by Massive,
+// up to a high ceiling, instead of artificially stopping at 5,000.
+const TARGET_STOCKS = 10000;
 const REQUEST_GAP_MS = 13000;
 let lastRequestAt = 0;
 
@@ -89,7 +91,7 @@ for (const row of ranked) {
   selectedSymbols.add(row.symbol);
 }
 
-// Preserve all existing stock symbols already in Neon, even if they are not in the current top-5,000 ranking.
+// Preserve all existing stock symbols already in Neon, even if they are not in the current ranking.
 for (const row of existingBySymbol.values()) {
   if (selectedSymbols.has(String(row.symbol).toUpperCase())) continue;
   selected.push({
