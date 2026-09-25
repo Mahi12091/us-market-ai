@@ -5,8 +5,9 @@ A scalable US stocks + crypto market intelligence platform built with **Next.js,
 ## Current foundation
 
 - Database-driven `/stocks/[slug]` research pages
-- Neon PostgreSQL as the application database
-- Neon-backed query adapter in `lib/neon.ts`
+- **Neon PostgreSQL is the only application database**
+- Direct Neon query adapter in `lib/neon.ts`
+- Neon REST API bridge for batch data-provider scripts that need HTTP-style table operations
 - Quotes, price history, technicals, fundamentals, earnings, news, predictions, prediction results and AI research tables
 - SEO metadata, dynamic sitemap and robots
 - Responsive financial dashboard UI
@@ -16,9 +17,9 @@ A scalable US stocks + crypto market intelligence platform built with **Next.js,
 
 ## Database architecture
 
-The project has been migrated from Supabase/PostgREST to **Neon PostgreSQL**. The application runtime connects directly to Neon through `@neondatabase/serverless`; there is no Supabase SDK dependency in `package.json`.
+The project is fully migrated from Supabase to **Neon PostgreSQL**. Application pages use the direct Neon query adapter and data workflows use `NEON_DATABASE_URL` plus the local Neon REST API bridge where required. There is no Supabase SDK or Supabase runtime dependency.
 
-The historical `supabase/migrations` directory is retained as the project's SQL migration history so existing schema work is preserved. `scripts/migrate_neon.mjs` applies those migrations to Neon.
+Schema migrations now live under `neon/migrations/` and are applied by `scripts/migrate_neon.mjs`. The migration runner strips legacy RLS/policy statements so the database remains independent of Supabase roles.
 
 ## Environment
 
@@ -28,6 +29,13 @@ Required database variable:
 
 ```env
 NEON_DATABASE_URL=
+```
+
+Batch workflow variables:
+
+```env
+NEON_REST_URL=http://127.0.0.1:8787
+NEON_API_KEY=local
 ```
 
 ## Run
@@ -40,15 +48,14 @@ npm run build
 
 Before deployment, verify the production build with `npm run build` and confirm the Vercel environment contains `NEON_DATABASE_URL`.
 
-## Data pipeline roadmap
+## Data pipeline
 
-1. Real US market-data provider adapter
-2. Historical data ingestion and technical calculations
+1. Neon schema and 2,000+ stock universe
+2. Market-data ingestion and technical calculations
 3. Quantitative prediction engine + evaluation pipeline
 4. News/sentiment ingestion
-5. AI article queue and cached analysis
-6. Crypto-specific prediction pipeline
-7. Admin/data-health dashboard
-8. Scale from 50 → 500 → 2,000+ assets
+5. Fundamental and statement ingestion from provider fallbacks
+6. AI article and recurring research generation
+7. Crypto-specific research pipeline
 
 Predictions are estimates and are not financial advice.
