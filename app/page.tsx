@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 import LongTermResearchSection from '@/components/long-term-research-section';
 
 export const revalidate = 300;
@@ -18,7 +18,7 @@ function formatDate(value: string | null | undefined) { return value ? new Date(
 function prettySector(value: string | null | undefined) { return value?.trim() || 'US Stocks'; }
 
 export default async function Home() {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }, { data: rawBlogArticles }] = await Promise.all([
     supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(80),
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
