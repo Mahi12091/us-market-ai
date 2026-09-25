@@ -12,9 +12,9 @@ type PredictionResult = { prediction_id: string; stock_id: string; horizon: stri
 export default async function Predictions(){
   const supabase=await createClient();
   const [{data:rawStocks},{data:rawPredictions},{data:rawResults}]=await Promise.all([
-    supabase.from<PredictionStock>('stocks').select('id,symbol').eq('is_active',true).limit(5000),
-    supabase.from<PredictionRow>('predictions').select('id,stock_id,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,prediction_time').order('prediction_time',{ascending:false}).limit(2000),
-    supabase.from<PredictionResult>('prediction_results').select('prediction_id,stock_id,horizon,predicted_price,actual_price,predicted_direction,actual_direction,percentage_error,hit,evaluated_at').order('evaluated_at',{ascending:false}).limit(5000)
+    supabase.from<PredictionStock[]>('stocks').select('id,symbol').eq('is_active',true).limit(5000),
+    supabase.from<PredictionRow[]>('predictions').select('id,stock_id,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,prediction_time').order('prediction_time',{ascending:false}).limit(2000),
+    supabase.from<PredictionResult[]>('prediction_results').select('prediction_id,stock_id,horizon,predicted_price,actual_price,predicted_direction,actual_direction,percentage_error,hit,evaluated_at').order('evaluated_at',{ascending:false}).limit(5000)
   ]);
   // Supabase's generic query typings can resolve a single-row relation as a union.
   // Normalize the response explicitly so production builds remain type-safe.
