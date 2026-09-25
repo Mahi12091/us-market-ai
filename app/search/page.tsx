@@ -34,8 +34,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       supabase.from('stocks').select('symbol,slug,company_name,sector,industry,exchange').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').or(`symbol.ilike.${pattern},company_name.ilike.${pattern},sector.ilike.${pattern},industry.ilike.${pattern},exchange.ilike.${pattern}`).order('symbol').limit(60),
       supabase.from('news').select('id,title,summary,url,source,published_at,sentiment,stock_id').or(`title.ilike.${pattern},summary.ilike.${pattern},source.ilike.${pattern}`).order('published_at', { ascending: false, nullsFirst: false }).limit(30),
     ]);
-    stocks = stockResult.data ?? [];
-    news = newsResult.data ?? [];
+    stocks = Array.isArray(stockResult.data) ? stockResult.data : stockResult.data ? [stockResult.data] : [];
+    news = Array.isArray(newsResult.data) ? newsResult.data : newsResult.data ? [newsResult.data] : [];
   }
 
   const newsStockIds = [...new Set(news.map(item => item.stock_id).filter((id): id is number => id != null))];
