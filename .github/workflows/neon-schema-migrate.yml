@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'supabase/migrations/**'
+      - 'neon/migrations/**'
       - 'scripts/migrate_neon.mjs'
       - 'package.json'
 
