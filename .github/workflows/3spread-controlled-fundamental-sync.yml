@@ -20,8 +20,8 @@ jobs:
     env:
       THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SUPABASE_URL: http://127.0.0.1:8787
-      SUPABASE_SERVICE_ROLE_KEY: neon-compat
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
       SYNC_3SPREAD_METRICS_RATIOS: 'false'
     steps:
       - name: Checkout repository
@@ -41,14 +41,11 @@ jobs:
           done
       - name: Apply Neon schema
         run: node scripts/migrate_neon.mjs
-      - name: Start Neon REST compatibility layer
+      - name: Start Neon REST API
         run: |
-          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
-              echo "[neon-rest] proxy ready"
-              exit 0
-            fi
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
             sleep 1
           done
           cat /tmp/neon-rest.log
@@ -58,7 +55,6 @@ jobs:
       - name: Run active-universe 3spread statement sync
         continue-on-error: true
         run: node scripts/sync_fundamentals_3spread.mjs
-
       - name: Verify 3spread raw tables
         continue-on-error: true
         run: |
