@@ -115,16 +115,16 @@ export class NeonQuery<T = Record<string, any>, Single extends boolean = false>
         if (this.orderBy.length) q += ' ORDER BY ' + this.orderBy.map((item) => `${quoteIdent(item.column)} ${item.ascending ? 'ASC' : 'DESC'}${item.nullsFirst == null ? '' : item.nullsFirst ? ' NULLS FIRST' : ' NULLS LAST'}`).join(', ');
         if (this.limitCount != null) q += ` LIMIT ${Math.max(0, this.limitCount)}`;
         if (this.offsetCount != null) q += ` OFFSET ${Math.max(0, this.offsetCount)}`;
-        const rows = (await sql(q, where.values)) as T[];
+        const rows = (await sql.query(q, where.values)) as T[];
         const result = this.singleMode ? { data: rows[0] ?? null, error: null } : { data: rows, error: null };
         return result as Single extends true ? SingleResult<T> : ManyResult<T>;
       }
-      if (this.action === 'delete') return { data: (await sql(`DELETE FROM ${this.table}${where.where} RETURNING *`, where.values)) as T[], error: null };
+      if (this.action === 'delete') return { data: (await sql.query(`DELETE FROM ${this.table}${where.where} RETURNING *`, where.values)) as T[], error: null };
       if (this.action === 'update') {
         const row = this.payload[0] ?? {};
         const values = [...where.values];
         const assignments = Object.keys(row).map((key) => { values.push(row[key]); return `${quoteIdent(key)} = $${values.length}`; }).join(', ');
-        return { data: (await sql(`UPDATE ${this.table} SET ${assignments}${where.where} RETURNING *`, values)) as T[], error: null };
+        return { data: (await sql.query(`UPDATE ${this.table} SET ${assignments}${where.where} RETURNING *`, values)) as T[], error: null };
       }
       if (!this.payload.length) return { data: [], error: null };
       const keys = [...new Set(this.payload.flatMap((row) => Object.keys(row)))];
@@ -135,7 +135,7 @@ export class NeonQuery<T = Record<string, any>, Single extends boolean = false>
         const updates = keys.filter((key) => !this.conflictColumns.includes(key)).map((key) => `${quoteIdent(key)} = EXCLUDED.${quoteIdent(key)}`).join(', ');
         q += ` ON CONFLICT (${this.conflictColumns.map(quoteIdent).join(',')}) DO ${updates ? `UPDATE SET ${updates}` : 'NOTHING'}`;
       }
-      return { data: (await sql(`${q} RETURNING *`, values)) as T[], error: null };
+      return { data: (await sql.query(`${q} RETURNING *`, values)) as T[], error: null };
     } catch (error) {
       return { data: null, error: error instanceof Error ? error : new Error(String(error)) };
     }
