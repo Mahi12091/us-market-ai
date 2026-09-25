@@ -21,7 +21,7 @@ const columns = (select: string) => {
   }).join(',');
 };
 
-type QueryResult<T> = { data: T[] | T | null; error: Error | null };
+type QueryResult<T> = { data: T[]; error: Error | null };
 
 export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResult<T>> {
   private table: string;
@@ -114,7 +114,7 @@ export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResu
         if (this.limitCount != null) q += ` LIMIT ${Math.max(0, this.limitCount)}`;
         if (this.offsetCount != null) q += ` OFFSET ${Math.max(0, this.offsetCount)}`;
         const rows = (await sql(q, where.values)) as T[];
-        return { data: this.singleMode ? (rows[0] ?? null) : rows, error: null };
+        return { data: rows, error: null };
       }
       if (this.action === 'delete') return { data: (await sql(`DELETE FROM ${this.table}${where.where} RETURNING *`, where.values)) as T[], error: null };
       if (this.action === 'update') {
