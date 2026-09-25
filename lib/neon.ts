@@ -21,9 +21,11 @@ const columns = (select: string) => {
   }).join(',');
 };
 
-type QueryResult<T> = { data: T[]; error: Error | null };
+type ManyResult<T> = { data: T[]; error: Error | null };
+type SingleResult<T> = { data: T | null; error: Error | null };
 
-export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResult<T>> {
+export class NeonQuery<T = Record<string, any>, Single extends boolean = false>
+  implements PromiseLike<Single extends true ? SingleResult<T> : ManyResult<T>> {
   private table: string;
   private selectColumns = '*';
   private filters: Filter[] = [];
@@ -68,8 +70,8 @@ export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResu
   }
   limit(value: number) { this.limitCount = value; return this; }
   range(from: number, to: number) { this.offsetCount = from; this.limitCount = Math.max(0, to - from + 1); return this; }
-  single() { this.singleMode = true; this.limitCount = 1; return this; }
-  maybeSingle() { this.singleMode = true; this.limitCount = 1; return this; }
+  single(): NeonQuery<T, true> { this.singleMode = true; this.limitCount = 1; return this as unknown as NeonQuery<T, true>; }
+  maybeSingle(): NeonQuery<T, true> { this.singleMode = true; this.limitCount = 1; return this as unknown as NeonQuery<T, true>; }
   insert(rows: Record<string, unknown> | Record<string, unknown>[]) { this.action = 'insert'; this.payload = Array.isArray(rows) ? rows : [rows]; return this; }
   upsert(rows: Record<string, unknown> | Record<string, unknown>[], options?: { onConflict?: string }) {
     this.action = 'upsert';
@@ -105,7 +107,7 @@ export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResu
     return { where: parts.length ? ` WHERE ${parts.join(' AND ')}` : '', values };
   }
 
-  async execute(): Promise<QueryResult<T>> {
+  async execute(): Promise<Single extends true ? SingleResult<T> : ManyResult<T>> {
     try {
       const where = this.buildWhere();
       if (this.action === 'select') {
@@ -114,7 +116,8 @@ export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResu
         if (this.limitCount != null) q += ` LIMIT ${Math.max(0, this.limitCount)}`;
         if (this.offsetCount != null) q += ` OFFSET ${Math.max(0, this.offsetCount)}`;
         const rows = (await sql(q, where.values)) as T[];
-        return { data: rows, error: null };
+        const result = this.singleMode ? { data: rows[0] ?? null, error: null } : { data: rows, error: null };
+        return result as Single extends true ? SingleResult<T> : ManyResult<T>;
       }
       if (this.action === 'delete') return { data: (await sql(`DELETE FROM ${this.table}${where.where} RETURNING *`, where.values)) as T[], error: null };
       if (this.action === 'update') {
@@ -138,7 +141,10 @@ export class NeonQuery<T = Record<string, any>> implements PromiseLike<QueryResu
     }
   }
 
-  then<TResult1 = QueryResult<T>, TResult2 = never>(onfulfilled?: ((value: QueryResult<T>) => TResult1 | PromiseLike<TResult1>) | null, onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null) {
+  then<TResult1 = Single extends true ? SingleResult<T> : ManyResult<T>, TResult2 = never>(
+    onfulfilled?: ((value: Single extends true ? SingleResult<T> : ManyResult<T>) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ) {
     return this.execute().then(onfulfilled, onrejected);
   }
 }
