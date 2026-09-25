@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
+type StockSearchRow = { symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null };
+type NewsSearchRow = { id: number; title: string; summary: string | null; url: string | null; source: string | null; published_at: string | null; sentiment: string | null; stock_id: number | null };
+type NewsStockRow = { id: number; symbol: string; slug: string };
+
 function cleanQuery(value: string) {
   return value.replace(/[%,]/g, ' ').replace(/_/g, ' ').trim().slice(0, 80);
 }
@@ -23,23 +27,23 @@ function formatDate(value: string | null) {
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const params = await searchParams;
   const query = cleanQuery(params.q ?? '');
-  const supabase = createDatabaseClient();
+  const db = createDatabaseClient();
 
-  let stocks: Array<{ symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null }> = [];
-  let news: Array<{ id: number; title: string; summary: string | null; url: string | null; source: string | null; published_at: string | null; sentiment: string | null; stock_id: number | null }> = [];
+  let stocks: StockSearchRow[] = [];
+  let news: NewsSearchRow[] = [];
 
   if (query) {
     const pattern = `%${query}%`;
     const [stockResult, newsResult] = await Promise.all([
-      supabase.from('stocks').select('symbol,slug,company_name,sector,industry,exchange').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').or(`symbol.ilike.${pattern},company_name.ilike.${pattern},sector.ilike.${pattern},industry.ilike.${pattern},exchange.ilike.${pattern}`).order('symbol').limit(60),
-      supabase.from('news').select('id,title,summary,url,source,published_at,sentiment,stock_id').or(`title.ilike.${pattern},summary.ilike.${pattern},source.ilike.${pattern}`).order('published_at', { ascending: false, nullsFirst: false }).limit(30),
+      db.from<StockSearchRow>('stocks').select('symbol,slug,company_name,sector,industry,exchange').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').or(`symbol.ilike.${pattern},company_name.ilike.${pattern},sector.ilike.${pattern},industry.ilike.${pattern},exchange.ilike.${pattern}`).order('symbol').limit(60),
+      db.from<NewsSearchRow>('news').select('id,title,summary,url,source,published_at,sentiment,stock_id').or(`title.ilike.${pattern},summary.ilike.${pattern},source.ilike.${pattern}`).order('published_at', { ascending: false, nullsFirst: false }).limit(30),
     ]);
-    stocks = Array.isArray(stockResult.data) ? stockResult.data : stockResult.data ? [stockResult.data] : [];
-    news = Array.isArray(newsResult.data) ? newsResult.data : newsResult.data ? [newsResult.data] : [];
+    stocks = stockResult.data ?? [];
+    news = newsResult.data ?? [];
   }
 
   const newsStockIds = [...new Set(news.map(item => item.stock_id).filter((id): id is number => id != null))];
-  const { data: newsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] };
+  const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
   const stockMap = new Map((newsStocks ?? []).map(stock => [stock.id, stock]));
 
   return (
