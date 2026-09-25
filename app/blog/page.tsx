@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 import './blog.css';
 
 export const metadata: Metadata = {
@@ -30,7 +30,7 @@ function categoryMatch(category: string, sector: string | null) {
 }
 
 export default async function BlogPage() {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const result = await supabase
     .from('stocks')
     .select('symbol,slug,company_name,sector,industry,market_cap')
