@@ -1,6 +1,6 @@
 type ResearchStock = {
   symbol: string;
-  slug: string;
+  slug: string | null;
   company_name: string;
   sector: string | null;
   industry?: string | null;
@@ -45,7 +45,7 @@ export default function LongTermResearchSection({ stocks }: { stocks: ResearchSt
                 <a href={sectorHref}>More →</a>
               </div>
               <div className="long-term-article-grid">
-                {(items.length ? items : [{ symbol: 'STOCK', slug: '', company_name: 'Long-term research article', sector: category.name }]).map((stock, index) => (
+                {(items.length ? items : [{ symbol: 'STOCK', slug: null, company_name: 'Long-term research article', sector: category.name }]).map((stock, index) => (
                   <a className="long-term-article-card" href={stock.slug ? `/blog/${stock.slug}-stock-price-prediction-2026-2050` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
                     <div className="long-term-thumb"><span>THUMBNAIL<br/>PLACEHOLDER</span></div>
                     <div className="long-term-article-copy">
