@@ -3,19 +3,15 @@ import LongTermResearchSection from '@/components/long-term-research-section';
 
 export const revalidate = 300;
 
+type StockRow = { id: string; symbol: string; slug: string | null; company_name: string; market_cap: number | null; sector: string | null; logo_url: string | null };
+type MarketStockRow = { id: string; symbol: string; slug: string | null; company_name: string };
+type NewsRow = { id: string; stock_id: string | null; title: string; summary: string | null; source: string | null; published_at: string | null; sentiment: string | null; url: string | null };
+type ArticleRow = { id: string; stock_id: string | null; title: string; summary: string | null; slug: string | null; generated_at: string | null };
+type QuoteRow = { stock_id: string; price: number | null; change_percent: number | null };
+
 const marketLabels: Record<string, string> = { SPY: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow Jones', IWM: 'Russell 2000' };
 const toneByIndex = ['news-blue', 'news-purple', 'news-gold', 'news-green'];
-const categoryTiles = [
-  ['US Stocks', 'Prices, charts, technicals and forecasts.', '/stocks', '▥'],
-  ['Crypto', 'Research and insights for digital assets.', '/crypto', '₿'],
-  ['Market Overview', 'Indexes, breadth, sectors and market structure.', '/markets', '◒'],
-  ['AI Analysis', 'Data-driven research and stock insights.', '/analysis', '◈'],
-  ['Predictions', '24H, 7D, 30D and 90D quantitative forecasts.', '/predictions', '◎'],
-  ['Market News', 'Ticker-linked news and sentiment.', '/news', '▤'],
-  ['Research', 'In-depth stock research and methodology.', '/analysis', '▧'],
-  ['Blog', 'Guides, explainers and long-term market research.', '/blog', '✦'],
-];
-
+const categoryTiles = [['US Stocks','Prices, charts, technicals and forecasts.','/stocks','▥'],['Crypto','Research and insights for digital assets.','/crypto','₿'],['Market Overview','Indexes, breadth, sectors and market structure.','/markets','◒'],['AI Analysis','Data-driven research and stock insights.','/analysis','◈'],['Predictions','24H, 7D, 30D and 90D quantitative forecasts.','/predictions','◎'],['Market News','Ticker-linked news and sentiment.','/news','▤'],['Research','In-depth stock research and methodology.','/analysis','▧'],['Blog','Guides, explainers and long-term market research.','/blog','✦']];
 function formatPrice(value: number | null | undefined) { return value == null ? '—' : Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
 function formatChange(value: number | null | undefined) { return value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%`; }
 function formatDate(value: string | null | undefined) { return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Latest'; }
@@ -23,76 +19,43 @@ function prettySector(value: string | null | undefined) { return value?.trim() |
 
 export default async function Home() {
   const supabase = await createClient();
-  const [{ data: stocks }, { data: marketStocks }, { data: news }, { data: blogArticles }] = await Promise.all([
+  const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }, { data: rawBlogArticles }] = await Promise.all([
     supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(80),
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
     supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(8),
     supabase.from('ai_articles').select('id,stock_id,title,summary,slug,generated_at').eq('is_published', true).order('generated_at', { ascending: false }).limit(6),
   ]);
-
-  const allIds = [...new Set([...(stocks ?? []).map(s => s.id), ...(marketStocks ?? []).map(s => s.id), ...(blogArticles ?? []).map(a => a.stock_id)])];
-  const { data: quotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent').in('stock_id', allIds) : { data: [] };
-  const quoteMap = new Map((quotes ?? []).map(q => [q.stock_id, q]));
-  const marketBySymbol = new Map((marketStocks ?? []).map(s => [s.symbol, { ...s, quote: quoteMap.get(s.id) }]));
-  const movers = (stocks ?? []).map(s => ({ ...s, quote: quoteMap.get(s.id) })).filter(s => s.quote?.price != null).sort((a,b) => Number(b.quote?.change_percent ?? -999) - Number(a.quote?.change_percent ?? -999)).slice(0,5);
-  const newsItems = news ?? [];
-  const newsStockIds = [...new Set(newsItems.map(n => n.stock_id).filter(Boolean))];
-  const { data: newsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] };
-  const newsStockMap = new Map((newsStocks ?? []).map(s => [s.id, s]));
-
-  const sectorMap = new Map<string, NonNullable<typeof stocks>>();
-  for (const stock of stocks ?? []) {
-    const sector = prettySector(stock.sector);
-    const bucket = sectorMap.get(sector) ?? [];
-    if (bucket.length < 6) bucket.push(stock);
-    sectorMap.set(sector, bucket);
-  }
-  const sectorSections = [...sectorMap.entries()].filter(([, items]) => items.length >= 4).slice(0, 6);
-  const popularStocks = (stocks ?? []).slice(0, 6);
+  const stocks = (rawStocks ?? []) as StockRow[];
+  const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
+  const newsItems = (rawNews ?? []) as NewsRow[];
+  const blogArticles = (rawBlogArticles ?? []) as ArticleRow[];
+  const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id), ...blogArticles.map(a => a.stock_id).filter((id): id is string => Boolean(id))])];
+  const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent').in('stock_id', allIds) : { data: [] };
+  const quotes = (rawQuotes ?? []) as QuoteRow[];
+  const quoteMap = new Map(quotes.map(q => [q.stock_id, q]));
+  const marketBySymbol = new Map(marketStocks.map(s => [s.symbol, { ...s, quote: quoteMap.get(s.id) }]));
+  const movers = stocks.map(s => ({ ...s, quote: quoteMap.get(s.id) })).filter(s => s.quote?.price != null).sort((a,b) => Number(b.quote?.change_percent ?? -999) - Number(a.quote?.change_percent ?? -999)).slice(0,5);
+  const newsStockIds = [...new Set(newsItems.map(n => n.stock_id).filter((id): id is string => Boolean(id)))];
+  const { data: rawNewsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] };
+  const newsStocks = (rawNewsStocks ?? []) as Pick<StockRow, 'id' | 'symbol' | 'slug'>[];
+  const newsStockMap = new Map(newsStocks.map(s => [s.id, s]));
+  const sectorMap = new Map<string, StockRow[]>();
+  for (const stock of stocks) { const sector = prettySector(stock.sector); const bucket = sectorMap.get(sector) ?? []; if (bucket.length < 6) bucket.push(stock); sectorMap.set(sector, bucket); }
+  const sectorSections = [...sectorMap.entries()].filter(([, items]) => items.length >= 4).slice(0,6);
+  const popularStocks = stocks.slice(0,6);
 
   return <div className="home-page">
-    <div className="market-strip"><div className="container market-strip-inner">
-      {Object.entries(marketLabels).map(([symbol, name]) => { const item = marketBySymbol.get(symbol); return <div className="ticker-mini" key={symbol}><span>{name}</span><strong>{formatPrice(item?.quote?.price)}</strong><em className={Number(item?.quote?.change_percent ?? 0) >= 0 ? 'up' : 'down'}>{formatChange(item?.quote?.change_percent)}</em></div>; })}
-      <a href="/markets" className="market-link">View market overview →</a>
-    </div></div>
-
+    <div className="market-strip"><div className="container market-strip-inner">{Object.entries(marketLabels).map(([symbol,name]) => { const item=marketBySymbol.get(symbol); return <div className="ticker-mini" key={symbol}><span>{name}</span><strong>{formatPrice(item?.quote?.price)}</strong><em className={Number(item?.quote?.change_percent ?? 0)>=0?'up':'down'}>{formatChange(item?.quote?.change_percent)}</em></div>; })}<a href="/markets" className="market-link">View market overview →</a></div></div>
     <div className="container">
-      <section className="hero-premium">
-        <div className="hero-premium-copy">
-          <div className="eyebrow-pill">REAL DATA · AI INSIGHTS · RESEARCH</div>
-          <h1>Smarter insights.<br/><span>Better investment decisions.</span></h1>
-          <p>Verified market data, technical analysis, quantitative forecasts, company news and long-term research for US stocks.</p>
-          <div className="button-row"><a className="button primary" href="/stocks">Explore US Stocks →</a><a className="button" href="/crypto">Explore Crypto →</a></div>
-          <div className="hero-trust-row"><span>◫ <b>Real market data</b></span><span>◈ <b>AI-powered predictions</b></span><span>✓ <b>Research-first</b></span></div>
-        </div>
-        <div className="hero-dashboard" aria-label="US Market AI market dashboard preview">
-          <div className="dashboard-top"><span className="live-dot">● LIVE MARKET</span><small>Market intelligence</small></div>
-          <div className="dashboard-main"><div><small>S&P 500</small><strong>{formatPrice(marketBySymbol.get('SPY')?.quote?.price)}</strong><em>{formatChange(marketBySymbol.get('SPY')?.quote?.change_percent)}</em></div><div className="fake-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-          <div className="dashboard-indexes">{Object.entries(marketLabels).map(([symbol, name]) => <div key={symbol}><span>{name}</span><b>{formatPrice(marketBySymbol.get(symbol)?.quote?.price)}</b><em>{formatChange(marketBySymbol.get(symbol)?.quote?.change_percent)}</em></div>)}</div>
-          <div className="dashboard-note">Markets move fast. <b>Stay ahead of the signal.</b></div>
-        </div>
-      </section>
-
-      <section className="section category-section"><div className="section-head"><div><div className="eyebrow">EXPLORE THE PLATFORM</div><h2>Everything you need, in one place.</h2><p className="muted">Browse every major research area without hunting through the menu.</p></div></div><div className="category-grid">{categoryTiles.map(([name, desc, href, icon]) => <a className="category-card" href={href} key={href + name}><span className="category-icon">{icon}</span><div><h3>{name}</h3><p>{desc}</p><b>Explore →</b></div></a>)}</div></section>
-
-      <section className="section popular-section"><div className="section-head"><div><div className="eyebrow">MOST WATCHED</div><h2>Trending US stocks</h2><p className="muted">A quick view of the largest tracked US companies.</p></div><a href="/stocks">View all stocks →</a></div><div className="stock-list-grid">{popularStocks.map(s => <a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price != null ? `$${formatPrice(quoteMap.get(s.id)?.price)}` : '—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>
-
-      <LongTermResearchSection stocks={stocks ?? []} />
-
-      {sectorSections.map(([sector, items]) => <section className="section sector-section" key={sector}><div className="section-head"><div><div className="eyebrow">STOCK CATEGORY</div><h2>{sector}</h2><p className="muted">Top tracked companies in {sector.toLowerCase()}.</p></div><a href={`/stocks?sector=${encodeURIComponent(sector)}`}>View more →</a></div><div className="stock-list-grid sector-grid">{items.slice(0,6).map(s => <a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price != null ? `$${formatPrice(quoteMap.get(s.id)?.price)}` : '—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>)}
-
-      <section className="section news-section"><div className="section-head"><div><div className="eyebrow">VERIFIED FEED</div><h2>Latest market news</h2><p className="muted">Ticker-linked stories with source and sentiment context.</p></div><a href="/news">View all news →</a></div><div className="news-layout">
-        <article className="featured-news"><div className="news-image news-blue thumbnail-placeholder"><span>THUMBNAIL<br/>PLACEHOLDER</span></div><div className="featured-news-body">{newsItems[0] ? <><small className="story-meta">{newsStockMap.get(newsItems[0].stock_id)?.symbol ?? 'MARKET'} · {newsItems[0].sentiment ?? 'neutral'}</small><h3>{newsItems[0].title}</h3><p>{newsItems[0].summary ?? 'Read the latest ticker-linked market development.'}</p><small>{newsItems[0].source ?? 'Market News'} · {formatDate(newsItems[0].published_at)}</small></> : <><h3>Market news will appear here</h3><p>The verified news pipeline will populate this section automatically.</p></>}<a href="/news">Read all news →</a></div></article>
-        <div className="article-list">{newsItems.slice(1,4).map((n,i) => { const s = newsStockMap.get(n.stock_id); return <a href={s ? `/stocks/${s.slug}#news` : '/news'} className="article-row" key={n.id}><div className={`article-thumb ${toneByIndex[i+1] ?? 'news-blue'} thumbnail-placeholder`}><span>IMAGE</span></div><div><small>{s?.symbol ?? 'MARKET'} · {n.sentiment ?? 'neutral'}</small><h3>{n.title}</h3><span>{n.source ?? 'Market News'} · {formatDate(n.published_at)}</span></div></a>; })}</div>
-        <aside className="movers panel-light"><div className="section-head"><h2>Market movers</h2><a href="/markets">View all →</a></div>{movers.length ? movers.map(stock => <a href={`/stocks/${stock.slug}`} className="mover" key={stock.symbol}><b>{stock.symbol}</b><span>${formatPrice(stock.quote?.price)}</span><em>{formatChange(stock.quote?.change_percent)}</em></a>) : <div className="empty-state"><strong>Waiting for market quotes</strong><span>No values are fabricated.</span></div>}</aside>
-      </div></section>
-
-      <section className="section blog-section"><div className="section-head"><div><div className="eyebrow">FEATURED BLOG</div><h2>Guides, explainers &amp; long-term research</h2><p className="muted">A dedicated place for educational market content and forecast research.</p></div><a href="/blog">View all blog →</a></div><div className="blog-home-grid">{blogArticles?.length ? blogArticles.slice(0,6).map((article,i) => { const stock = (stocks ?? []).find(s => s.id === article.stock_id); return <a className="blog-home-card" href={article.slug ? `/blog/${article.slug}` : stock ? `/stocks/${stock.slug}` : '/blog'} key={article.id}><div className={`blog-thumb ${toneByIndex[i % toneByIndex.length]}`}><span>THUMBNAIL<br/>PLACEHOLDER</span></div><div><small>{stock?.symbol ?? 'US MARKET AI'} · RESEARCH</small><h3>{article.title}</h3><p>{article.summary ?? 'In-depth market research and educational analysis.'}</p><span>Read research →</span></div></a>; }) : <a className="blog-empty" href="/blog"><div className="blog-thumb news-blue thumbnail-placeholder"><span>YOUR BLOG<br/>THUMBNAIL</span></div><div><small>US MARKET AI BLOG</small><h3>Market guides and long-term stock research</h3><p>Your published blog articles will automatically appear here.</p><b>Explore the blog →</b></div></a>}</div></section>
-
+      <section className="hero-premium"><div className="hero-premium-copy"><div className="eyebrow-pill">REAL DATA · AI INSIGHTS · RESEARCH</div><h1>Smarter insights.<br/><span>Better investment decisions.</span></h1><p>Verified market data, technical analysis, quantitative forecasts, company news and long-term research for US stocks.</p><div className="button-row"><a className="button primary" href="/stocks">Explore US Stocks →</a><a className="button" href="/crypto">Explore Crypto →</a></div><div className="hero-trust-row"><span>◫ <b>Real market data</b></span><span>◈ <b>AI-powered predictions</b></span><span>✓ <b>Research-first</b></span></div></div><div className="hero-dashboard" aria-label="US Market AI market dashboard preview"><div className="dashboard-top"><span className="live-dot">● LIVE MARKET</span><small>Market intelligence</small></div><div className="dashboard-main"><div><small>S&P 500</small><strong>{formatPrice(marketBySymbol.get('SPY')?.quote?.price)}</strong><em>{formatChange(marketBySymbol.get('SPY')?.quote?.change_percent)}</em></div><div className="fake-chart"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div className="dashboard-indexes">{Object.entries(marketLabels).map(([symbol,name])=><div key={symbol}><span>{name}</span><b>{formatPrice(marketBySymbol.get(symbol)?.quote?.price)}</b><em>{formatChange(marketBySymbol.get(symbol)?.quote?.change_percent)}</em></div>)}</div><div className="dashboard-note">Markets move fast. <b>Stay ahead of the signal.</b></div></div></section>
+      <section className="section category-section"><div className="section-head"><div><div className="eyebrow">EXPLORE THE PLATFORM</div><h2>Everything you need, in one place.</h2><p className="muted">Browse every major research area without hunting through the menu.</p></div></div><div className="category-grid">{categoryTiles.map(([name,desc,href,icon])=><a className="category-card" href={href} key={href+name}><span className="category-icon">{icon}</span><div><h3>{name}</h3><p>{desc}</p><b>Explore →</b></div></a>)}</div></section>
+      <section className="section popular-section"><div className="section-head"><div><div className="eyebrow">MOST WATCHED</div><h2>Trending US stocks</h2><p className="muted">A quick view of the largest tracked US companies.</p></div><a href="/stocks">View all stocks →</a></div><div className="stock-list-grid">{popularStocks.map(s=><a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price!=null?`$${formatPrice(quoteMap.get(s.id)?.price)}`:'—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>
+      <LongTermResearchSection stocks={stocks} />
+      {sectorSections.map(([sector,items])=><section className="section sector-section" key={sector}><div className="section-head"><div><div className="eyebrow">STOCK CATEGORY</div><h2>{sector}</h2><p className="muted">Top tracked companies in {sector.toLowerCase()}.</p></div><a href={`/stocks?sector=${encodeURIComponent(sector)}`}>View more →</a></div><div className="stock-list-grid sector-grid">{items.slice(0,6).map(s=><a className="stock-market-card" href={`/stocks/${s.slug}`} key={s.symbol}><div className="stock-logo">{s.symbol.slice(0,1)}</div><div className="stock-card-copy"><b>{s.symbol}</b><small>{s.company_name}</small></div><div className="stock-card-price"><strong>{quoteMap.get(s.id)?.price!=null?`$${formatPrice(quoteMap.get(s.id)?.price)}`:'—'}</strong><em>{formatChange(quoteMap.get(s.id)?.change_percent)}</em></div></a>)}</div></section>)}
+      <section className="section news-section"><div className="section-head"><div><div className="eyebrow">VERIFIED FEED</div><h2>Latest market news</h2><p className="muted">Ticker-linked stories with source and sentiment context.</p></div><a href="/news">View all news →</a></div><div className="news-layout"><article className="featured-news"><div className="news-image news-blue thumbnail-placeholder"><span>THUMBNAIL<br/>PLACEHOLDER</span></div><div className="featured-news-body">{newsItems[0]?<><small className="story-meta">{newsItems[0].stock_id?newsStockMap.get(newsItems[0].stock_id)?.symbol??'MARKET':'MARKET'} · {newsItems[0].sentiment??'neutral'}</small><h3>{newsItems[0].title}</h3><p>{newsItems[0].summary??'Read the latest ticker-linked market development.'}</p><small>{newsItems[0].source??'Market News'} · {formatDate(newsItems[0].published_at)}</small></>:<><h3>Market news will appear here</h3><p>The verified news pipeline will populate this section automatically.</p></>}<a href="/news">Read all news →</a></div></article><div className="article-list">{newsItems.slice(1,4).map((n,i)=>{const s=n.stock_id?newsStockMap.get(n.stock_id):undefined;return <a href={s?`/stocks/${s.slug}#news`:'/news'} className="article-row" key={n.id}><div className={`article-thumb ${toneByIndex[i+1]??'news-blue'} thumbnail-placeholder`}><span>IMAGE</span></div><div><small>{s?.symbol??'MARKET'} · {n.sentiment??'neutral'}</small><h3>{n.title}</h3><span>{n.source??'Market News'} · {formatDate(n.published_at)}</span></div></a>})}</div><aside className="movers panel-light"><div className="section-head"><h2>Market movers</h2><a href="/markets">View all →</a></div>{movers.length?movers.map(stock=><a href={`/stocks/${stock.slug}`} className="mover" key={stock.symbol}><b>{stock.symbol}</b><span>${formatPrice(stock.quote?.price)}</span><em>{formatChange(stock.quote?.change_percent)}</em></a>):<div className="empty-state"><strong>Waiting for market quotes</strong><span>No values are fabricated.</span></div>}</aside></div></section>
+      <section className="section blog-section"><div className="section-head"><div><div className="eyebrow">FEATURED BLOG</div><h2>Guides, explainers &amp; long-term research</h2><p className="muted">A dedicated place for educational market content and forecast research.</p></div><a href="/blog">View all blog →</a></div><div className="blog-home-grid">{blogArticles.length?blogArticles.slice(0,6).map((article,i)=>{const stock=article.stock_id?stocks.find(s=>s.id===article.stock_id):undefined;return <a className="blog-home-card" href={article.slug?`/blog/${article.slug}`:stock?`/stocks/${stock.slug}`:'/blog'} key={article.id}><div className={`blog-thumb ${toneByIndex[i%toneByIndex.length]}`}><span>THUMBNAIL<br/>PLACEHOLDER</span></div><div><small>{stock?.symbol??'US MARKET AI'} · RESEARCH</small><h3>{article.title}</h3><p>{article.summary??'In-depth market research and educational analysis.'}</p><span>Read research →</span></div></a>}):<a className="blog-empty" href="/blog"><div className="blog-thumb news-blue thumbnail-placeholder"><span>YOUR BLOG<br/>THUMBNAIL</span></div><div><small>US MARKET AI BLOG</small><h3>Market guides and long-term stock research</h3><p>Your published blog articles will automatically appear here.</p><b>Explore the blog →</b></div></a>}</div></section>
       <section className="section insight-cards"><a className="insight-card blue" href="/predictions"><div className="icon">◎</div><div><small>AI STOCK PREDICTIONS</small><h3>See what the model sees</h3><p>24H, 7D, 30D and 90D forecasts from quantitative signals.</p><b>View predictions →</b></div></a><a className="insight-card green" href="/analysis"><div className="icon">↗</div><div><small>TECHNICAL ANALYSIS</small><h3>Read market structure</h3><p>RSI, MACD, moving averages, volatility and momentum.</p><b>Explore analysis →</b></div></a><a className="insight-card orange" href="/blog"><div className="icon">▤</div><div><small>FORECAST RESEARCH</small><h3>Go beyond the headline</h3><p>Long-term stock research connected to individual asset pages.</p><b>Read forecast research →</b></div></a></section>
-
       <section className="research-banner"><div className="banner-icon">▥</div><div><small>BUILT FOR RESEARCH</small><h2>All the market insights you need, in one powerful platform.</h2><p>From verified market data to quantitative forecasts, news, analysis and long-term research — everything stays connected inside US Market AI.</p></div><a className="button primary" href="/stocks">Start Exploring Now →</a></section>
-
       <section className="trust-strip"><div><b>2,000+</b><span>Tracked US stocks</span></div><div><b>Live-ready</b><span>Market data pipeline</span></div><div><b>AI Research</b><span>Predictions &amp; analysis</span></div><div><b>Verified</b><span>Sources &amp; structured data</span></div><div><b>Free to explore</b><span>Start your research</span></div></section>
     </div>
   </div>;
