@@ -4,11 +4,12 @@ import { createClient } from '@/lib/supabase/server';
 
 const SUFFIX = '-stock-price-prediction-2026-2050';
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+type AnyRow = Record<string, any>;
 
-async function getStock(stockSlug: string) {
+async function getStock(stockSlug: string): Promise<AnyRow | null> {
   const supabase = await createClient();
-  const { data: stock } = await supabase.from('stocks').select('*').eq('slug', stockSlug).eq('is_active', true).eq('is_indexable', true).maybeSingle();
-  return stock;
+  const result = await supabase.from('stocks').select('*').eq('slug', stockSlug).eq('is_active', true).eq('is_indexable', true).maybeSingle();
+  return (result.data ?? null) as AnyRow | null;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -35,12 +36,16 @@ export default async function ForecastArticle({ params }: { params: Promise<{ sl
   if (!stock) notFound();
 
   const supabase = await createClient();
-  const [{ data: quote }, { data: fundamentals }, { data: technicals }, { data: related }] = await Promise.all([
+  const results = await Promise.all([
     supabase.from('latest_quotes').select('price,change_percent,quote_timestamp').eq('stock_id', stock.id).maybeSingle(),
     supabase.from('fundamentals').select('revenue,revenue_growth,eps,eps_growth,pe_ratio,forward_pe,free_cash_flow,roe,report_date').eq('stock_id', stock.id).order('report_date', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('technical_indicators').select('rsi,macd,sma_50,sma_200,volatility,momentum,support_level,resistance_level,calculated_at').eq('stock_id', stock.id).eq('timeframe', '1d').maybeSingle(),
     supabase.from('stocks').select('symbol,slug,company_name,sector').eq('is_active', true).eq('is_indexable', true).eq('sector', stock.sector).neq('id', stock.id).order('market_cap', { ascending: false }).limit(4),
   ]);
+  const quote = (results[0].data ?? null) as AnyRow | null;
+  const fundamentals = (results[1].data ?? null) as AnyRow | null;
+  const technicals = (results[2].data ?? null) as AnyRow | null;
+  const related = (Array.isArray(results[3].data) ? results[3].data : []) as AnyRow[];
 
   const pageUrl = siteUrl ? `${siteUrl}/blog/${slug}` : `/blog/${slug}`;
   const articleJsonLd = {
@@ -86,7 +91,7 @@ export default async function ForecastArticle({ params }: { params: Promise<{ sl
         <section><h2>Author and research responsibility</h2><p><strong>US Market AI Research Desk</strong> maintains the research presentation, methodology and data-linked stock pages. Market values and quantitative outputs are displayed from connected data sources; missing values are not fabricated.</p></section>
       </article>
 
-      <section className="related-research"><div className="section-head"><div><div className="eyebrow">INTERNAL RESEARCH NETWORK</div><h2>Related stocks</h2><p className="muted">Continue from this forecast into comparable companies in the same sector.</p></div><a href={`/stocks/${stock.slug}`}>View {stock.symbol} research →</a></div><div className="related-grid">{(related ?? []).map((item) => <a href={`/stocks/${item.slug}`} key={item.symbol}><b>{item.symbol}</b><span>{item.company_name}</span><small>Stock research →</small></a>)}</div></section>
+      <section className="related-research"><div className="section-head"><div><div className="eyebrow">INTERNAL RESEARCH NETWORK</div><h2>Related stocks</h2><p className="muted">Continue from this forecast into comparable companies in the same sector.</p></div><a href={`/stocks/${stock.slug}`}>View {stock.symbol} research →</a></div><div className="related-grid">{related.map((item) => <a href={`/stocks/${item.slug}`} key={item.symbol}><b>{item.symbol}</b><span>{item.company_name}</span><small>Stock research →</small></a>)}</div></section>
       <div className="article-disclaimer">This long-term page is currently a research framework and is not indexed while validated long-horizon outputs are unavailable. Forecasts are estimates, not financial advice.</div>
     </div>
   </main>;
