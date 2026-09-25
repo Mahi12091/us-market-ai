@@ -23,8 +23,8 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SUPABASE_URL: http://127.0.0.1:8787
-      SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
       AI_PROVIDER: ${{ secrets.AI_PROVIDER || 'openai' }}
       AI_MODEL: ${{ secrets.AI_MODEL || 'gpt-5-mini' }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -50,15 +50,12 @@ jobs:
             deepseek) test -n "${DEEPSEEK_API_KEY:-}" || (echo "DEEPSEEK_API_KEY missing" && exit 1) ;;
             *) echo "Unsupported AI_PROVIDER"; exit 1 ;;
           esac
-      - name: Start Neon REST compatibility layer
+      - name: Start Neon REST API
         run: |
           set -euo pipefail
-          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
-              echo "[neon-rest] proxy ready"
-              exit 0
-            fi
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
             sleep 1
           done
           cat /tmp/neon-rest.log
