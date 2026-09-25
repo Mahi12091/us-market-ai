@@ -12,7 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .eq('is_indexable', true)
     .limit(5000);
 
-  const stocks = data ?? [];
+  const stocks = Array.isArray(data) ? data : data ? [data] : [];
 
   return [
     { url: base, changeFrequency: 'hourly' as const, priority: 1 },
