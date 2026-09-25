@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 export const revalidate = 300;
 export const metadata: Metadata = { title: 'Market News', description: 'Latest US company and market news with ticker-linked sentiment intelligence.' };
@@ -22,7 +22,7 @@ const date = (v: string | null | undefined) => v
   : 'Latest';
 
 export default async function News() {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const { data: rawNews } = await supabase.from('news').select('id,stock_id,title,summary,url,source,published_at,sentiment,sentiment_score').order('published_at',{ascending:false,nullsFirst:false}).limit(40);
   const items = (rawNews ?? []) as NewsRow[];
   const ids = [...new Set(items.map(n=>n.stock_id).filter((id): id is string => Boolean(id)))];
