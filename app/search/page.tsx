@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 import './search.css';
 
 export const revalidate = 60;
@@ -23,7 +23,7 @@ function formatDate(value: string | null) {
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const params = await searchParams;
   const query = cleanQuery(params.q ?? '');
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
 
   let stocks: Array<{ symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null }> = [];
   let news: Array<{ id: number; title: string; summary: string | null; url: string | null; source: string | null; published_at: string | null; sentiment: string | null; stock_id: number | null }> = [];
