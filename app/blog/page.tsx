@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   alternates: { canonical: '/blog' },
 };
 
+type StockRow = {
+  symbol: string;
+  slug: string;
+  company_name: string;
+  sector: string | null;
+  industry: string | null;
+  market_cap: number | null;
+};
+
 const categories = [
   { name: 'Technology', description: 'Software, semiconductors, cloud, AI and technology leaders.' },
   { name: 'Financial Services', description: 'Banks, payments, exchanges, brokers and financial platforms.' },
@@ -22,13 +31,15 @@ function categoryMatch(category: string, sector: string | null) {
 
 export default async function BlogPage() {
   const supabase = await createClient();
-  const { data: stocks } = await supabase
+  const result = await supabase
     .from('stocks')
     .select('symbol,slug,company_name,sector,industry,market_cap')
     .eq('is_active', true)
     .eq('is_indexable', true)
     .order('market_cap', { ascending: false, nullsFirst: false })
     .limit(80);
+
+  const stocks = (result.data ?? []) as StockRow[];
 
   return <main className="blog-page">
     <div className="container">
@@ -50,8 +61,8 @@ export default async function BlogPage() {
 
         <div className="blog-category-stack">
           {categories.map((category) => {
-            const items = (stocks ?? []).filter((stock) => categoryMatch(category.name, stock.sector)).slice(0, 6);
-            const cards = items.length ? items : Array.from({ length: 4 }, (_, index) => ({ symbol: 'STOCK', slug: '', company_name: `${category.name} research article ${index + 1}`, sector: category.name, industry: null }));
+            const items = stocks.filter((stock) => categoryMatch(category.name, stock.sector)).slice(0, 6);
+            const cards: StockRow[] = items.length ? items : Array.from({ length: 4 }, (_, index) => ({ symbol: 'STOCK', slug: '', company_name: `${category.name} research article ${index + 1}`, sector: category.name, industry: null, market_cap: null }));
             const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
             return <section className="blog-category" key={category.name}>
               <div className="blog-category-head"><div><div className="eyebrow">SECTOR RESEARCH</div><h2>{category.name}</h2><p>{category.description}</p></div><a href={sectorHref}>Browse sector →</a></div>
