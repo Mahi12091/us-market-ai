@@ -6,7 +6,7 @@ import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.NEON_DATABASE_URL);
 const MASSIVE = 'https://api.massive.com';
 const PAGE_SIZE = 1000;
-const TARGET_STOCKS = 2000;
+const TARGET_STOCKS = 5000;
 const REQUEST_GAP_MS = 13000;
 let lastRequestAt = 0;
 
@@ -52,6 +52,7 @@ while (next) {
     discovered.set(symbol, {
       symbol,
       company_name: ticker.name ?? symbol,
+      // Keep the primary exchange exactly as supplied by the reference universe (e.g. XNAS/XNYS/XASE).
       exchange: ticker.primary_exchange ?? null,
       market_cap: Number.isFinite(marketCap) && marketCap > 0 ? marketCap : null,
       description: ticker.description ?? ticker.sic_description ?? null,
@@ -88,7 +89,7 @@ for (const row of ranked) {
   selectedSymbols.add(row.symbol);
 }
 
-// Preserve all existing stock symbols already in Neon, even if they are not in the current top-2,000 ranking.
+// Preserve all existing stock symbols already in Neon, even if they are not in the current top-5,000 ranking.
 for (const row of existingBySymbol.values()) {
   if (selectedSymbols.has(String(row.symbol).toUpperCase())) continue;
   selected.push({
@@ -137,13 +138,14 @@ for (let i = 0; i < selected.length; i += 100) {
   }
 }
 
-// Keep the existing four non-indexable market proxies intact. This script never deletes/deactivates stock rows.
 const counts = await sql.query(
   `SELECT
      COUNT(*) FILTER (WHERE asset_type = 'stock') AS stock_rows,
      COUNT(*) FILTER (WHERE asset_type = 'stock' AND is_active) AS active_stocks,
      COUNT(*) FILTER (WHERE asset_type = 'stock' AND is_active AND is_indexable) AS active_indexable_stocks,
-     COUNT(*) FILTER (WHERE asset_type = 'etf' AND is_active) AS active_etfs
+     COUNT(*) FILTER (WHERE asset_type = 'etf' AND is_active) AS active_etfs,
+     COUNT(*) FILTER (WHERE asset_type = 'stock' AND is_active AND exchange IS NOT NULL) AS stocks_with_exchange,
+     COUNT(DISTINCT exchange) FILTER (WHERE asset_type = 'stock' AND is_active) AS distinct_exchanges
    FROM public.stocks`
 );
 console.log(JSON.stringify({
