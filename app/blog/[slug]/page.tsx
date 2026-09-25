@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 const SUFFIX = '-stock-price-prediction-2026-2050';
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 type AnyRow = Record<string, any>;
 
 async function getStock(stockSlug: string): Promise<AnyRow | null> {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const result = await supabase.from('stocks').select('*').eq('slug', stockSlug).eq('is_active', true).eq('is_indexable', true).maybeSingle();
   return (result.data ?? null) as AnyRow | null;
 }
@@ -35,7 +35,7 @@ export default async function ForecastArticle({ params }: { params: Promise<{ sl
   const stock = await getStock(stockSlug);
   if (!stock) notFound();
 
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const results = await Promise.all([
     supabase.from('latest_quotes').select('price,change_percent,quote_timestamp').eq('stock_id', stock.id).maybeSingle(),
     supabase.from('fundamentals').select('revenue,revenue_growth,eps,eps_growth,pe_ratio,forward_pe,free_cash_flow,roe,report_date').eq('stock_id', stock.id).order('report_date', { ascending: false }).limit(1).maybeSingle(),
