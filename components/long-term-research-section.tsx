@@ -1,8 +1,8 @@
 type ResearchStock = {
   symbol: string;
-  slug: string | null;
+  slug: string | null | undefined;
   company_name: string;
-  sector: string | null;
+  sector: string | null | undefined;
   industry?: string | null;
 };
 
@@ -13,7 +13,7 @@ const categories = [
   { name: 'Consumer & Communication', description: 'Research across consumer brands, retail, media and communication businesses.' },
 ];
 
-export default function LongTermResearchSection({ stocks }: { stocks: ResearchStock[] }) {
+export default function LongTermResearchSection({ stocks }: { stocks: readonly ResearchStock[] }) {
   const normalized = stocks.map((stock) => ({ ...stock, sector: stock.sector?.trim() || 'Consumer & Communication' }));
 
   return (
