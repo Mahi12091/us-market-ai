@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 export const revalidate = 300;
 export const metadata: Metadata = { title: 'Market Overview', description: 'US market overview covering tracked market proxies, breadth, sector momentum and volatility.' };
@@ -16,7 +16,7 @@ const sectors = ['Technology','Financials','Healthcare','Consumer','Industrials'
 const pct = (v: unknown) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
 
 export default async function MarketsPage() {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const [{ data: rawProxyStocks }, { data: rawStocks }] = await Promise.all([
     supabase.from('stocks').select('id,symbol,company_name').eq('is_active', true).in('symbol', proxies.map(p => p[0])),
     supabase.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('asset_type','stock').limit(5000),
