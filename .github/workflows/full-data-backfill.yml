@@ -1,0 +1,132 @@
+name: Full Existing Universe Data Backfill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-existing-universe-backfill
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
+      SYNC_3SPREAD_METRICS_RATIOS: 'true'
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate required secrets
+        run: |
+          set -euo pipefail
+          for name in THREESPREAD_API_KEY2 NEON_DATABASE_URL SEC_CONTACT_EMAIL; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name is not configured."
+              exit 1
+            fi
+          done
+
+      - name: Apply Neon schema
+        run: node scripts/migrate_neon.mjs
+
+      - name: Start Neon REST API
+        run: |
+          set -euo pipefail
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then
+              echo '[neon-rest] API ready'
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
+          exit 1
+
+      - name: Verify existing stock universe
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          const rows = await sql`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_active)::int AS active FROM public.stocks WHERE asset_type='stock'`;
+          console.log(JSON.stringify(rows[0]));
+          if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
+          NODE
+
+      - name: Fill missing fundamentals from 3spread
+        continue-on-error: true
+        run: node scripts/sync_fundamentals_3spread.mjs
+
+      - name: Fill missing fundamentals from FMP
+        continue-on-error: true
+        run: node scripts/sync_fundamentals_fmp.mjs
+
+      - name: Fill remaining fundamentals from SEC
+        continue-on-error: true
+        env:
+          FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
+        run: node scripts/sync_fundamentals_v2.mjs
+
+      - name: Fill remaining fundamentals from Alpha Vantage
+        continue-on-error: true
+        env:
+          FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
+        run: node scripts/sync_fundamentals_alpha_vantage.mjs
+
+      - name: Sync earnings
+        continue-on-error: true
+        run: node scripts/sync_earnings.mjs
+
+      - name: Sync dividends
+        continue-on-error: true
+        run: node scripts/sync_dividends.mjs
+
+      - name: Calculate technical indicators
+        continue-on-error: true
+        run: node scripts/compute_technical_indicators.mjs
+
+      - name: Generate quantitative predictions
+        continue-on-error: true
+        run: node scripts/generate_predictions.mjs
+
+      - name: Final database coverage report
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          const tables = [
+            'stocks','fundamentals','financial_statements','threespread_financial_statements',
+            'threespread_statement_line_items','threespread_metrics','threespread_ratios',
+            'earnings','dividends','technical_indicators','predictions'
+          ];
+          for (const table of tables) {
+            const rows = await sql.query(`SELECT COUNT(*)::int AS rows FROM public.${table}`);
+            console.log(`${table}: ${rows[0]?.rows ?? 0}`);
+          }
+          NODE
