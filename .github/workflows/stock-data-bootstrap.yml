@@ -18,88 +18,67 @@ jobs:
       FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      # Compatibility layer for legacy data scripts. Database is Neon.
-      SUPABASE_URL: http://127.0.0.1:8787
-      SUPABASE_SERVICE_ROLE_KEY: neon-local-proxy
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
       SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Validate required secrets
         run: |
           set -euo pipefail
           for name in MASSIVE_API_KEY NEON_DATABASE_URL SEC_CONTACT_EMAIL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
-
       - name: Ensure Neon schema is current
         run: node scripts/migrate_neon.mjs
-
-      - name: Start Neon REST compatibility proxy
+      - name: Start Neon REST API
         run: |
           set -euo pipefail
-          nohup node scripts/neon-rest-proxy.mjs > /tmp/neon-rest.log 2>&1 &
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
-              echo "[neon-rest] proxy ready"
-              exit 0
-            fi
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
             sleep 1
           done
           cat /tmp/neon-rest.log
           exit 1
-
       - name: Seed and verify 2,000 US stocks
         run: node scripts/seed_us_stock_universe.mjs
-
       - name: Enrich stock metadata
         continue-on-error: true
         run: node scripts/enrich_stock_metadata.mjs
-
       - name: Verify 2,000-stock universe
         run: node scripts/verify_neon_universe.mjs
-
-      # The remaining data providers are quota/plan dependent. They run after
-      # the 2,000-stock master is present and must not delete the master universe.
       - name: Sync fundamentals from FMP (primary)
         continue-on-error: true
         run: node scripts/sync_fundamentals_fmp.mjs
-
       - name: Sync missing fundamentals from SEC (fallback)
         continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
         run: node scripts/sync_fundamentals_v2.mjs
-
       - name: Sync earnings
         continue-on-error: true
         run: node scripts/sync_earnings.mjs
-
       - name: Sync missing fundamentals from Alpha Vantage (fallback)
         continue-on-error: true
         env:
           FUNDAMENTALS_SYMBOLS_FILE: .fmp_fallback_symbols.json
         run: node scripts/sync_fundamentals_alpha_vantage.mjs
-
       - name: Sync dividends
         continue-on-error: true
         run: node scripts/sync_dividends.mjs
-
       - name: Calculate technical indicators
         continue-on-error: true
         run: node scripts/compute_technical_indicators.mjs
-
       - name: Generate quantitative predictions
         continue-on-error: true
         run: node scripts/generate_predictions.mjs
