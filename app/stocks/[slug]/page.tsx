@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
 import StockSeoContent from '@/components/stock-seo-content';
 import StockDataExpansion from '@/components/stock-data-expansion';
@@ -17,7 +17,7 @@ const compactMoney = (v: unknown) => {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const { data: stock } = await supabase.from('stocks').select('company_name,symbol,description,sector,industry').eq('slug', slug).maybeSingle();
   if (!stock) return { title: 'Stock Not Found', robots: { index: false, follow: true } };
   const description = stock.description ?? `${stock.company_name} (${stock.symbol}) stock price, technical analysis, AI predictions, 2026, 2030, 2035, 2040 and 2050 forecast research, market news and company analysis.`;
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function StockPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const { data: stock } = await supabase.from('stocks').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
   if (!stock) notFound();
 
