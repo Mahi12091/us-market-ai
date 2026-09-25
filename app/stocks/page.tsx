@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createDatabaseClient } from '@/lib/neon';
 
 export const metadata: Metadata = {
   title: 'US Stocks',
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default async function StocksPage() {
-  const supabase = await createClient();
+  const supabase = createDatabaseClient();
   const { data: stocks } = await supabase
     .from('stocks')
     .select('symbol,slug,company_name,sector,industry,exchange,asset_type')
