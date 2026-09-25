@@ -16,8 +16,7 @@ export default async function Predictions(){
     supabase.from<PredictionRow[]>('predictions').select('id,stock_id,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,prediction_time').order('prediction_time',{ascending:false}).limit(2000),
     supabase.from<PredictionResult[]>('prediction_results').select('prediction_id,stock_id,horizon,predicted_price,actual_price,predicted_direction,actual_direction,percentage_error,hit,evaluated_at').order('evaluated_at',{ascending:false}).limit(5000)
   ]);
-  // Supabase's generic query typings can resolve a single-row relation as a union.
-  // Normalize the response explicitly so production builds remain type-safe.
+  // Normalize Neon query responses to arrays for predictable rendering.
   const stocks: PredictionStock[]=Array.isArray(rawStocks)?rawStocks:rawStocks?[rawStocks]:[];
   const predictions: PredictionRow[]=Array.isArray(rawPredictions)?rawPredictions:rawPredictions?[rawPredictions]:[];
   const results: PredictionResult[]=Array.isArray(rawResults)?rawResults:rawResults?[rawResults]:[];
