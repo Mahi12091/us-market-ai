@@ -13,8 +13,42 @@ env:
 
 jobs:
   sync:
+    name: Market batch ${{ matrix.batch }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 480
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        batch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      STOCK_BATCH_INDEX: ${{ matrix.batch }}
+      STOCK_BATCH_SIZE: 500
+      MASSIVE_REQUEST_GAP_MS: 13000
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
+        run: test -n "${NEON_DATABASE_URL:-}"
+      - name: Sync Massive market data batch
+        run: node scripts/sync_market_data.mjs
+
+  post-sync:
+    name: Post-sync processing
+    needs: sync
+    if: ${{ always() && needs.sync.result != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    continue-on-error: true
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
@@ -30,32 +64,24 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Validate Neon connection
-        run: test -n "${NEON_DATABASE_URL:-}"
       - name: Start Neon REST API
         run: |
           set -euo pipefail
           nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
+            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then
+              echo "[neon-rest] API ready"
+              exit 0
+            fi
             sleep 1
           done
           cat /tmp/neon-rest.log
           exit 1
-      - name: Refresh 2,000-stock universe
-        run: node scripts/seed_us_stock_universe.mjs
-      - name: Sync Massive market data
-        continue-on-error: true
-        run: node scripts/sync_market_data.mjs
       - name: Calculate technical indicators
-        continue-on-error: true
         run: node scripts/compute_technical_indicators.mjs
       - name: Evaluate mature predictions
-        continue-on-error: true
         run: node scripts/evaluate_predictions.mjs
       - name: Sync news and sentiment
-        continue-on-error: true
         run: node scripts/sync_news.mjs
       - name: Generate quantitative predictions
-        continue-on-error: true
         run: node scripts/generate_predictions.mjs
