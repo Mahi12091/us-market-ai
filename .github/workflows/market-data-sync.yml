@@ -42,10 +42,38 @@ jobs:
       - name: Sync Massive market data batch
         run: node scripts/sync_market_data.mjs
 
+  technical:
+    name: Technical batch ${{ matrix.batch }}
+    needs: sync
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        batch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      STOCK_BATCH_INDEX: ${{ matrix.batch }}
+      STOCK_BATCH_SIZE: 500
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Calculate technical indicators batch
+        run: node scripts/compute_technical_indicators.mjs
+
   post-sync:
     name: Post-sync processing
-    needs: sync
-    if: ${{ always() && needs.sync.result != 'cancelled' }}
+    needs: technical
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     continue-on-error: true
@@ -77,8 +105,6 @@ jobs:
           done
           cat /tmp/neon-rest.log
           exit 1
-      - name: Calculate technical indicators
-        run: node scripts/compute_technical_indicators.mjs
       - name: Evaluate mature predictions
         run: node scripts/evaluate_predictions.mjs
       - name: Sync news and sentiment
