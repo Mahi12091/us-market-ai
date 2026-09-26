@@ -1,13 +1,17 @@
 import { neon } from '@neondatabase/serverless';
 
 const REQUIRED = ['MASSIVE_API_KEY', 'NEON_DATABASE_URL'];
-for (const name of REQUIRED) if (!process.env[name]) throw new Error(`${name} is not configured in GitHub Actions secrets.`);
+for (const name of REQUIRED) {
+  if (!process.env[name]) throw new Error(`${name} is not configured in GitHub Actions secrets.`);
+}
 
 const sql = neon(process.env.NEON_DATABASE_URL);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const isoDate = (date) => date.toISOString().slice(0, 10);
 const integerVolume = (value) => Math.round(Number(value ?? 0));
-const REQUEST_GAP_MS = 13_000;
+const REQUEST_GAP_MS = Number(process.env.MASSIVE_REQUEST_GAP_MS ?? 13_000);
+const BATCH_SIZE = Math.max(1, Number(process.env.STOCK_BATCH_SIZE ?? 500));
+const BATCH_INDEX = Math.max(0, Number(process.env.STOCK_BATCH_INDEX ?? 0));
 let lastRequestAt = 0;
 
 async function massive(path) {
@@ -23,7 +27,9 @@ async function massive(path) {
       const body = await response.text();
       if (response.ok) return body ? JSON.parse(body) : {};
       const retryable = [408, 429, 500, 502, 503, 504].includes(response.status);
-      if (!retryable || attempt === 5) throw new Error(`Massive ${response.status}: ${body.slice(0, 600)}`);
+      if (!retryable || attempt === 5) {
+        throw new Error(`Massive ${response.status}: ${body.slice(0, 600)}`);
+      }
       await sleep(response.status === 429 ? 65_000 : Math.min(30_000, 3_000 * 2 ** (attempt - 1)));
     } catch (error) {
       if (attempt === 5) throw error;
@@ -38,12 +44,33 @@ const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.
 const from = new Date(to);
 from.setUTCDate(from.getUTCDate() - 400);
 
-const stocks = await sql.query(`
+const allStocks = await sql.query(`
   SELECT id, symbol
   FROM public.stocks
   WHERE is_active = true AND asset_type = 'stock'
   ORDER BY id ASC
 `);
+
+const start = BATCH_INDEX * BATCH_SIZE;
+const stocks = allStocks.slice(start, start + BATCH_SIZE);
+const totalBatches = Math.max(1, Math.ceil(allStocks.length / BATCH_SIZE));
+
+console.log(JSON.stringify({
+  mode: 'ticker-range-production-market-data-neon-batched',
+  totalActiveStocks: allStocks.length,
+  batchIndex: BATCH_INDEX,
+  batchSize: BATCH_SIZE,
+  batchStart: start,
+  batchEndExclusive: start + stocks.length,
+  totalBatches,
+  fromDate: isoDate(from),
+  toDate: isoDate(to),
+}, null, 2));
+
+if (!stocks.length) {
+  console.log('No stocks in this batch. Exiting successfully.');
+  process.exit(0);
+}
 
 const results = [];
 for (const stock of stocks) {
@@ -104,13 +131,16 @@ for (const stock of stocks) {
 const synced = results.filter((result) => result.ok).length;
 const failed = results.length - synced;
 console.log(JSON.stringify({
-  mode: 'ticker-range-production-market-data-neon',
-  activeStocks: stocks.length,
-  fromDate: isoDate(from),
-  toDate: isoDate(to),
+  mode: 'ticker-range-production-market-data-neon-batched',
+  totalActiveStocks: allStocks.length,
+  batchIndex: BATCH_INDEX,
+  batchSize: BATCH_SIZE,
   tested: results.length,
   synced,
   failed,
+  fromDate: isoDate(from),
+  toDate: isoDate(to),
 }, null, 2));
+
 // Never discard successful work because one ticker failed.
 process.exitCode = 0;
