@@ -68,6 +68,22 @@ jobs:
           console.log(JSON.stringify(rows[0]));
           if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
           NODE
+      - name: Patch normalized financial upsert for duplicate-safe execution
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'scripts/sync_fundamentals_3spread_v2.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          const oldCall = "await upsertBatch('financial_statements',normalized,'stock_id,statement_type,period_type,fiscal_period');";
+          const newCall = "for (const row of normalized) await upsertBatch('financial_statements',[row],'stock_id,statement_type,period_type,fiscal_period',1);";
+          if (!source.includes(oldCall)) {
+            console.error('Expected financial_statements upsert call was not found; refusing to run an unpatched sync.');
+            process.exit(1);
+          }
+          source = source.replace(oldCall, newCall);
+          fs.writeFileSync(path, source);
+          console.log('[3spread] normalized financial_statements upsert patched to single-row conflict-safe writes');
+          NODE
       - name: Run resumable 3spread statement sync
         env:
           SYNC_STOCK_LIMIT: '250'
