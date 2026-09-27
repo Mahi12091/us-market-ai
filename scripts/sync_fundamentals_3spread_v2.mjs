@@ -244,9 +244,9 @@ function buildFundamental(stock, statements, quote) {
 }
 
 const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
-const startAfterId = Math.max(0, Number(process.env.SYNC_START_AFTER_ID || 0));
+const startOffset = Math.max(0, Number(process.env.SYNC_START_OFFSET || 0));
 const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
-const stocks = stockPage.filter(s => Number(s.id) > startAfterId).slice(0, stockLimit);
+const stocks = stockPage.slice(startOffset, startOffset + stockLimit);
 if (!stocks.length) throw new Error('No active stocks found for this batch.');
 const summary=[];
 
