@@ -243,8 +243,11 @@ function buildFundamental(stock, statements, quote) {
   return out;
 }
 
-const stocks = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
-if (!stocks.length) throw new Error('No active stocks found.');
+const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 5336));
+const startAfterId = Math.max(0, Number(process.env.SYNC_START_AFTER_ID || 0));
+const stocks = (await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc', limit: stockLimit, offset: 0 }, 5000))
+  .filter(s => Number(s.id) > startAfterId);
+if (!stocks.length) throw new Error('No active stocks found for this batch.');
 const summary=[];
 
 for (const [index, stock] of stocks.entries()) {
@@ -260,7 +263,7 @@ for (const [index, stock] of stocks.entries()) {
       if (!statements.length && apiSymbol!==symbol) statements=await getAll(`/v1/financials/statements?ticker=${encodeURIComponent(symbol)}&version=latest&limit=10`);
     }
     if (fetched && statements.length) {
-      const rawRows=statements.filter(r=>r?.block_id).map(r=>({stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,cik:r.cik??null,form_type:r.form_type??null,accession_num:r.accession_num??null,source_url:r.source_url??null,accepted_time:r.accepted_time??null,statement_type:r.statement_type??null,spine:r.spine??null,spine_confidence:num(r.spine_confidence),spine_low_conf:num(r.spine_low_conf),period_of_report:r.period_of_report??null,period_end:r.period_end??null,period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),filing_fiscal_year:num(r.filing_fiscal_year),is_comparative:r.is_comparative??null,derived:r.derived??null,is_valid:r.is_valid??null,score_composite:num(r.score_composite),scores:r.scores??null,currency:r.currency??null,statement_json:r.statement_json??null,raw_json:r}));
+      const rawRows=statements.filter(r=>r?.block_id).map(r=>({stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,cik:r.cik??null,form_type:r.form_type??null,accession_num:r.accession_num??null,source_url:r.source_url??null,accepted_time:r.accepted_time??null,statement_type:r.statement_type??null,spine:r.spine??null,spine_confidence:num(r.spine_confidence),spine_low_conf:num(r.spine_low_conf),period_of_report:r.period_of_report??null,period_end:r.period_end??null,period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),filing_fiscal_year:num(r.filing_fiscal_year),is_comparative:r.is_comparative??null,derived:r.derived??null,is_valid:r.is_valid??null,score_composite:num(r.score_composite),scores:r.scores??null,currency:r.currency??null,statement_json:r.statement_json??null,raw_json:null}));
       await upsertBatch('threespread_financial_statements',rawRows,'stock_id,block_id');
       const li=[]; for(const r of statements) for(const x of lineItems(r)) li.push({stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,statement_type:r.statement_type??null,section:x.section,item_key:x.item_key,label:x.label,value:x.value,source:x.source,members:x.members,currency:r.currency??null,period_end:r.period_end??null,period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),raw_item:x.raw_item});
       
@@ -290,7 +293,7 @@ for (const [index, stock] of stocks.entries()) {
     if (String(e.message).includes('3spread 429')) break;
   }
   console.log(`[3spread-v2] ${symbol} done`);
-  await sleep(75);
+  await sleep(Number(process.env.SYNC_DELAY_MS || 75));
 }
 
 const failed=summary.filter(x=>!x.ok).length;
