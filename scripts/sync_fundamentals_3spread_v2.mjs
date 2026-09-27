@@ -274,7 +274,7 @@ for (const [index, stock] of stocks.entries()) {
         filing_fiscal_year:num(r.filing_fiscal_year),is_comparative:r.is_comparative??null,derived:r.derived??null,
         is_valid:r.is_valid??null,score_composite:num(r.score_composite),scores:r.scores??null,currency:r.currency??null,
         statement_json:r.statement_json??null,raw_json:null
-      }));
+      })), 'stock_id,block_id');
       await upsertBatch('threespread_financial_statements',rawRows,'stock_id,block_id');
 
       // Persist line items only for the most recent 4 statement blocks per stock.
