@@ -264,7 +264,7 @@ for (const [index, stock] of stocks.entries()) {
     }
     if (fetched && statements.length) {
       // Keep canonical statement snapshots, but do not persist the full raw payload twice.
-      const rawRows=statements.filter(r=>r?.block_id).map(r=>({
+      const rawRows=dedupeRows(statements.filter(r=>r?.block_id).map(r=>({
         stock_id:stockId,ticker:symbol,block_id:r.block_id,filing_id:r.filing_id??null,cik:r.cik??null,
         form_type:r.form_type??null,accession_num:r.accession_num??null,source_url:r.source_url??null,
         accepted_time:r.accepted_time??null,statement_type:r.statement_type??null,spine:r.spine??null,
