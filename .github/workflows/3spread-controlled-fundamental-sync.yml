@@ -70,8 +70,8 @@ jobs:
           NODE
       - name: Run resumable 3spread statement sync
         env:
-          SYNC_STOCK_LIMIT: ${{ inputs.batch_size || '250' }}
-          SYNC_START_OFFSET: ${{ inputs.batch_number && ((fromJSON(inputs.batch_number) - 1) * fromJSON(inputs.batch_size || '250')) || '0' }}
+          SYNC_STOCK_LIMIT: '250'
+          SYNC_START_OFFSET: ${{ ((inputs.batch_number || '1') - 1) * (inputs.batch_size || '250') }}
           SYNC_BATCH_SIZE: '50'
           SYNC_DELAY_MS: '75'
         run: node scripts/sync_fundamentals_3spread_v2.mjs
