@@ -81,7 +81,7 @@ jobs:
 
       - name: Fill missing fundamentals from 3spread
         continue-on-error: true
-        run: node scripts/sync_fundamentals_3spread.mjs
+        run: node scripts/sync_fundamentals_3spread_v2.mjs
 
       - name: Fill missing fundamentals from FMP
         continue-on-error: true
