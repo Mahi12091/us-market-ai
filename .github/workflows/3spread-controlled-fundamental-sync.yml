@@ -84,10 +84,24 @@ jobs:
           fs.writeFileSync(path, source);
           console.log('[3spread] normalized financial_statements upsert patched to single-row conflict-safe writes');
           NODE
+      - name: Calculate resumable batch offset
+        env:
+          SYNC_BATCH_NUMBER: ${{ inputs.batch_number }}
+          SYNC_BATCH_SIZE_INPUT: ${{ inputs.batch_size }}
+        run: |
+          set -euo pipefail
+          batch_number="${SYNC_BATCH_NUMBER:-1}"
+          batch_size="${SYNC_BATCH_SIZE_INPUT:-250}"
+          if ! [[ "$batch_number" =~ ^[0-9]+$ ]] || ! [[ "$batch_size" =~ ^[0-9]+$ ]] || [ "$batch_number" -lt 1 ] || [ "$batch_size" -lt 1 ]; then
+            echo "Invalid batch_number or batch_size"
+            exit 1
+          fi
+          offset=$(( (batch_number - 1) * batch_size ))
+          echo "SYNC_START_OFFSET=$offset" >> "$GITHUB_ENV"
+          echo "SYNC_STOCK_LIMIT=$batch_size" >> "$GITHUB_ENV"
+          echo "[3spread] batch=$batch_number size=$batch_size offset=$offset"
       - name: Run resumable 3spread statement sync
         env:
-          SYNC_STOCK_LIMIT: '250'
-          SYNC_START_OFFSET: ${{ ((inputs.batch_number || '1') - 1) * (inputs.batch_size || '250') }}
           SYNC_BATCH_SIZE: '50'
           SYNC_DELAY_MS: '75'
         run: node scripts/sync_fundamentals_3spread_v2.mjs
