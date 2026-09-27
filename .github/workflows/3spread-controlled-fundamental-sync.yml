@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 360
     env:
       THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
@@ -36,7 +37,7 @@ jobs:
       - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in THREESPREAD_API_KEY2 NEON_DATABASE_URL; do
+          for name in THREESPREAD_API_KEY2 MASSIVE_API_KEY NEON_DATABASE_URL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
       - name: Apply Neon schema
