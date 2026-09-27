@@ -243,10 +243,10 @@ function buildFundamental(stock, statements, quote) {
   return out;
 }
 
-const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 5336));
+const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
 const startAfterId = Math.max(0, Number(process.env.SYNC_START_AFTER_ID || 0));
-const stocks = (await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc', limit: stockLimit, offset: 0 }, 5000))
-  .filter(s => Number(s.id) > startAfterId);
+const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
+const stocks = stockPage.filter(s => Number(s.id) > startAfterId).slice(0, stockLimit);
 if (!stocks.length) throw new Error('No active stocks found for this batch.');
 const summary=[];
 
