@@ -20,6 +20,9 @@ jobs:
     env:
       THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
+      SYNC_3SPREAD_METRICS_RATIOS: 'false'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -38,6 +41,15 @@ jobs:
           done
       - name: Apply Neon schema
         run: node scripts/migrate_neon.mjs
+      - name: Start Neon REST API
+        run: |
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
+          exit 1
       - name: Verify existing stock universe
         run: |
           node --input-type=module <<'NODE'
@@ -47,15 +59,15 @@ jobs:
           console.log(JSON.stringify(rows[0]));
           if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
           NODE
-      - name: Run compact 3spread normalized sync
-        run: node scripts/sync_fundamentals_3spread_compact.mjs
-      - name: Verify normalized data
+      - name: Run resumable 3spread statement sync
+        run: node scripts/sync_fundamentals_3spread_v2.mjs
+      - name: Verify 3spread raw tables
         run: |
           node --input-type=module <<'NODE'
           import { neon } from '@neondatabase/serverless';
           const sql = neon(process.env.NEON_DATABASE_URL);
-          for (const table of ['financial_statements','fundamentals']) {
-            const rows = await sql.query(`SELECT COUNT(*)::bigint AS rows FROM public.${table} WHERE data_source='3spread'`);
+          for (const table of ['threespread_financial_statements','threespread_statement_line_items','threespread_metrics','threespread_ratios','financial_statements','fundamentals']) {
+            const rows = await sql.query(`SELECT COUNT(*)::int AS rows FROM public.${table}`);
             console.log(`${table}: ${rows[0]?.rows ?? 0}`);
           }
           NODE
