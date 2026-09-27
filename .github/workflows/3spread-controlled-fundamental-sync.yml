@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 360
     env:
       THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
-      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
@@ -37,7 +36,7 @@ jobs:
       - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in THREESPREAD_API_KEY2 MASSIVE_API_KEY NEON_DATABASE_URL; do
+          for name in THREESPREAD_API_KEY2 NEON_DATABASE_URL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
       - name: Apply Neon schema
@@ -46,18 +45,23 @@ jobs:
         run: |
           nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
             sleep 1
           done
           cat /tmp/neon-rest.log
           exit 1
-      - name: Refresh 2,000-stock universe
-        run: node scripts/seed_us_stock_universe.mjs
+      - name: Verify existing stock universe
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          const rows = await sql`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE is_active)::int AS active FROM public.stocks WHERE asset_type='stock'`;
+          console.log(JSON.stringify(rows[0]));
+          if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
+          NODE
       - name: Run active-universe 3spread statement sync
-        continue-on-error: true
         run: node scripts/sync_fundamentals_3spread.mjs
       - name: Verify 3spread raw tables
-        continue-on-error: true
         run: |
           node --input-type=module <<'NODE'
           import { neon } from '@neondatabase/serverless';
