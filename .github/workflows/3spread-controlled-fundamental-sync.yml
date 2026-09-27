@@ -60,6 +60,9 @@ jobs:
           if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
           NODE
       - name: Run resumable 3spread statement sync
+        env:
+          SYNC_STOCK_LIMIT: '250'
+          SYNC_BATCH_SIZE: '50'
         run: node scripts/sync_fundamentals_3spread_v2.mjs
       - name: Verify 3spread raw tables
         run: |
