@@ -68,18 +68,47 @@ jobs:
           console.log(JSON.stringify(rows[0]));
           if (!rows[0] || Number(rows[0].total) < 5000) process.exit(1);
           NODE
-      - name: Patch normalized financial upsert for duplicate-safe execution
+      - name: Patch 3spread runner for exact stock identity and duplicate-safe writes
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const path = 'scripts/sync_fundamentals_3spread_v2.mjs';
           let source = fs.readFileSync(path, 'utf8');
           source = source.replaceAll('THREESPREAD_API_KEY2', 'THREESPREAD_API_KEY');
+
+          const oldSelection = `const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
+          const startOffset = Math.max(0, Number(process.env.SYNC_START_OFFSET || 0));
+          const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
+          const stocks = stockPage.slice(startOffset, startOffset + stockLimit);
+          if (!stocks.length) throw new Error('No active stocks found for this batch.');`;
+
+          const newSelection = `const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
+          const startOffset = Math.max(0, Number(process.env.SYNC_START_OFFSET || 0));
+          const requestedStockId = Number(process.env.SYNC_STOCK_ID || 0);
+          const requestedStockSymbol = String(process.env.SYNC_STOCK_SYMBOL || '').trim().toUpperCase();
+          let stocks;
+          if (requestedStockId > 0) {
+            stocks = await db('stocks', { params: { select: 'id,symbol,market_cap', id: \`eq.\${requestedStockId}\`, is_active: 'eq.true' } });
+          } else if (requestedStockSymbol) {
+            stocks = await db('stocks', { params: { select: 'id,symbol,market_cap', symbol: \`eq.\${requestedStockSymbol}\`, is_active: 'eq.true' } });
+          } else {
+            const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', asset_type: 'eq.stock', order: 'id.asc' }, 5000);
+            stocks = stockPage.slice(startOffset, startOffset + stockLimit);
+          }
+          if (!stocks.length) throw new Error('Requested stock was not found in the active stock universe.');`;
+
+          if (!source.includes(oldSelection)) {
+            console.error('Expected stock selection block was not found; refusing to run an unsafe sync.');
+            process.exit(1);
+          }
+          source = source.replace(oldSelection, newSelection);
+
           const oldCall = "await upsertBatch('financial_statements',normalized,'stock_id,statement_type,period_type,fiscal_period');";
           const newCall = "for (const row of normalized) await upsertBatch('financial_statements',[row],'stock_id,statement_type,period_type,fiscal_period',1);";
           if (source.includes(oldCall)) source = source.replace(oldCall, newCall);
+
           fs.writeFileSync(path, source);
-          console.log('[3spread] primary API key configured; normalized financial upsert is conflict-safe');
+          console.log('[3spread] primary API key + exact stock identity + conflict-safe financial writes configured');
           NODE
       - name: Run true-resumable 3spread sync
         env:
