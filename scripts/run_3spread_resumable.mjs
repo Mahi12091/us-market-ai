@@ -53,10 +53,17 @@ if (!stocks.length) {
 
 console.log(`[3spread-resumable] batch=${batchNumber} size=${batchSize} range=${start + 1}-${start + stocks.length}`);
 
-function runOne(offset) {
+function runOne(stock) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ['scripts/sync_fundamentals_3spread_v2.mjs'], {
-      env: { ...process.env, THREESPREAD_API_KEY: process.env.THREESPREAD_API_KEY, SYNC_START_OFFSET: String(offset), SYNC_STOCK_LIMIT: '1', SYNC_DELAY_MS: String(delayMs) },
+      env: {
+        ...process.env,
+        THREESPREAD_API_KEY: process.env.THREESPREAD_API_KEY,
+        SYNC_STOCK_ID: String(stock.id),
+        SYNC_STOCK_SYMBOL: String(stock.symbol),
+        SYNC_STOCK_LIMIT: '1',
+        SYNC_DELAY_MS: String(delayMs),
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
@@ -80,6 +87,7 @@ let completed = 0;
 let skipped = 0;
 let failed = 0;
 let rateLimited = false;
+let transientUpstreamFailure = false;
 
 for (let i = 0; i < stocks.length; i++) {
   const stock = stocks[i];
@@ -97,20 +105,23 @@ for (let i = 0; i < stocks.length; i++) {
     ON CONFLICT (stock_id) DO UPDATE SET status='pending', attempts=public.three_spread_sync_progress.attempts+1, last_error=NULL, updated_at=now()
   `;
 
-  const absoluteOffset = start + i;
-  console.log(`[3spread-resumable] ${i + 1}/${stocks.length} ${stock.symbol} start (global offset ${absoluteOffset})`);
-  const result = await runOne(absoluteOffset);
+  console.log(`[3spread-resumable] ${i + 1}/${stocks.length} ${stock.symbol} start (global offset ${start + i})`);
+  const result = await runOne(stock);
   const parsed = parseResult(result.stdout);
-  const ok = result.exitCode === 0 && parsed?.completed === 1 && parsed?.failed === 0;
+  const resultSymbol = parsed?.summary?.length === 1 ? String(parsed.summary[0]?.symbol || '').toUpperCase() : '';
+  const symbolMatches = resultSymbol === String(stock.symbol).toUpperCase();
+  const ok = result.exitCode === 0 && parsed?.completed === 1 && parsed?.failed === 0 && symbolMatches;
   const output = `${result.stdout}\n${result.stderr}`;
   const is429 = output.includes('3spread 429') || /HTTP\s*429|status.?429|Too Many Requests/i.test(output);
+  const isTransient5xx = /3spread (500|502|503|504):/i.test(output);
 
   if (ok) {
     await sql`UPDATE public.three_spread_sync_progress SET status='completed', last_error=NULL, completed_at=now(), updated_at=now() WHERE stock_id=${stock.id}`;
     completed++;
     console.log(`[3spread-resumable] ${stock.symbol} checkpoint saved`);
   } else {
-    const errorText = (parsed?.summary?.find?.(x => !x.ok)?.error || result.stderr || '3spread sync failed').slice(0, 2000);
+    const mismatch = parsed && !symbolMatches ? `Result symbol ${resultSymbol || '(missing)'} did not match requested ${String(stock.symbol).toUpperCase()}.` : '';
+    const errorText = (mismatch || parsed?.summary?.find?.(x => !x.ok)?.error || result.stderr || '3spread sync failed').slice(0, 2000);
     await sql`UPDATE public.three_spread_sync_progress SET status='failed', last_error=${errorText}, updated_at=now() WHERE stock_id=${stock.id}`;
     failed++;
     console.error(`[3spread-resumable] ${stock.symbol} not completed; checkpoint remains retryable`);
@@ -119,10 +130,25 @@ for (let i = 0; i < stocks.length; i++) {
       console.error('[3spread-resumable] API rate limit detected; stopping without advancing the checkpoint.');
       break;
     }
+    if (isTransient5xx) {
+      transientUpstreamFailure = true;
+      console.error('[3spread-resumable] 3spread upstream 5xx detected; stopping so the same stock can be retried safely on the next run.');
+      break;
+    }
   }
 
   if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
 }
 
-console.log(JSON.stringify({ batch_number: batchNumber, batch_size: batchSize, batch_start_offset: start, stocks_in_batch: stocks.length, completed, skipped, failed, rate_limited: rateLimited }, null, 2));
-if (rateLimited) process.exit(2);
+console.log(JSON.stringify({
+  batch_number: batchNumber,
+  batch_size: batchSize,
+  batch_start_offset: start,
+  stocks_in_batch: stocks.length,
+  completed,
+  skipped,
+  failed,
+  rate_limited: rateLimited,
+  transient_upstream_failure: transientUpstreamFailure,
+}, null, 2));
+if (rateLimited || transientUpstreamFailure) process.exit(2);
