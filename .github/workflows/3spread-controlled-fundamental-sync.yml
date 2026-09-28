@@ -84,33 +84,18 @@ jobs:
           fs.writeFileSync(path, source);
           console.log('[3spread] normalized financial_statements upsert patched to single-row conflict-safe writes');
           NODE
-      - name: Calculate resumable batch offset
+      - name: Run true-resumable 3spread sync
         env:
           SYNC_BATCH_NUMBER: ${{ inputs.batch_number }}
           SYNC_BATCH_SIZE_INPUT: ${{ inputs.batch_size }}
-        run: |
-          set -euo pipefail
-          batch_number="${SYNC_BATCH_NUMBER:-1}"
-          batch_size="${SYNC_BATCH_SIZE_INPUT:-250}"
-          if ! [[ "$batch_number" =~ ^[0-9]+$ ]] || ! [[ "$batch_size" =~ ^[0-9]+$ ]] || [ "$batch_number" -lt 1 ] || [ "$batch_size" -lt 1 ]; then
-            echo "Invalid batch_number or batch_size"
-            exit 1
-          fi
-          offset=$(( (batch_number - 1) * batch_size ))
-          echo "SYNC_START_OFFSET=$offset" >> "$GITHUB_ENV"
-          echo "SYNC_STOCK_LIMIT=$batch_size" >> "$GITHUB_ENV"
-          echo "[3spread] batch=$batch_number size=$batch_size offset=$offset"
-      - name: Run resumable 3spread statement sync
-        env:
-          SYNC_BATCH_SIZE: '50'
-          SYNC_DELAY_MS: '75'
-        run: node scripts/sync_fundamentals_3spread_v2.mjs
-      - name: Verify 3spread raw tables
+          SYNC_BATCH_DELAY_MS: '75'
+        run: node scripts/run_3spread_resumable.mjs
+      - name: Verify 3spread raw tables and resumable progress
         run: |
           node --input-type=module <<'NODE'
           import { neon } from '@neondatabase/serverless';
           const sql = neon(process.env.NEON_DATABASE_URL);
-          for (const table of ['threespread_financial_statements','threespread_statement_line_items','threespread_metrics','threespread_ratios','financial_statements','fundamentals']) {
+          for (const table of ['threespread_financial_statements','threespread_statement_line_items','threespread_metrics','threespread_ratios','financial_statements','fundamentals','three_spread_sync_progress']) {
             const rows = await sql.query(`SELECT COUNT(*)::int AS rows FROM public.${table}`);
             console.log(`${table}: ${rows[0]?.rows ?? 0}`);
           }
