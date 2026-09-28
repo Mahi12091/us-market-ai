@@ -6,7 +6,7 @@ on:
       batch_number:
         description: 'Batch number (1-based, 250 stocks each)'
         required: false
-        default: '1'
+        default: '5'
       batch_size:
         description: 'Stocks per run'
         required: false
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
+      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY3 }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
