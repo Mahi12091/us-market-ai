@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY3 }}
+      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY2 }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
