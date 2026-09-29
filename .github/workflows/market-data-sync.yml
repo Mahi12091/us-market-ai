@@ -109,5 +109,10 @@ jobs:
         run: node scripts/evaluate_predictions.mjs
       - name: Sync news and sentiment
         run: node scripts/sync_news.mjs
-      - name: Generate quantitative predictions v2
-        run: node scripts/generate_predictions_v2.mjs
+      - name: Generate quant-v3 predictions for all batches
+        run: |
+          set -euo pipefail
+          for batch in 0 1 2 3 4 5 6 7 8 9 10; do
+            echo "Generating quant-v3 batch ${batch}"
+            STOCK_BATCH_INDEX="$batch" STOCK_BATCH_SIZE=500 node scripts/generate_predictions_v3.mjs
+          done
