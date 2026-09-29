@@ -1,0 +1,44 @@
+name: Prediction Backfill v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: "Number of stocks per batch"
+        required: false
+        default: "250"
+      start_offset:
+        description: "Zero-based stock offset"
+        required: false
+        default: "0"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  predictions:
+    name: Generate quant-v2 predictions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      STOCK_BATCH_SIZE: ${{ inputs.batch_size }}
+      STOCK_BATCH_OFFSET: ${{ inputs.start_offset }}
+      PREDICTION_MODEL_VERSION: quant-v2.0
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
+        run: test -n "${NEON_DATABASE_URL:-}"
+      - name: Generate quantitative predictions
+        run: node scripts/generate_predictions_v2.mjs
