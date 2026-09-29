@@ -1,0 +1,29 @@
+name: Prediction Backfill v2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate predictions for all active stocks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
+        run: test -n "${NEON_DATABASE_URL:-}"
+      - name: Generate quant-v2 predictions
+        run: node scripts/generate_predictions_v2.mjs
