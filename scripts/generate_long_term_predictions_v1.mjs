@@ -8,7 +8,6 @@ const MODEL = 'long-term-v1.0';
 const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : null; };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const median = (xs) => { const a=xs.filter(Number.isFinite).sort((x,y)=>x-y); if(!a.length)return null; const m=Math.floor(a.length/2); return a.length%2?a[m]:(a[m-1]+a[m])/2; };
-const cagr = (start,end,years) => start>0&&end>0&&years>0 ? Math.pow(end/start,1/years)-1 : null;
 
 function quality(f) {
   const parts=[];
@@ -38,8 +37,8 @@ function scenarioGrowth(anchor,q,scenario) {
 
 function targetMultiple(f,scenario) {
   const pe=n(f.pe_ratio);
-  const qualityScore=quality(f);
-  const qualityMult=12+qualityScore*18;
+  const q=quality(f);
+  const qualityMult=12+q*18;
   const marketAnchor=scenario==='bear'?14:scenario==='base'?19:24;
   const current=pe&&pe>0&&pe<120?pe:marketAnchor;
   const weight=scenario==='bear'?0.75:scenario==='base'?0.55:0.40;
@@ -51,7 +50,6 @@ function build(row) {
   const anchor=growthAnchor(row);
   const q=quality(row);
   const currentPE=n(row.pe_ratio);
-  const yearsNow=2026-new Date().getUTCFullYear();
   const scenarios={};
   for(const scenario of ['bear','base','bull']) {
     const terminal=scenario==='bear'?0.025:scenario==='base'?0.040:0.055;
@@ -61,7 +59,6 @@ function build(row) {
     let p=price;
     for(const year of YEARS.slice(1)) {
       const years=year-2026;
-      // Growth decays toward a durable terminal rate; long horizons are not linear extrapolations.
       const annualG=terminal+(g0-terminal)*Math.exp(-years/8);
       p*=1+annualG;
       prices[year]=p;
@@ -70,21 +67,21 @@ function build(row) {
     for(const [year,yrs] of Object.entries(valuationYears)) {
       const valuationBlend=Math.min(1,yrs/10);
       const targetPE=currentPE&&currentPE>0?clamp(currentPE*(1-valuationBlend)+multiple*valuationBlend,8,42):multiple;
-      const baseGrowth=p=>p;
-      prices[year]=prices[year]*(targetPE/(currentPE&&currentPE>0?currentPE:multiple));
+      prices[year]*=targetPE/(currentPE&&currentPE>0?currentPE:multiple);
     }
     scenarios[scenario]={prices,growth_start:g0,terminal_growth:terminal,target_multiple:multiple};
   }
   const dataQuality=clamp((row.history_years/10)*0.25+(row.fundamental_count>0?0.45:0)+(row.statement_count>=3?0.30:0),0,1);
-  const agreement=1-Math.min(1,Math.abs(scenarios.bull.prices[2050]-scenarios.bear.prices[2050])/Math.max(scenarios.base.prices[2050],1));
-  const confidence=clamp(45+dataQuality*25+quality(row)*15+agreement*10,40,82);
+  const spread=Math.abs(scenarios.bull.prices[2050]-scenarios.bear.prices[2050]);
+  const agreement=1-Math.min(1,spread/Math.max(scenarios.base.prices[2050],1));
+  const confidence=clamp(45+dataQuality*25+q*15+agreement*10,40,82);
   return {q,dataQuality,confidence,scenarios};
 }
 
 const rows=(await sql`WITH lf AS (
   SELECT DISTINCT ON (stock_id) * FROM fundamentals ORDER BY stock_id,report_date DESC NULLS LAST,updated_at DESC
 ), hc AS (
-  SELECT stock_id,COUNT(*)::int history_count,COUNT(DISTINCT EXTRACT(YEAR FROM price_date))::int history_years FROM price_history WHERE timeframe='1d' GROUP BY stock_id
+  SELECT stock_id,COUNT(*)::int history_count,COUNT(DISTINCT EXTRACT(YEAR FROM timestamp))::int history_years FROM price_history WHERE timeframe='1d' GROUP BY stock_id
 ), sc AS (
   SELECT stock_id,COUNT(*)::int statement_count FROM financial_statements GROUP BY stock_id
 )
