@@ -116,3 +116,5 @@ jobs:
             echo "Generating quant-v3 batch ${batch}"
             STOCK_BATCH_INDEX="$batch" STOCK_BATCH_SIZE=500 node scripts/generate_predictions_v3.mjs
           done
+      - name: Generate long-term scenario predictions
+        run: node scripts/generate_long_term_predictions_v1.mjs
