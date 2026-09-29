@@ -10,6 +10,7 @@ export const revalidate = 300;
 
 const money = (v: unknown, digits = 2) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 const pct = (v: unknown) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
+const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d': 4 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -26,31 +27,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title,
     description,
-    keywords: [
-      stock.symbol,
-      `${stock.company_name} stock`,
-      `${stock.symbol} stock price`,
-      `${stock.symbol} financials`,
-      `${stock.symbol} valuation`,
-      `${stock.symbol} earnings`,
-      `${stock.symbol} dividend`,
-      `${stock.symbol} stock analysis`,
-      stock.sector,
-      stock.industry,
-    ].filter(Boolean) as string[],
-    alternates: { canonical },
-    robots: { index: true, follow: true },
-    openGraph: {
-      title: `${stock.company_name} (${stock.symbol}) Stock Research`,
-      description,
-      type: 'article',
-      url: canonical,
-    },
-    twitter: {
-      card: 'summary',
-      title: `${stock.company_name} (${stock.symbol}) Stock Research`,
-      description,
-    },
+    keywords: [stock.symbol, `${stock.company_name} stock`, `${stock.symbol} stock price`, `${stock.symbol} financials`, `${stock.symbol} valuation`, `${stock.symbol} earnings`, `${stock.symbol} dividend`, `${stock.symbol} stock analysis`, stock.sector, stock.industry].filter(Boolean) as string[],
+    alternates: { canonical }, robots: { index: true, follow: true },
+    openGraph: { title: `${stock.company_name} (${stock.symbol}) Stock Research`, description, type: 'article', url: canonical },
+    twitter: { card: 'summary', title: `${stock.company_name} (${stock.symbol}) Stock Research`, description },
   };
 }
 
@@ -62,8 +42,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
   const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: fundamentals }, { data: earnings }, { data: news }, { data: history }, { data: results }, { data: related }, { data: financialStatements }, { data: dividends }, { data: ownership }, { data: monthlyResearch }, { data: quarterlyResearch }, { data: threeSpreadMetrics }, { data: threeSpreadRatios }] = await Promise.all([
     db.from('latest_quotes').select('*').eq('stock_id', stock.id).maybeSingle(),
-    db.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', '1d').maybeSingle(),
-    db.from('predictions').select('*').eq('stock_id', stock.id).order('prediction_time', { ascending: false }).limit(4),
+    db.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', 'daily').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('predictions').select('*').eq('stock_id', stock.id).eq('model_version', 'quant-v3.0').order('prediction_time', { ascending: false }).limit(8),
     db.from('ai_articles').select('title,summary,content,updated_at').eq('stock_id', stock.id).eq('is_published', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('fundamentals').select('*').eq('stock_id', stock.id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('earnings').select('*').eq('stock_id', stock.id).order('earnings_date', { ascending: false }).limit(4),
@@ -82,71 +62,50 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
   const chart: ChartPoint[] = (history ?? []).filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
   const dailyChange = quote?.change_percent;
-  const latestPrediction = predictions?.[0];
+  const livePredictions = [...(predictions ?? [])].sort((a, b) => (horizonOrder[String(a.horizon)] ?? 99) - (horizonOrder[String(b.horizon)] ?? 99));
+  const latestPrediction = livePredictions[0];
   const direction = latestPrediction?.direction ?? 'neutral';
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
   const pageUrl = siteUrl ? `${siteUrl}/stocks/${stock.slug}` : `/stocks/${stock.slug}`;
   const modifiedDate = article?.updated_at ?? quote?.quote_timestamp ?? tech?.calculated_at ?? undefined;
 
   const breadcrumbJsonLd = {
-    '@type': 'BreadcrumbList',
-    itemListElement: [
+    '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl ? `${siteUrl}/` : '/' },
       { '@type': 'ListItem', position: 2, name: 'US Stocks', item: siteUrl ? `${siteUrl}/stocks` : '/stocks' },
       ...(stock.sector ? [{ '@type': 'ListItem', position: 3, name: stock.sector, item: siteUrl ? `${siteUrl}/stocks?sector=${encodeURIComponent(stock.sector)}` : `/stocks?sector=${encodeURIComponent(stock.sector)}` }] : []),
       { '@type': 'ListItem', position: stock.sector ? 4 : 3, name: stock.symbol, item: pageUrl },
     ],
   };
-
   const datasetJsonLd = {
-    '@type': 'Dataset',
-    name: `${stock.company_name} (${stock.symbol}) stock market research data`,
-    alternateName: `${stock.symbol} stock data`,
+    '@type': 'Dataset', name: `${stock.company_name} (${stock.symbol}) stock market research data`, alternateName: `${stock.symbol} stock data`,
     description: `Market research dataset for ${stock.company_name} (${stock.symbol}), including price history, technical indicators, financial statements, fundamentals, earnings, dividends, ownership data and quantitative model outputs when available.`,
-    url: pageUrl,
-    spatialCoverage: 'United States',
-    isAccessibleForFree: true,
-    creator: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' },
-    dateModified: modifiedDate ? new Date(modifiedDate).toISOString() : undefined,
+    url: pageUrl, spatialCoverage: 'United States', isAccessibleForFree: true,
+    creator: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, dateModified: modifiedDate ? new Date(modifiedDate).toISOString() : undefined,
   };
-
   const articleJsonLd = article?.content ? {
-    '@type': 'Article',
-    headline: article.title || `${stock.company_name} (${stock.symbol}) Stock Analysis`,
-    description: article.summary || `Research update for ${stock.company_name} (${stock.symbol}).`,
-    dateModified: article.updated_at ? new Date(article.updated_at).toISOString() : undefined,
-    author: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' },
-    mainEntityOfPage: pageUrl,
+    '@type': 'Article', headline: article.title || `${stock.company_name} (${stock.symbol}) Stock Analysis`, description: article.summary || `Research update for ${stock.company_name} (${stock.symbol}).`,
+    dateModified: article.updated_at ? new Date(article.updated_at).toISOString() : undefined, author: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, mainEntityOfPage: pageUrl,
   } : null;
-
-  const graphJsonLd = {
-    '@context': 'https://schema.org',
-    '@graph': [datasetJsonLd, breadcrumbJsonLd, ...(articleJsonLd ? [articleJsonLd] : [])],
-  };
+  const graphJsonLd = { '@context': 'https://schema.org', '@graph': [datasetJsonLd, breadcrumbJsonLd, ...(articleJsonLd ? [articleJsonLd] : [])] };
 
   return <div className="stock-page">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }} />
     <div className="container">
       <nav className="stock-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/stocks">US Stocks</a>{stock.sector && <><span>/</span><span>{stock.sector}</span></>}<span>/</span><b>{stock.symbol}</b></nav>
-
       <section className="stock-hero">
         <div className="stock-title-block"><div className="stock-logo">{stock.symbol.slice(0, 1)}</div><div><div className="eyebrow">{stock.exchange ?? 'US MARKET'} · {stock.sector ?? 'EQUITY'}</div><h1>{stock.company_name}</h1><div className="stock-symbol">{stock.symbol} · {stock.industry ?? 'Public company'}</div></div></div>
         <div className="quote-block"><div className="quote-price">{money(quote?.price)}</div><div className={Number(dailyChange) >= 0 ? 'positive quote-change' : 'negative quote-change'}>{quote?.change != null ? `${Number(quote.change) >= 0 ? '+' : ''}${money(quote.change)} · ${pct(dailyChange)}` : 'Quote unavailable'}</div><small className="muted">{quote?.quote_timestamp ? `Updated ${new Date(quote.quote_timestamp).toLocaleString('en-US')}` : 'Waiting for market feed'}</small></div>
       </section>
-
       <section className="stock-actions" aria-label="Stock research sections"><a className="button primary" href="#analysis">AI Analysis</a><a className="button" href="#predictions">Predictions</a><a className="button" href="#long-term">Long-Term Forecast</a><a className="button" href="#financials">Fundamentals</a><a className="button" href="#financial-statements">Financial Statements</a><a className="button" href="#backend-ratios">Ratios</a></section>
-
       <section className="stock-grid-top">
         <div className="panel chart-panel"><div className="panel-head"><div><h2>Price performance</h2><p className="muted">Daily closing price · {chart.length || 0} sessions</p></div><div className="range-tabs" aria-label="Chart ranges"><span className="active">1Y</span><span>6M</span><span>3M</span></div></div>{chart.length ? <PriceChart data={chart}/> : <div className="empty-state">Historical price data is not available yet.</div>}</div>
-        <div className="panel prediction-card" id="predictions"><div className="panel-head"><div><div className="eyebrow">QUANTITATIVE MODEL</div><h2>AI outlook</h2></div><span className={`signal ${direction}`}>{direction}</span></div><p className="muted">Quantitative price estimates based on available market signals. Model outputs are estimates, not financial advice.</p><div className="prediction-list">{(predictions ?? []).length ? predictions?.map(p => <div className="prediction-row" key={p.id}><div><b>{String(p.horizon).toUpperCase()}</b><small>{p.signal ?? 'Quantitative forecast'}</small></div><div className="prediction-right"><strong>{money(p.predicted_price)}</strong><span className={Number(p.predicted_change_percent) >= 0 ? 'positive' : 'negative'}>{pct(p.predicted_change_percent)}</span></div></div>) : <div className="empty-state">Forecasts will appear after the quantitative model runs.</div>}</div></div>
+        <div className="panel prediction-card" id="predictions"><div className="panel-head"><div><div className="eyebrow">QUANTITATIVE MODEL · V3</div><h2>Live model outlook</h2></div><span className={`signal ${direction}`}>{direction}</span></div><p className="muted">Quantitative estimates from the current v3 ensemble. Confidence is a model-quality score, not a probability of being correct.</p><div className="prediction-list">{livePredictions.length ? livePredictions.map(p => <div className="prediction-row" key={p.id}><div><b>{String(p.horizon).toUpperCase()}</b><small>{p.signal ?? 'Quantitative forecast'}{p.confidence != null ? ` · confidence ${Number(p.confidence).toFixed(0)}` : ''}</small></div><div className="prediction-right"><strong>{money(p.predicted_price)}</strong><span className={Number(p.predicted_change_percent) >= 0 ? 'positive' : 'negative'}>{pct(p.predicted_change_percent)}</span></div></div>) : <div className="empty-state">Fresh quantitative forecasts will appear after the model runs.</div>}</div></div>
       </section>
-
-      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={predictions ?? []} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} article={article} />
+      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={livePredictions} fundamentals={fundamentals} earnings={earnings ?? []} news={news ?? []} results={results ?? []} article={article} />
       <StockDataExpansion financialStatements={financialStatements ?? []} dividends={dividends ?? []} ownership={ownership ?? []} monthlyResearch={monthlyResearch ?? []} quarterlyResearch={quarterlyResearch ?? []} />
       <StockBackendMetrics fundamentals={fundamentals} metrics={threeSpreadMetrics ?? []} ratios={threeSpreadRatios ?? []} />
-
       {related?.length ? <section className="section" id="related-stocks"><div className="panel"><div className="eyebrow">RELATED RESEARCH</div><h2>More {stock.sector ?? 'Market'} Stocks</h2><p className="seo-prose">Explore other active US-listed companies in the same sector. Market-cap ordering is used only to make the directory easier to browse; it is not an investment ranking.</p><div className="stock-directory">{related.map((item: any) => <a className="directory-card" href={`/stocks/${item.slug}`} key={item.id}><div className="directory-top"><div className="ticker-badge">{item.symbol}</div><span className="research-badge">RESEARCH</span></div><div className="directory-symbol">{item.symbol}</div><div className="directory-name">{item.company_name}</div><div className="directory-meta"><span>{item.sector ?? 'US Equity'}</span>{item.market_cap != null && <span>Market cap {money(item.market_cap, 0)}</span>}</div><div className="directory-arrow">→</div></a>)}</div></div></section> : null}
-
       <section className="section disclaimer-section" id="disclaimer"><div className="panel"><div className="eyebrow">RESEARCH NOTE</div><h2>How to Read This Stock Research</h2><p className="seo-prose">US Market AI separates observed market data, reported financial information and quantitative model outputs. Missing values are not estimated. Forecasts are model estimates, not guarantees or personalized financial advice. For filings and corporate actions, readers should verify the company's investor-relations materials and applicable regulatory filings.</p><a className="button" href="/disclaimer">Read full disclaimer →</a></div></section>
       <section className="section author-section" id="research-author"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/research-author">About the research desk →</a></div></section>
     </div>
