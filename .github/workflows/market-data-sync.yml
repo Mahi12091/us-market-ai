@@ -109,5 +109,5 @@ jobs:
         run: node scripts/evaluate_predictions.mjs
       - name: Sync news and sentiment
         run: node scripts/sync_news.mjs
-      - name: Generate quantitative predictions
-        run: node scripts/generate_predictions.mjs
+      - name: Generate quantitative predictions v2
+        run: node scripts/generate_predictions_v2.mjs
