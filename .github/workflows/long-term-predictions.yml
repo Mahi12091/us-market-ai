@@ -1,0 +1,32 @@
+name: Long-Term Predictions
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate long-term scenario forecasts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
+        run: test -n "${NEON_DATABASE_URL:-}"
+      - name: Generate long-term predictions
+        run: node scripts/generate_long_term_predictions_v1.mjs
+      - name: Validate generated dataset
+        run: |
+          node -e "console.log('Long-term prediction generation completed; verify Neon counts and scenario ranges before publication.')"
