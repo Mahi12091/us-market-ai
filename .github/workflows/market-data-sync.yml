@@ -76,7 +76,6 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
-    continue-on-error: true
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
@@ -85,6 +84,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        run: ""
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -114,7 +114,7 @@ jobs:
           set -euo pipefail
           for batch in 0 1 2 3 4 5 6 7 8 9 10; do
             echo "Generating quant-v3 batch ${batch}"
-            STOCK_BATCH_INDEX="$batch" STOCK_BATCH_SIZE=500 node scripts/generate_predictions_v3.mjs
+            STOCK_BATCH_INDEX="${batch}" STOCK_BATCH_SIZE=500 node scripts/generate_predictions_v3.mjs
           done
       - name: Generate long-term scenario predictions
         run: node scripts/generate_long_term_predictions_v1.mjs
