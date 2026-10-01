@@ -18,13 +18,10 @@ async function massive(path){
   throw new Error('Massive request failed');
 }
 
-const stocks=await db('stocks',{params:{select:'id,symbol',is_active:'eq.true',limit:5000}});
+const stocks=await sql`SELECT id,symbol FROM stocks WHERE is_active=true LIMIT 5000`;
 const ids=new Map((stocks??[]).map(s=>[String(s.symbol).toUpperCase(),Number(s.id)]));
 if(!ids.size)throw new Error('No active stocks found.');
 
-// Fetch one recent feed, but only persist articles explicitly associated with
-// one of our active tickers. Clear the previous stock-news cache only after
-// the provider response succeeds so stale/cross-stock stories do not survive.
 const since=new Date(Date.now()-7*86400000).toISOString();
 const data=await massive(`/v2/reference/news?published_utc.gte=${encodeURIComponent(since)}&limit=1000&order=descending&sort=published_utc`);
 const results=Array.isArray(data.results)?data.results:[];
@@ -34,17 +31,14 @@ for(const n of results){
   const tickers=[...(n.tickers??[])].map(t=>String(t).toUpperCase()).filter(t=>ids.has(t));
   const uniqueTickers=[...new Set(tickers)];
   if(!uniqueTickers.length)continue;
-
   let sentiment='neutral',score=0;
-  const insights=n.insights??[];
   const values=[];
-  for(const x of insights){const s=String(x.sentiment??'').toLowerCase();if(s.includes('positive')||s.includes('bullish'))values.push(1);else if(s.includes('negative')||s.includes('bearish'))values.push(-1);else if(s)values.push(0)}
+  for(const x of (n.insights??[])){const s=String(x.sentiment??'').toLowerCase();if(s.includes('positive')||s.includes('bullish'))values.push(1);else if(s.includes('negative')||s.includes('bearish'))values.push(-1);else if(s)values.push(0)}
   if(values.length){score=values.reduce((a,b)=>a+b,0)/values.length;sentiment=score>.15?'bullish':score<-.15?'bearish':'neutral'}
-
   if(!n.article_url)continue;
   for(const ticker of uniqueTickers){
     const row={stock_id:ids.get(ticker),title:n.title??'Market news',summary:n.description??null,url:n.article_url,source:n.publisher?.name??'Massive News',published_at:n.published_utc??null,sentiment,sentiment_score:Number(score.toFixed(3)),relevance_score:1};
-    await db('news',{method:'POST',body:[row],prefer:'return=minimal'});
+    await sql`INSERT INTO news(stock_id,title,summary,url,source,published_at,sentiment,sentiment_score,relevance_score) VALUES(${row.stock_id},${row.title},${row.summary},${row.url},${row.source},${row.published_at},${row.sentiment},${row.sentiment_score},${row.relevance_score})`;
     inserted++;
   }
 }
