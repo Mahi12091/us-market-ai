@@ -200,7 +200,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Section>
 
     <Section id="news" eyebrow="LATEST INFORMATION" title="News and what changed">
-      {(news??[]).length?<div className="research-news">{news.map(n=><a href={n.url??'#'} target="_blank" rel="noreferrer" key={n.id}><div><b>{n.title}</b><span>{n.source??'Market News'} · {n.published_at?new Date(n.published_at).toLocaleDateString('en-US'):'Latest'}</span></div><em>{n.sentiment??'neutral'}</em></a>)}</div>:<Empty>No recent ticker-linked news is available.</Empty>}
+      {(news??[]).length?<div className="research-news">{(news ?? []).map(n=><a href={n.url??'#'} target="_blank" rel="noreferrer" key={n.id}><div><b>{n.title}</b><span>{n.source??'Market News'} · {n.published_at?new Date(n.published_at).toLocaleDateString('en-US'):'Latest'}</span></div><em>{n.sentiment??'neutral'}</em></a>)}</div>:<Empty>No recent ticker-linked news is available.</Empty>}
       {aiResearch?.length?<div className="research-ai-block"><h3>Research notes</h3>{aiResearch.slice(0,2).map((r:any)=><div key={r.id}><b>{r.research_period??r.research_type??'Research update'}</b><p>{r.what_changed_recently??r.fundamental_analysis??r.company_overview??'Research note available.'}</p></div>)}</div>:null}
     </Section>
 
