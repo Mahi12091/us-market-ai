@@ -6,6 +6,7 @@ const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFracti
 const pct=(v:any)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
 const renderValue=(v:any):React.ReactNode=>{
  if(v==null)return '—';
+ if(React.isValidElement(v))return v;
  if(v instanceof Date)return Number.isNaN(v.getTime())?'—':v.toLocaleDateString('en-US');
  if(typeof v==='object'){try{return JSON.stringify(v)}catch{return String(v)}}
  return v;
