@@ -28,7 +28,7 @@ function Section({id,eyebrow,title,children}:{id:string;eyebrow:string;title:str
 }
 function Grid({items}:{items:Array<[string,any]>}){return <div className="research-metric-grid">{items.filter(([,v])=>v!==null&&v!==undefined&&v!=='—').map(([k,v])=><div className="research-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>}
 function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="research-table-wrap"><table className="research-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
-function Empty({children}:{children:string}){return <div className="research-empty">{children}</div>}
+function Empty({children}:{children:React.ReactNode}){return <div className="research-empty">{children}</div>}
 function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
 function JsonText({value}:{value:any}){return <span>{typeof value==='string'?value:textValue(value)}</span>}
 
