@@ -75,6 +75,10 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   ]);
 
   const chart: ChartPoint[] = (history ?? []).filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
+  const derived52WeekHigh = (history ?? []).map(x => Number(x.high)).filter(Number.isFinite).reduce((m, v) => Math.max(m, v), -Infinity);
+  const derived52WeekLow = (history ?? []).map(x => Number(x.low)).filter(Number.isFinite).reduce((m, v) => Math.min(m, v), Infinity);
+  const week52High = quote?.week_52_high ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
+  const week52Low = quote?.week_52_low ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
   const dailyChange = quote?.change_percent;
   const livePredictions = [...(predictions ?? [])].sort((a, b) => (horizonOrder[String(a.horizon)] ?? 99) - (horizonOrder[String(b.horizon)] ?? 99));
   const latestPrediction = livePredictions[0];
@@ -123,7 +127,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       </section>
       <section className="stock-quick-snapshot" aria-label="Stock snapshot">
         <div><span>Current Price</span><strong>{money(quote?.price)}</strong></div><div><span>Daily Change</span><strong>{pct(quote?.change_percent)}</strong></div><div><span>Exchange</span><strong>{stock.exchange ?? 'Not available yet'}</strong></div><div><span>Asset Type</span><strong>{securityType}</strong></div><div><span>Last Updated</span><strong>{quote?.quote_timestamp ? new Date(quote.quote_timestamp).toLocaleString('en-US') : 'Not available yet'}</strong></div><div><span>Open</span><strong>{money(quote?.open)}</strong></div>
-        <div><span>Day High</span><strong>{money(quote?.high)}</strong></div><div><span>Day Low</span><strong>{money(quote?.low)}</strong></div><div><span>Previous Close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Volume</span><strong>{quote?.volume != null ? Number(quote.volume).toLocaleString('en-US') : 'Not available yet'}</strong></div><div><span>Market Cap</span><strong>{money(marketCap)}</strong></div><div><span>52-Week High</span><strong>{money(quote?.fifty_two_week_high ?? stock.fifty_two_week_high)}</strong></div><div><span>52-Week Low</span><strong>{money(quote?.fifty_two_week_low ?? stock.fifty_two_week_low)}</strong></div><div><span>Sector</span><strong>{stock.sector ?? 'Not available yet'}</strong></div><div><span>Industry</span><strong>{stock.industry ?? 'Not available yet'}</strong></div>
+        <div><span>Day High</span><strong>{money(quote?.high)}</strong></div><div><span>Day Low</span><strong>{money(quote?.low)}</strong></div><div><span>Previous Close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Volume</span><strong>{quote?.volume != null ? Number(quote.volume).toLocaleString('en-US') : 'Not available yet'}</strong></div><div><span>Market Cap</span><strong>{money(marketCap)}</strong></div><div><span>52-Week High</span><strong>{money(week52High)}</strong></div><div><span>52-Week Low</span><strong>{money(week52Low)}</strong></div><div><span>Sector</span><strong>{stock.sector ?? 'Not available yet'}</strong></div><div><span>Industry</span><strong>{stock.industry ?? 'Not available yet'}</strong></div>
       </section>
       <section className="research-section" aria-label="Quick Research Snapshot">
         <div className="research-section-head"><h2>Quick Research Snapshot</h2></div>
