@@ -1,30 +1,16 @@
 import React from 'react';
-
-type Props = { fundamentals: any; metrics: any[]; ratios: any[] };
-const num = (v: any) => v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 4 });
-const money = (v: any) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`;
-const pct = (v: any) => v == null ? '—' : `${Number(v).toFixed(2)}%`;
-function label(value: string) { return value.replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase()); }
-function valueFor(key: string, value: any) {
-  const lower = key.toLowerCase();
-  if (value == null) return '—';
-  if (lower.includes('margin') || lower.includes('yield') || lower.includes('growth') || lower.includes('return') || lower.includes('ownership')) return pct(value);
-  if (lower.includes('revenue') || lower.includes('income') || lower.includes('cash') || lower.includes('debt') || lower.includes('assets') || lower.includes('equity') || lower.includes('capital') || lower.includes('value') || lower.includes('profit')) return money(value);
-  return num(value);
-}
-export default function StockBackendMetrics({ fundamentals, metrics, ratios }: Props) {
-  const fundamentalEntries = fundamentals ? Object.entries(fundamentals).filter(([key, value]) => !['id', 'stock_id', 'updated_at', 'created_at'].includes(key) && value != null) : [];
-  const metricEntries = metrics.filter(x => x?.value != null);
-  const ratioEntries = ratios.filter(x => x?.value != null);
-  return <div className="seo-research-stack">
-    <section className="seo-card" id="backend-fundamentals"><div className="seo-card-head"><div><div className="eyebrow">BACKEND DATA</div><h2>Complete Fundamental Metrics</h2></div></div>
-      {fundamentalEntries.length ? <div className="seo-data-table"><table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>{fundamentalEntries.map(([key, value]) => <tr key={key}><th>{label(key)}</th><td>{valueFor(key, value)}</td></tr>)}</tbody></table></div> : <div className="seo-empty">No fundamental snapshot is available for this stock.</div>}
-    </section>
-    <section className="seo-card" id="backend-metrics"><div className="seo-card-head"><div><div className="eyebrow">3SPREAD METRICS</div><h2>Source Metrics & Derived Metrics</h2></div></div>
-      {metricEntries.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Type</th><th>Category</th><th>Value</th><th>Unit</th><th>Derived</th><th>Valid</th></tr></thead><tbody>{metricEntries.slice(0, 250).map((m, i) => <tr key={`${m.category}-${m.period_end}-${i}`}><td>{m.period_end ?? '—'}</td><td>{label(String(m.period_type ?? '—'))}</td><td>{label(String(m.category ?? 'metric'))}</td><td>{valueFor(String(m.category ?? ''), m.value)}</td><td>{m.unit ?? m.currency ?? '—'}</td><td>{m.derived ? 'Yes' : 'No'}</td><td>{m.is_valid == null ? '—' : m.is_valid ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div> : <div className="seo-empty">No source metrics are available yet.</div>}
-    </section>
-    <section className="seo-card" id="backend-ratios"><div className="seo-card-head"><div><div className="eyebrow">3SPREAD RATIOS</div><h2>Financial Ratios & Percentiles</h2></div></div>
-      {ratioEntries.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Type</th><th>Category</th><th>Ratio</th><th>Value</th><th>Percentile</th><th>Derived</th><th>Valid</th></tr></thead><tbody>{ratioEntries.slice(0, 250).map((r, i) => <tr key={`${r.ratio_name}-${r.period_end}-${i}`}><td>{r.period_end ?? '—'}</td><td>{label(String(r.period_type ?? '—'))}</td><td>{label(String(r.ratio_category ?? '—'))}</td><td>{label(String(r.ratio_name ?? 'ratio'))}</td><td>{valueFor(String(r.ratio_name ?? ''), r.value)}</td><td>{r.value_pctile == null ? '—' : num(r.value_pctile)}</td><td>{r.derived ? 'Yes' : 'No'}</td><td>{r.is_valid == null ? '—' : r.is_valid ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div> : <div className="seo-empty">No ratio data is available yet.</div>}
-    </section>
-  </div>;
+type Props={fundamentals:any;financialMetrics:any[];metrics:any[];ratios:any[]};
+const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFractionDigits:4});
+const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
+const pct=(v:any)=>v==null?'—':`${Number(v).toFixed(2)}%`;
+const label=(v:string)=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+const fmt=(key:string,v:any)=>{if(v==null)return '—';const k=key.toLowerCase();if(k.includes('margin')||k.includes('yield')||k.includes('growth')||k.includes('return')||k.includes('ownership'))return pct(v);if(k.includes('revenue')||k.includes('income')||k.includes('cash')||k.includes('debt')||k.includes('assets')||k.includes('equity')||k.includes('capital')||k.includes('value')||k.includes('profit'))return money(v);return num(v)};
+export default function StockBackendMetrics({fundamentals,financialMetrics,metrics,ratios}:Props){
+ const f=fundamentals?Object.entries(fundamentals).filter(([k,v])=>!['stock_id','updated_at'].includes(k)&&v!=null):[];
+ return <div className="seo-research-stack">
+  <section className="seo-card" id="backend-fundamentals"><div className="seo-card-head"><div><div className="eyebrow">BACKEND SNAPSHOT</div><h2>Complete Fundamental Fields</h2></div></div>{f.length?<div className="seo-data-table"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>{f.map(([k,v])=><tr key={k}><th>{label(k)}</th><td>{fmt(k,v)}</td></tr>)}</tbody></table></div>:<div className="seo-empty">No fundamental snapshot is stored.</div>}</section>
+  <section className="seo-card" id="financial-metrics"><div className="seo-card-head"><div><div className="eyebrow">FINANCIAL METRICS</div><h2>Period-Based Financial Metrics</h2></div></div>{financialMetrics?.length?<div className="seo-data-table"><table><thead><tr><th>Period</th><th>Fiscal Year</th><th>Quarter</th><th>Revenue Growth</th><th>Gross Margin</th><th>Operating Margin</th><th>Net Margin</th><th>EBITDA Margin</th><th>EPS Growth</th><th>FCF Growth</th><th>ROE</th><th>ROIC</th><th>CAGR 3Y</th><th>CAGR 5Y</th><th>CAGR 10Y</th><th>Earnings Yield</th><th>FCF Yield</th><th>Dividend Yield</th><th>Payout</th></tr></thead><tbody>{financialMetrics.map(m=><tr key={m.id??`${m.period_end}-${m.fiscal_period}`}><td>{m.period_end??'—'}</td><td>{m.fiscal_year??'—'}</td><td>{m.fiscal_quarter??'—'}</td><td>{pct(m.revenue_growth)}</td><td>{pct(m.gross_margin)}</td><td>{pct(m.operating_margin)}</td><td>{pct(m.net_margin)}</td><td>{pct(m.ebitda_margin)}</td><td>{pct(m.eps_growth)}</td><td>{pct(m.fcf_growth)}</td><td>{pct(m.roe)}</td><td>{pct(m.roic)}</td><td>{pct(m.three_year_cagr)}</td><td>{pct(m.five_year_cagr)}</td><td>{pct(m.ten_year_cagr)}</td><td>{pct(m.earnings_yield)}</td><td>{pct(m.fcf_yield)}</td><td>{pct(m.dividend_yield)}</td><td>{pct(m.payout_ratio)}</td></tr>)}</tbody></table></div>:<div className="seo-empty">No period-based financial metrics are stored.</div>}</section>
+  <section className="seo-card" id="backend-metrics"><div className="seo-card-head"><div><div className="eyebrow">3SPREAD METRICS</div><h2>Source & Derived Metrics</h2></div></div>{metrics?.length?<div className="seo-data-table"><table><thead><tr><th>Period</th><th>Type</th><th>Category</th><th>Value</th><th>Unit</th><th>Derived</th><th>Valid</th></tr></thead><tbody>{metrics.filter(x=>x?.value!=null).slice(0,400).map((m,i)=><tr key={`${m.category}-${m.period_end}-${i}`}><td>{m.period_end??'—'}</td><td>{label(String(m.period_type??'—'))}</td><td>{label(String(m.category??'metric'))}</td><td>{fmt(String(m.category??''),m.value)}</td><td>{m.unit??m.currency??'—'}</td><td>{m.derived?'Yes':'No'}</td><td>{m.is_valid==null?'—':m.is_valid?'Yes':'No'}</td></tr>)}</tbody></table></div>:<div className="seo-empty">No 3Spread metric rows are stored.</div>}</section>
+  <section className="seo-card" id="backend-ratios"><div className="seo-card-head"><div><div className="eyebrow">3SPREAD RATIOS</div><h2>Financial Ratios & Percentiles</h2></div></div>{ratios?.length?<div className="seo-data-table"><table><thead><tr><th>Period</th><th>Type</th><th>Category</th><th>Ratio</th><th>Value</th><th>Percentile</th><th>Derived</th><th>Valid</th></tr></thead><tbody>{ratios.filter(x=>x?.value!=null).slice(0,400).map((r,i)=><tr key={`${r.ratio_name}-${r.period_end}-${i}`}><td>{r.period_end??'—'}</td><td>{label(String(r.period_type??'—'))}</td><td>{label(String(r.ratio_category??'—'))}</td><td>{label(String(r.ratio_name??'ratio'))}</td><td>{fmt(String(r.ratio_name??''),r.value)}</td><td>{num(r.value_pctile)}</td><td>{r.derived?'Yes':'No'}</td><td>{r.is_valid==null?'—':r.is_valid?'Yes':'No'}</td></tr>)}</tbody></table></div>:<div className="seo-empty">No 3Spread ratio rows are stored yet.</div>}</section>
+ </div>
 }
