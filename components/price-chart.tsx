@@ -60,7 +60,7 @@ export default function PriceChart({ data }: Props) {
 
     page.querySelector('.stock-performance-inline')?.remove();
 
-    const metricValues = Array.from(metricStrip.children).map(node => ({
+    const metricValues = metricStrip ? Array.from(metricStrip.children).map(node => ({
       label: node.querySelector('span')?.textContent?.trim() ?? '',
       value: node.querySelector('b')?.textContent?.trim() ?? '—',
     })) : [];
