@@ -212,9 +212,24 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
       <AIBlock title="How the model works">Market data → technical features → fundamentals → model → prediction → evaluation. AI text pending for the detailed explanation.</AIBlock>
     </Section>
 
-    {longYears.map(year=><Section key={year} id={`forecast-${year}`} eyebrow={`${year} · MODEL SCENARIO`} title={`${company} Stock Price Forecast ${year}`}>
-      {longMap.get(year)?<><Table headers={['Scenario','Forecast']} rows={[[`Bear`,money(longMap.get(year)?.bear_price)],[`Base`,money(longMap.get(year)?.base_price)],[`Bull`,money(longMap.get(year)?.bull_price)]]}/><Grid items={[[`Expected CAGR`,pct(longMap.get(year)?.expected_cagr)],[`Forecast Confidence`,num(longMap.get(year)?.confidence)],[`Uncertainty`,num(longMap.get(year)?.uncertainty)]]}/><AIBlock title={`Why the model produces the ${year} range`}>{textValue(longMap.get(year)?.assumptions??longMap.get(year)?.feature_summary) || 'AI text pending'}</AIBlock></>:<Empty>{year} long-term forecast is not available yet.</Empty>}
-    </Section>)}
+    {longYears.map(year=>{
+      const row:any=longMap.get(year);
+      return <Section key={String(year)} id={`forecast-${year}`} eyebrow={`${year} · MODEL SCENARIO`} title={`${company} Stock Price Forecast ${year}`}>
+        {row ? <>
+          <Table headers={['Scenario','Forecast']} rows={[
+            ['Bear', money(row.bear_price)],
+            ['Base', money(row.base_price)],
+            ['Bull', money(row.bull_price)]
+          ]}/>
+          <Grid items={[
+            ['Expected CAGR', String(pct(row.expected_cagr))],
+            ['Forecast Confidence', String(num(row.confidence))],
+            ['Uncertainty', String(num(row.uncertainty))]
+          ]}/>
+          <AIBlock title={`Why the model produces the ${year} range`}>{textValue(row.assumptions??row.feature_summary) || 'AI text pending'}</AIBlock>
+        </> : <Empty>{String(year)} long-term forecast is not available yet.</Empty>}
+      </Section>
+    })}
 
     <Section id="forecast-summary" eyebrow="23 · FORECAST SUMMARY" title={`${company} Stock Price Forecast 2026–2050`}>
       {longTerm?.length?<Table headers={['Year','Bear','Base','Bull','Expected CAGR']} rows={forecastRows.map(r=>[r[0],r[1],r[2],r[3],r[4]])}/>:<Empty>Long-term forecast summary is not available yet.</Empty>}
