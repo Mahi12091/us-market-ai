@@ -4,7 +4,7 @@ const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFracti
 const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
 const pct=(v:any)=>v==null?'—':`${Number(v).toFixed(2)}%`;
 const label=(v:string)=>v.replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
-const fmt=(key:string,v:any)=>{if(v==null)return '—';const k=key.toLowerCase();if(k.includes('margin')||k.includes('yield')||k.includes('growth')||k.includes('return')||k.includes('ownership'))return pct(v);if(k.includes('revenue')||k.includes('income')||k.includes('cash')||k.includes('debt')||k.includes('assets')||k.includes('equity')||k.includes('capital')||k.includes('value')||k.includes('profit'))return money(v);return num(v)};
+const fmt=(key:string,v:any)=>{if(v==null)return '—';if(v instanceof Date){return Number.isNaN(v.getTime())?'—':v.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}if(typeof v==='string'){const trimmed=v.trim();if(!trimmed)return '—';return trimmed;}const k=key.toLowerCase();if(k.includes('margin')||k.includes('yield')||k.includes('growth')||k.includes('return')||k.includes('ownership'))return pct(v);if(k.includes('revenue')||k.includes('income')||k.includes('cash')||k.includes('debt')||k.includes('assets')||k.includes('equity')||k.includes('capital')||k.includes('value')||k.includes('profit'))return money(v);return num(v)};
 export default function StockBackendMetrics({fundamentals,financialMetrics,metrics,ratios}:Props){
  const f=fundamentals?Object.entries(fundamentals).filter(([k,v])=>!['stock_id','updated_at'].includes(k)&&v!=null):[];
  return <div className="seo-research-stack">
