@@ -70,7 +70,7 @@ export default function StockResearchDashboard({ stock, quote, tech, predictions
 
   return <div className="stockx-dashboard">
     <div className="stockx-mobile-tabs">
-      {['Overview','Analysis','Predictions','Long-Term','Fundamentals','Financials','News','Risks'].map((x,i) => <a key={x} className={i===0?'active':''} href={'#'+(['overview','analysis','predictions','long-term','fundamentals','financial-statements','news','risks'][i])}>{x}</a>)}
+      {['Overview','Analysis','Predictions','Long-Term','Fundamentals','Financials','News','Risks'].map((x,i) => <a key={x} className={i===0?'active':''} href={'#'+(['overview','analysis','predictions','long-term','overview-fundamentals','overview-financials','overview-news','overview-risks'][i])}>{x}</a>)}
     </div>
 
     <section id="overview" className="stockx-hero-card">
