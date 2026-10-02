@@ -17,60 +17,59 @@ export default function PriceChart({ data }: Props) {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const update = () => setWidth(Math.max(280, Math.floor(el.clientWidth)));
+    const update = () => setWidth(Math.max(280, Math.floor(el.clientWidth || 720)));
     update();
+
+    if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  // Range selection is controlled by React; no DOM mutation is needed here.
-  useEffect(() => {
-    const panel = wrapRef.current?.closest('.chart-panel');
-    if (!panel) return;
-    const buttons = Array.from(panel.querySelectorAll<HTMLElement>('.range-tabs span'));
-    const handlers = buttons.map(button => {
-      const handler = () => {
-        const next = button.textContent?.trim() as Range;
-        if (next === '1Y' || next === '6M' || next === '3M') {
-          setRange(next);
-          setHover(null);
-        }
-      };
-      button.addEventListener('click', handler);
-      return [button, handler] as const;
-    });
-    return () => handlers.forEach(([button, handler]) => button.removeEventListener('click', handler));
-  }, []);
-
-
-
   const points = useMemo(() => {
     const count = range === '3M' ? 63 : range === '6M' ? 126 : 250;
-    return data.slice(-count);
+    return data
+      .map(point => ({ ...point, close: Number(point.close) }))
+      .filter(point => Number.isFinite(point.close))
+      .slice(-count);
   }, [data, range]);
 
-  if (!data.length) {
-    return <div className="chart-empty"><div><strong>Price chart</strong><span>Historical price data will appear here after the market feed is connected.</span></div></div>;
+  if (!points.length) {
+    return (
+      <div className="chart-empty">
+        <div>
+          <strong>Price chart</strong>
+          <span>Historical price data is not available yet.</span>
+        </div>
+      </div>
+    );
   }
 
   const height = width < 560 ? 270 : 330;
   const pad = { top: 18, right: 12, bottom: 30, left: 56 };
   const innerW = Math.max(1, width - pad.left - pad.right);
   const innerH = Math.max(1, height - pad.top - pad.bottom);
-  const values = points.map(p => Number(p.close)).filter(Number.isFinite);
+
+  const values = points.map(point => point.close);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const spread = Math.max(max - min, Math.abs(max) * 0.01, 0.01);
   const yMin = min - spread * 0.08;
   const yMax = max + spread * 0.08;
-  const x = (i: number) => pad.left + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
-  const y = (v: number) => pad.top + ((yMax - v) / (yMax - yMin)) * innerH;
-  const line = points.map((p, i) => `${x(i).toFixed(1)},${y(Number(p.close)).toFixed(1)}`).join(' ');
+
+  const x = (i: number) =>
+    pad.left + (points.length <= 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const y = (value: number) =>
+    pad.top + ((yMax - value) / (yMax - yMin)) * innerH;
+
+  const line = points
+    .map((point, i) => `${x(i).toFixed(1)},${y(point.close).toFixed(1)}`)
+    .join(' ');
   const area = `${pad.left},${pad.top + innerH} ${line} ${pad.left + innerW},${pad.top + innerH}`;
+
   const selected = hover == null ? null : points[hover];
   const selectedX = hover == null ? 0 : x(hover);
-  const selectedY = hover == null ? 0 : y(Number(selected?.close ?? 0));
+  const selectedY = hover == null ? 0 : y(selected?.close ?? 0);
   const yTicks = Array.from({ length: 5 }, (_, i) => yMax - ((yMax - yMin) * i) / 4);
   const xTicks = [0, Math.floor((points.length - 1) / 2), points.length - 1];
 
@@ -83,20 +82,110 @@ export default function PriceChart({ data }: Props) {
 
   return (
     <div className="price-chart-native">
-      <div ref={wrapRef} className="chart-svg-wrap" onPointerMove={e => handlePointer(e.clientX)} onPointerLeave={() => setHover(null)}>
-        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Interactive historical stock price chart">
-          <defs><linearGradient id="nativePriceFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#1769e0" stopOpacity=".22"/><stop offset="100%" stopColor="#1769e0" stopOpacity="0"/></linearGradient></defs>
-          {yTicks.map((v, i) => <g key={`y-${i}`}><line x1={pad.left} x2={pad.left + innerW} y1={y(v)} y2={y(v)} stroke="#e6edf6" strokeDasharray="3 3"/><text x={pad.left - 8} y={y(v) + 4} textAnchor="end" fontSize="10" fill="#64748b">${v.toFixed(0)}</text></g>)}
+      <div className="range-tabs" aria-label="Chart ranges">
+        {(['1Y', '6M', '3M'] as Range[]).map(option => (
+          <button
+            key={option}
+            type="button"
+            className={range === option ? 'active' : ''}
+            onClick={() => {
+              setRange(option);
+              setHover(null);
+            }}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      <div
+        ref={wrapRef}
+        className="chart-svg-wrap"
+        onPointerMove={event => handlePointer(event.clientX)}
+        onPointerLeave={() => setHover(null)}
+      >
+        <svg
+          width="100%"
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label="Interactive historical stock price chart"
+        >
+          <defs>
+            <linearGradient id="nativePriceFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1769e0" stopOpacity=".22" />
+              <stop offset="100%" stopColor="#1769e0" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          {yTicks.map((value, i) => (
+            <g key={`y-${i}`}>
+              <line
+                x1={pad.left}
+                x2={pad.left + innerW}
+                y1={y(value)}
+                y2={y(value)}
+                stroke="#e6edf6"
+                strokeDasharray="3 3"
+              />
+              <text
+                x={pad.left - 8}
+                y={y(value) + 4}
+                textAnchor="end"
+                fontSize="10"
+                fill="#64748b"
+              >
+                $${value.toFixed(0)}
+              </text>
+            </g>
+          ))}
           <polygon points={area} fill="url(#nativePriceFill)" />
-          <polyline points={line} fill="none" stroke="#1769e0" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-          {xTicks.map((i, n) => <text key={`x-${n}`} x={x(i)} y={height - 8} textAnchor={n === 0 ? 'start' : n === 2 ? 'end' : 'middle'} fontSize="10" fill="#64748b">{points[i].time}</text>)}
-          {hover != null && <><line x1={selectedX} x2={selectedX} y1={pad.top} y2={pad.top + innerH} stroke="#94a3b8" strokeDasharray="3 3"/><circle cx={selectedX} cy={selectedY} r="4.5" fill="#1769e0" stroke="#fff" strokeWidth="2"/><g transform={`translate(${clamp(selectedX + 10, 4, width - 154)},${clamp(selectedY - 48, 4, height - 58)})`}><rect width="150" height="54" rx="8" fill="#0b1930"/><text x="10" y="20" fontSize="10" fill="#cbd5e1">{selected?.time}</text><text x="10" y="40" fontSize="14" fontWeight="700" fill="#fff">${Number(selected?.close ?? 0).toFixed(2)}</text></g></>}
+          <polyline
+            points={line}
+            fill="none"
+            stroke="#1769e0"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {xTicks.map((index, i) => (
+            <text
+              key={`x-${i}`}
+              x={x(index)}
+              y={height - 8}
+              textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}
+              fontSize="10"
+              fill="#64748b"
+            >
+              {points[index]?.time ?? ''}
+            </text>
+          ))}
+          {hover != null && selected && (
+            <>
+              <line
+                x1={selectedX}
+                x2={selectedX}
+                y1={pad.top}
+                y2={pad.top + innerH}
+                stroke="#94a3b8"
+                strokeDasharray="3 3"
+              />
+              <circle cx={selectedX} cy={selectedY} r="4.5" fill="#1769e0" stroke="#fff" strokeWidth="2" />
+              <g
+                transform={`translate(${clamp(selectedX + 10, 4, width - 154)},${clamp(
+                  selectedY - 48,
+                  4,
+                  height - 58,
+                )})`}
+              >
+                <rect width="150" height="54" rx="8" fill="#0b1930" />
+                <text x="10" y="20" fontSize="10" fill="#cbd5e1">{selected.time}</text>
+                <text x="10" y="40" fontSize="14" fontWeight="700" fill="#fff">
+                  $${selected.close.toFixed(2)}
+                </text>
+              </g>
+            </>
+          )}
         </svg>
       </div>
     </div>
   );
-}
-
-function moneyValue(value: number) {
-  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
