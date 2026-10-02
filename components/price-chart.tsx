@@ -63,7 +63,7 @@ export default function PriceChart({ data }: Props) {
     const metricValues = Array.from(metricStrip.children).map(node => ({
       label: node.querySelector('span')?.textContent?.trim() ?? '',
       value: node.querySelector('b')?.textContent?.trim() ?? '—',
-    }));
+    })) : [];
     const metric = (label: string) => metricValues.find(item => item.label === label)?.value ?? '—';
     const values = data.map(point => Number(point.close)).filter(Number.isFinite);
     if (!values.length) return;
@@ -129,7 +129,7 @@ export default function PriceChart({ data }: Props) {
       document.head.appendChild(style);
     }
 
-    metricStrip.style.display = 'none';
+    if (metricStrip) metricStrip.style.display = 'none';
     hero.insertAdjacentElement('afterend', section);
 
     const updated = quoteBlock.querySelector('small');
