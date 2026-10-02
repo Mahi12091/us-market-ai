@@ -1,7 +1,7 @@
 import { isValidElement } from 'react';
 
 type Props = {
-  stock:any; quote:any; tech:any; predictions:any[]|null; fundamentals:any; financialMetrics:any[];
+  stock:any; quote:any; tech:any; predictions:any[]|null; fundamentals:any; financialMetrics:any[]; threeSpreadMetrics?:any[]; threeSpreadRatios?:any[];
   earnings:any[]|null; earningsRevisions:any[]; news:any[]|null; results:any[]|null; article?:any;
   aiResearch:any[]; performance:any; risks:any; valuations:any; longTerm:any[]; peerMetrics:any[];
 };
