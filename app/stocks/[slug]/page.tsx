@@ -97,6 +97,14 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
         <div className="stock-title-block"><div className="stock-logo">{stock.symbol.slice(0, 1)}</div><div><div className="eyebrow">{stock.exchange ?? 'US MARKET'} · {stock.sector ?? 'EQUITY'}</div><h1>{stock.company_name}</h1><div className="stock-symbol">{stock.symbol} · {stock.industry ?? 'Public company'}</div></div></div>
         <div className="quote-block"><div className="quote-price">{money(quote?.price)}</div><div className={Number(dailyChange) >= 0 ? 'positive quote-change' : 'negative quote-change'}>{quote?.change != null ? `${Number(quote.change) >= 0 ? '+' : ''}${money(quote.change)} · ${pct(dailyChange)}` : 'Quote unavailable'}</div><small className="muted">{quote?.quote_timestamp ? `Updated ${new Date(quote.quote_timestamp).toLocaleString('en-US')}` : 'Waiting for market feed'}</small></div>
       </section>
+      <section className="stock-price-stats" aria-label="Current trading statistics">
+        <div className="stock-price-stat"><span>Current Price</span><strong>{money(quote?.price, 2)}</strong></div>
+        <div className="stock-price-stat"><span>Open</span><strong>{money(quote?.open, 2)}</strong></div>
+        <div className="stock-price-stat"><span>Day High</span><strong>{money(quote?.high, 2)}</strong></div>
+        <div className="stock-price-stat"><span>Day Low</span><strong>{money(quote?.low, 2)}</strong></div>
+        <div className="stock-price-stat"><span>Previous Close</span><strong>{money(quote?.previous_close, 2)}</strong></div>
+        <div className="stock-price-stat"><span>Volume</span><strong>{quote?.volume != null ? Number(quote.volume).toLocaleString('en-US') : '—'}</strong></div>
+      </section>
       <section className="stock-actions" aria-label="Stock research sections"><a className="button primary" href="#analysis">AI Analysis</a><a className="button" href="#predictions">Predictions</a><a className="button" href="#long-term">Long-Term Forecast</a><a className="button" href="#financials">Fundamentals</a><a className="button" href="#financial-statements">Financial Statements</a><a className="button" href="#backend-ratios">Ratios</a></section>
       <section className="stock-grid-top">
         <div className="panel chart-panel"><div className="panel-head"><div><h2>Price performance</h2><p className="muted">Daily closing price · {chart.length || 0} sessions</p></div><div className="range-tabs" aria-label="Chart ranges"><span className="active">1Y</span><span>6M</span><span>3M</span></div></div>{chart.length ? <PriceChart data={chart}/> : <div className="empty-state">Historical price data is not available yet.</div>}</div>
