@@ -18,9 +18,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { data: stock } = await db.from('stocks').select('company_name,symbol,description,sector,industry').eq('slug', slug).maybeSingle();
   if (!stock) return { title: 'Stock Not Found', robots: { index: false, follow: true } };
 
-  const fallback = `${stock.company_name} (${stock.symbol}) stock price, financials, valuation, technical analysis, earnings, dividends, market research and quantitative forecasts.`;
-  const description = stock.description?.trim() ? stock.description.trim().slice(0, 155) : fallback;
-  const title = `${stock.company_name} (${stock.symbol}) Stock Price, Forecast, Analysis & Financials`;
+  const fallback = `${stock.company_name} (${stock.symbol}) stock price forecast and analysis covering financials, valuation, technical indicators, earnings, risks and long-term model scenarios through 2050.`;
+  const description = stock.description?.trim() ? stock.description.trim().slice(0, 155) : fallback.slice(0, 160);
+  const title = `${stock.company_name} (${stock.symbol}) Stock Price Forecast 2026, 2027, 2030, 2035 & 2050`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
   const canonical = siteUrl ? `${siteUrl}/stocks/${slug}` : `/stocks/${slug}`;
 
@@ -29,8 +29,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description,
     keywords: [stock.symbol, `${stock.company_name} stock`, `${stock.symbol} stock price`, `${stock.symbol} financials`, `${stock.symbol} valuation`, `${stock.symbol} earnings`, `${stock.symbol} dividend`, `${stock.symbol} stock analysis`, stock.sector, stock.industry].filter(Boolean) as string[],
     alternates: { canonical }, robots: { index: true, follow: true },
-    openGraph: { title: `${stock.company_name} (${stock.symbol}) Stock Research`, description, type: 'website', url: canonical },
-    twitter: { card: 'summary', title: `${stock.company_name} (${stock.symbol}) Stock Research`, description },
+    openGraph: { title, description, type: 'website', url: canonical },
+    twitter: { card: 'summary', title, description },
   };
 }
 
@@ -108,7 +108,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     <div className="container">
       <nav className="stock-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/stocks">US Stocks</a>{stock.sector && <><span>/</span><span>{stock.sector}</span></>}<span>/</span><b>{stock.symbol}</b></nav>
       <section className="stock-hero">
-        <div className="stock-title-block"><div className="stock-logo">{stock.symbol.slice(0, 1)}</div><div><div className="eyebrow">{stock.exchange ?? 'US MARKET'} · {stock.sector ?? 'EQUITY'}</div><h1>{stock.company_name} ({stock.symbol}) Stock Price, Forecast, Analysis &amp; Financials</h1><div className="stock-symbol">{stock.symbol} · {stock.industry ?? 'Public company'}</div></div></div>
+        <div className="stock-title-block"><div className="stock-logo">{stock.symbol.slice(0, 1)}</div><div><div className="eyebrow">{stock.exchange ?? 'US MARKET'} · {stock.sector ?? 'EQUITY'}</div><h1>{stock.company_name} ({stock.symbol}) Stock Price Forecast &amp; Analysis: 2026, 2027, 2030, 2035, 2040 &amp; 2050</h1><div className="stock-symbol">{stock.symbol} · {stock.industry ?? 'Public company'}</div></div></div>
         <div className="quote-block"><div className="quote-price">{money(quote?.price)}</div><div className={Number(dailyChange) >= 0 ? 'positive quote-change' : 'negative quote-change'}>{quote?.change != null ? `${Number(quote.change) >= 0 ? '+' : ''}${money(quote.change)} · ${pct(dailyChange)}` : 'Quote unavailable'}</div><small className="muted">{quote?.quote_timestamp ? `Updated ${new Date(quote.quote_timestamp).toLocaleString('en-US')}` : 'Waiting for market feed'}</small></div>
       </section>
       <section className="stock-quick-snapshot" aria-label="Stock snapshot">
