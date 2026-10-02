@@ -66,7 +66,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     ['Dividend Yield',pct(fundamentals?.dividend_yield ?? valuations?.dividend_yield)],['Payout Ratio',pct(fundamentals?.payout_ratio ?? valuations?.payout_ratio)]
   ];
   const risksRows=risks?[['Beta',num(risks.beta)],['Volatility',pct(risks.volatility)],['ATR',num(risks.atr)],['Maximum Drawdown',pct(risks.maximum_drawdown)],['Sharpe Ratio',num(risks.sharpe_ratio)],['Sortino Ratio',num(risks.sortino_ratio)],['Current Ratio',num(risks.current_ratio)],['Quick Ratio',num(risks.quick_ratio)],['Interest Coverage',num(risks.interest_coverage)],['Altman Z-Score',num(risks.altman_z_score)],['Short Interest',num(risks.short_interest)],['Short % Float',pct(risks.short_percent_float)],['Liquidity Risk',risks.liquidity_risk??'—']]:[];
-  const perfRows=performance?[['1D',pct(performance.period_1d)],['5D',pct(performance.period_5d)],['1M',pct(performance.period_1m)],['3M',pct(performance.period_3m)],['6M',pct(performance.period_6m)],['YTD',pct(performance.period_ytd)],['1Y',pct(performance.period_1y)],['3Y',pct(performance.period_3y)],['5Y',pct(performance.period_5y)]]:[];
+  const perfRows: [string, React.ReactNode][]=performance?[['1D',pct(performance.period_1d)],['5D',pct(performance.period_5d)],['1M',pct(performance.period_1m)],['3M',pct(performance.period_3m)],['6M',pct(performance.period_6m)],['YTD',pct(performance.period_ytd)],['1Y',pct(performance.period_1y)],['3Y',pct(performance.period_3y)],['5Y',pct(performance.period_5y)]]:[];
 
   return <div className="research-flow">
     <Section id="price" eyebrow="01 · PRICE & PERFORMANCE" title={`${symbol} Stock Price Today, Chart & Historical Performance`}>
