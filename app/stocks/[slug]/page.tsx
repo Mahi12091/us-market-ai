@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   const fallback = `${stock.company_name} (${stock.symbol}) stock price, financials, valuation, technical analysis, earnings, dividends, market research and quantitative forecasts.`;
   const description = stock.description?.trim() ? stock.description.trim().slice(0, 155) : fallback;
-  const title = `${stock.company_name} (${stock.symbol}) Stock Price, Financials & Analysis`;
+  const title = `${stock.company_name} (${stock.symbol}) Stock Price, Forecast, Analysis & Financials`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
   const canonical = siteUrl ? `${siteUrl}/stocks/${slug}` : `/stocks/${slug}`;
 
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     description,
     keywords: [stock.symbol, `${stock.company_name} stock`, `${stock.symbol} stock price`, `${stock.symbol} financials`, `${stock.symbol} valuation`, `${stock.symbol} earnings`, `${stock.symbol} dividend`, `${stock.symbol} stock analysis`, stock.sector, stock.industry].filter(Boolean) as string[],
     alternates: { canonical }, robots: { index: true, follow: true },
-    openGraph: { title: `${stock.company_name} (${stock.symbol}) Stock Research`, description, type: 'article', url: canonical },
+    openGraph: { title: `${stock.company_name} (${stock.symbol}) Stock Research`, description, type: 'website', url: canonical },
     twitter: { card: 'summary', title: `${stock.company_name} (${stock.symbol}) Stock Research`, description },
   };
 }
