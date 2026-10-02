@@ -1,3 +1,5 @@
+import { isValidElement } from 'react';
+
 type Props = {
   stock: any;
   quote: any;
