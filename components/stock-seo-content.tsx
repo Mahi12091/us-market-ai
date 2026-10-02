@@ -22,16 +22,22 @@ const money = (v: any) => v == null ? '—' : `$${Number(v).toLocaleString('en-U
 const compactMoney = (v: any) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`;
 const num = (v: any) => v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const pct = (v: any) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
+const renderValue = (v: any): React.ReactNode => {
+  if (v == null) return '—';
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? '—' : v.toLocaleDateString('en-US');
+  if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
+  return v;
+};
 
 function Card({ id, eyebrow, title, children }: { id?: string; eyebrow: string; title: string; children: React.ReactNode }) {
   return <section className="seo-card" id={id}><div className="seo-card-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>;
 }
 function MetricGrid({ items }: { items: [string, React.ReactNode][] }) {
-  return <div className="seo-metric-grid">{items.map(([k,v]) => <div className="seo-metric" key={k}><span>{k}</span><strong>{v}</strong></div>)}</div>;
+  return <div className="seo-metric-grid">{items.map(([k,v]) => <div className="seo-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>;
 }
 function ResearchText({ children }: { children: React.ReactNode }) { return <p className="seo-prose">{children}</p>; }
 function Table({ headers, rows }: { headers:string[]; rows:any[][] }) {
-  return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>;
 }
 
 export default function StockSeoContent({stock,quote,tech,predictions,fundamentals,financialMetrics,earnings,earningsRevisions,news,results,article,aiResearch,performance,risks,valuations,longTerm,peerMetrics}:Props){
@@ -106,11 +112,11 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Card>
     <Card id="earnings" eyebrow="EARNINGS & REVISIONS" title={`${company} (${symbol}) Earnings & Estimate Revisions`}>
       {(earnings??[]).length?<Table headers={['Date','Fiscal Period','EPS Est.','EPS Actual','EPS Surprise','Revenue Est.','Revenue Actual','Revenue Surprise','Time','Guidance','Growth']} rows={(earnings??[]).map(e=>[e.earnings_date?new Date(e.earnings_date).toLocaleDateString('en-US'):'—',e.fiscal_period??'—',num(e.eps_estimate),num(e.eps_actual),pct(e.eps_surprise),compactMoney(e.revenue_estimate),compactMoney(e.revenue_actual),pct(e.revenue_surprise),e.earnings_time??'—',e.guidance??'—',pct(e.earnings_growth)])}/>:<ResearchText>Earnings data is not populated yet.</ResearchText>}
-      {earningsRevisions?.length?<><h3>Estimate Revisions</h3><Table headers={['Date','Period','EPS Est.','Prev EPS','Revenue Est.','Prev Revenue','Analysts','Direction']} rows={earningsRevisions.map(r=>[r.revision_date??'—',r.fiscal_period??'—',num(r.eps_estimate),num(r.previous_eps_estimate),compactMoney(r.revenue_estimate),compactMoney(r.previous_revenue_estimate),num(r.analyst_count),r.direction??'—'])}/></>:null}
+      {earningsRevisions?.length?<><h3>Estimate Revisions</h3><Table headers={['Date','Period','EPS Est.','Prev EPS','Revenue Est.','Prev Revenue','Analysts','Direction']} rows={earningsRevisions.map(r=>[renderValue(r.revision_date),r.fiscal_period??'—',num(r.eps_estimate),num(r.previous_eps_estimate),compactMoney(r.revenue_estimate),compactMoney(r.previous_revenue_estimate),num(r.analyst_count),r.direction??'—'])}/></>:null}
     </Card>
     <Card id="company" eyebrow="COMPANY INFORMATION" title={`${company} (${symbol}) Company Profile`}>
       <ResearchText>{stock.description??'Company description is not available yet.'}</ResearchText>
-      <MetricGrid items={[['Ticker',symbol],['Exchange',stock.exchange_full_name??stock.exchange??'—'],['Sector',stock.sector??'—'],['Industry',stock.industry??'—'],['Sub-industry',stock.sub_industry??'—'],['Country',stock.country??'—'],['Founded',stock.founded_year??'—'],['Employees',stock.employees!=null?num(stock.employees):'—'],['CEO',stock.ceo??'—'],['Headquarters',stock.headquarters??'—'],['Company Status',stock.company_status??'—'],['IPO Date',stock.ipo_listing_date??'—'],['Investor Relations',stock.investor_relations_url?<a href={stock.investor_relations_url} target="_blank" rel="noreferrer">Open IR</a>:'—']]}/>
+      <MetricGrid items={[['Ticker',symbol],['Exchange',stock.exchange_full_name??stock.exchange??'—'],['Sector',stock.sector??'—'],['Industry',stock.industry??'—'],['Sub-industry',stock.sub_industry??'—'],['Country',stock.country??'—'],['Founded',renderValue(stock.founded_year)],['Employees',stock.employees!=null?num(stock.employees):'—'],['CEO',stock.ceo??'—'],['Headquarters',stock.headquarters??'—'],['Company Status',stock.company_status??'—'],['IPO Date',renderValue(stock.ipo_listing_date)],['Investor Relations',stock.investor_relations_url?<a href={stock.investor_relations_url} target="_blank" rel="noreferrer">Open IR</a>:'—']]}/>
       {(stock.business_segments||stock.products_services||stock.brands||stock.management)?<div className="company-json-grid">{[
         ['Business Segments',stock.business_segments],['Products / Services',stock.products_services],['Brands',stock.brands],['Management',stock.management]
       ].map(([k,v])=><div key={String(k)}><span>{k}</span><pre>{v?JSON.stringify(v,null,2):'—'}</pre></div>)}</div>:null}
@@ -123,7 +129,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     <Card id="news" eyebrow="NEWS" title={`${company} (${symbol}) Latest News & Sentiment`}>{(news??[]).length?<div className="seo-news-list">{news?.map(n=><a href={n.url??'#'} target="_blank" rel="noreferrer" key={n.id}><strong>{n.title}</strong><span>{n.source??'Market News'} · {n.published_at?new Date(n.published_at).toLocaleDateString('en-US'):'Latest'} · {n.sentiment??'neutral'} · score {n.sentiment_score??'—'} · relevance {n.relevance_score??'—'}</span></a>)}</div>:<ResearchText>No recent ticker-linked news is available.</ResearchText>}</Card>
     <Card id="faq" eyebrow="RESEARCH GUIDE" title={`${company} (${symbol}) Research Guide`}>
       <ResearchText>This page combines the existing stock-page sections with the backend tables currently connected to the stock record. Unavailable datasets remain visibly unavailable rather than being filled with invented values.</ResearchText>
-      <MetricGrid items={[['Quote Source',quote?.data_source??'—'],['Technical Calculated',tech?.calculated_at??'—'],['Fundamentals Source',fundamentals?.data_source??'—'],['Valuation Date',valuations?.valuation_date??'—'],['Risk Methodology',risks?.methodology_version??'—']]}/>
+      <MetricGrid items={[['Quote Source',quote?.data_source??'—'],['Technical Calculated',renderValue(tech?.calculated_at)],['Fundamentals Source',fundamentals?.data_source??'—'],['Valuation Date',renderValue(valuations?.valuation_date)],['Risk Methodology',risks?.methodology_version??'—']]}/>
     </Card>
   </div>;
 }
