@@ -4,11 +4,17 @@ type Props={financialStatements:any[];dividends:any[];ownership:any[];institutio
 const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
 const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFractionDigits:3});
 const pct=(v:any)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+const renderValue=(v:any):React.ReactNode=>{
+ if(v==null)return '—';
+ if(v instanceof Date)return Number.isNaN(v.getTime())?'—':v.toLocaleDateString('en-US');
+ if(typeof v==='object'){try{return JSON.stringify(v)}catch{return String(v)}}
+ return v;
+};
 function Card({id,eyebrow,title,children}:{id?:string;eyebrow:string;title:string;children:React.ReactNode}){return <section className="seo-card" id={id}><div className="seo-card-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>}
 function Empty({children}:{children:string}){return <div className="seo-empty">{children}</div>}
 function period(r:any){return `${r.period_end??r.fiscal_period??'—'}${r.period_type?' · '+String(r.period_type).replaceAll('_',' '):''}`}
 function statementRows(rows:any[],type:string){return rows.filter(r=>r.statement_type===type).sort((a,b)=>String(b.period_end??'').localeCompare(String(a.period_end??''))).slice(0,24)}
-function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>}
+function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
 
 export default function StockDataExpansion({financialStatements,dividends,ownership,institutionalHolders,insiderTransactions,monthlyResearch,quarterlyResearch,secFilings,identifiers,provenance,quality}:Props){
  const income=statementRows(financialStatements,'income_statement'), balance=statementRows(financialStatements,'balance_sheet'), cashflow=statementRows(financialStatements,'cash_flow');
@@ -27,8 +33,8 @@ export default function StockDataExpansion({financialStatements,dividends,owners
   <Card id="sec-filings" eyebrow="SEC FILINGS" title="SEC Filing History">{secFilings.length?<Table headers={['Form','Filing Date','Period','Accepted','Primary Document','Description','Source']} rows={secFilings.map(f=>[f.form_type??'—',f.filing_date??'—',f.filing_period??'—',f.accepted_at??'—',f.primary_document??'—',f.filing_description??'—',f.filing_url?<a href={f.filing_url} target="_blank" rel="noreferrer">Open filing</a>:'—'])}/>:<Empty>No SEC filing rows are stored for this stock.</Empty>}</Card>
   <Card id="identifiers" eyebrow="IDENTIFIERS" title="Stock Identifiers"><Table headers={['Type','Value','Source','Verified']} rows={(identifiers??[]).map(x=>[x.identifier_type??'—',x.identifier_value??'—',x.source??'—',x.verified_at??'—'])}/></Card>
   <Card id="research-timeline" eyebrow="RESEARCH" title="Monthly & Quarterly Research">
-   {monthlyResearch.length?monthlyResearch.map(r=><div className="research-entry" key={`m-${r.id}`}><h3>{r.research_month}</h3><p>Price {pct(r.price_change_percent)} · Revenue {pct(r.revenue_change_percent)} · EPS {pct(r.eps_change_percent)}</p><p>{r.ai_summary??r.fundamental_summary??r.technical_summary??'—'}</p></div>):null}
-   {quarterlyResearch.length?quarterlyResearch.map(r=><div className="research-entry" key={`q-${r.id}`}><h3>{r.fiscal_period??r.period_end??'—'}</h3><p>{r.ai_summary??r.financial_summary??r.earnings_summary??'—'}</p><p>Guidance: {r.guidance_summary??'—'} · Risks: {r.risks_summary??'—'} · Catalysts: {r.catalysts_summary??'—'}</p></div>):!monthlyResearch.length&&<Empty>No monthly or quarterly research is stored.</Empty>}
+   {monthlyResearch.length?monthlyResearch.map(r=><div className="research-entry" key={`m-${r.id}`}><h3>{renderValue(r.research_month)}</h3><p>Price {pct(r.price_change_percent)} · Revenue {pct(r.revenue_change_percent)} · EPS {pct(r.eps_change_percent)}</p><p>{r.ai_summary??r.fundamental_summary??r.technical_summary??'—'}</p></div>):null}
+   {quarterlyResearch.length?quarterlyResearch.map(r=><div className="research-entry" key={`q-${r.id}`}><h3>{r.fiscal_period??renderValue(r.period_end)}</h3><p>{r.ai_summary??r.financial_summary??r.earnings_summary??'—'}</p><p>Guidance: {r.guidance_summary??'—'} · Risks: {r.risks_summary??'—'} · Catalysts: {r.catalysts_summary??'—'}</p></div>):!monthlyResearch.length&&<Empty>No monthly or quarterly research is stored.</Empty>}
   </Card>
   <Card id="data-quality" eyebrow="DATA QUALITY" title="Data Quality & Provenance">
    {quality?<Table headers={['Check Date','Identity','Market Data','Price History','Fundamentals','Technical','Earnings','Ownership','Filings','Overall','Missing','Stale','Validation Errors']} rows={[[quality.check_date,pct(quality.identity_score),pct(quality.market_data_score),pct(quality.price_history_score),pct(quality.fundamentals_score),pct(quality.technical_score),pct(quality.earnings_score),pct(quality.ownership_score),pct(quality.filings_score),pct(quality.overall_score),String(quality.missing_fields??'—'),String(quality.stale_fields??'—'),String(quality.validation_errors??'—')]]}/>:<Empty>No data-quality snapshot is stored for this stock.</Empty>}
