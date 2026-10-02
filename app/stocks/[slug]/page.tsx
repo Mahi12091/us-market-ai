@@ -42,7 +42,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
   const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: aiResearch }, { data: fundamentals }, { data: financialMetrics }, { data: earnings }, { data: earningsRevisions }, { data: news }, { data: history }, { data: results }, { data: related }, { data: financialStatements }, { data: dividends }, { data: ownership }, { data: institutionalHolders }, { data: insiderTransactions }, { data: monthlyResearch }, { data: quarterlyResearch }, { data: threeSpreadMetrics }, { data: threeSpreadRatios }, { data: performance }, { data: risks }, { data: valuations }, { data: secFilings }, { data: identifiers }, { data: peerMetrics }, { data: provenance }, { data: quality }, { data: longTerm }] = await Promise.all([
     db.from('latest_quotes').select('*').eq('stock_id', stock.id).maybeSingle(),
-    db.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', 'daily').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', '1d').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('predictions').select('*').eq('stock_id', stock.id).eq('model_version', 'quant-v3.0').order('prediction_time', { ascending: false }).limit(8),
     db.from('ai_articles').select('title,summary,content,updated_at').eq('stock_id', stock.id).eq('is_published', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('ai_research').select('*').eq('stock_id', stock.id).order('updated_at', { ascending: false }).limit(3),
