@@ -13,7 +13,8 @@ const renderValue=(v:any):React.ReactNode=>{
 };
 function Card({id,eyebrow,title,children}:{id?:string;eyebrow:string;title:string;children:React.ReactNode}){return <section className="seo-card" id={id}><div className="seo-card-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>}
 function Empty({children}:{children:string}){return <div className="seo-empty">{children}</div>}
-function period(r:any){return `${r.period_end??r.fiscal_period??'—'}${r.period_type?' · '+String(r.period_type).replaceAll('_',' '):''}`}
+function displayDate(v:any){if(v==null)return '—';const d=v instanceof Date?v:new Date(String(v));return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});} 
+function period(r:any){return `${r.period_end!=null?displayDate(r.period_end):r.fiscal_period??'—'}${r.period_type?' · '+String(r.period_type).replaceAll('_',' '):''}`}
 function statementRows(rows:any[],type:string){return rows.filter(r=>r.statement_type===type).sort((a,b)=>String(b.period_end??'').localeCompare(String(a.period_end??''))).slice(0,24)}
 function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
 
