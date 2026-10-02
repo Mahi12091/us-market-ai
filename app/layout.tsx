@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './stock-page.css';
+import './stock-research-dashboard.css';
 import './market-pages.css';
 import './predictions-page.css';
 import './info-pages.css';
