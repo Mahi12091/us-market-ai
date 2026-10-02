@@ -145,7 +145,7 @@ export default function StockResearchDashboard({ stock, quote, tech, predictions
     </Section>
 
     <div className="stockx-two-col">
-      <Section id="fundamentals" eyebrow="FUNDAMENTALS" title="Growth, earnings & cash flow">
+      <Section id="overview-fundamentals" eyebrow="FUNDAMENTALS" title="Growth, earnings & cash flow">
         <div className="stockx-fund-grid">{fundamentalsCards.map(([k,v,s])=><div className="stockx-big-metric" key={k}><span>{k}</span><strong>{v}</strong>{s && <em>{s}</em>}</div>)}</div>
         <div className="stockx-mini-grid">{profitability.map(([k,v])=><Stat key={k} name={k} value={v}/>)}</div>
       </Section>
@@ -155,24 +155,24 @@ export default function StockResearchDashboard({ stock, quote, tech, predictions
       </Section>
     </div>
 
-    <Section id="financial-statements" eyebrow="FINANCIAL STATEMENTS" title="Income statement, balance sheet & cash flow">
-      <div className="stockx-financial-callout"><b>Detailed financial statements</b><span>Historical statement tables remain available below with the full stored dataset.</span><a href="#financial-statements-detail">View detailed tables ↓</a></div>
+    <Section id="overview-financials" eyebrow="FINANCIAL STATEMENTS" title="Income statement, balance sheet & cash flow">
+      <div className="stockx-financial-callout"><b>Detailed financial statements</b><span>Historical statement tables remain available below with the full stored dataset.</span><a href="#overview-financials-detail">View detailed tables ↓</a></div>
     </Section>
 
     <div className="stockx-two-col">
       <Section id="earnings" eyebrow="EARNINGS & DIVIDEND" title="Earnings, EPS & dividend">
         {earnings?.length ? <div className="stockx-list">{earnings.slice(0,4).map(e=><div key={e.id} className="stockx-list-row"><div><b>{e.earnings_date ? new Date(e.earnings_date).toLocaleDateString('en-US') : '—'}</b><small>{e.fiscal_period ?? 'Reported earnings'}</small></div><span>EPS {num(e.eps_actual)} / est {num(e.eps_estimate)}</span><span>Revenue {compactMoney(e.revenue_actual)}</span></div>)}</div> : <Empty text="Earnings data is currently unavailable."/>}
       </Section>
-      <Section id="news" eyebrow="NEWS & SENTIMENT" title="Latest ticker-linked news">
+      <Section id="overview-news" eyebrow="NEWS & SENTIMENT" title="Latest ticker-linked news">
         {news?.length ? <div className="stockx-news">{news.map(n=><a key={n.id} href={n.url ?? '#'} target="_blank" rel="noreferrer"><strong>{n.title}</strong><span>{n.source ?? 'Market News'} · {n.published_at ? new Date(n.published_at).toLocaleDateString('en-US') : 'Latest'} · {label(n.sentiment)}</span></a>)}</div> : <Empty text="No recent ticker-linked news available."/>}
       </Section>
     </div>
 
-    <Section id="risks" eyebrow="RISK ANALYSIS" title="What to monitor">
+    <Section id="overview-risks" eyebrow="RISK ANALYSIS" title="What to monitor">
       <div className="stockx-risk-grid">{riskItems.map(([k,v])=><div key={k}><span>{k} Risk</span><strong>{v}</strong></div>)}</div>
     </Section>
 
-    <Section id="prediction-history" eyebrow="MODEL VALIDATION" title="Prediction history">
+    <Section id="overview-prediction-history" eyebrow="MODEL VALIDATION" title="Prediction history">
       {results?.length ? <div className="stockx-table-wrap"><table className="stockx-table"><thead><tr><th>Date</th><th>Horizon</th><th>Predicted</th><th>Actual</th><th>Result</th></tr></thead><tbody>{results.map(r=><tr key={r.id}><td>{r.evaluated_at ? new Date(r.evaluated_at).toLocaleDateString('en-US') : '—'}</td><td>{String(r.horizon).toUpperCase()}</td><td>{money(r.predicted_price)}</td><td>{money(r.actual_price)}</td><td>{r.hit ? 'Hit' : 'Miss'}</td></tr>)}</tbody></table></div> : <Empty text="Prediction history is still building."/>}
     </Section>
 
