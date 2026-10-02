@@ -1,95 +1,37 @@
 import React from 'react';
 
-type Props = {
-  financialStatements: any[];
-  dividends: any[];
-  ownership: any[];
-  monthlyResearch: any[];
-  quarterlyResearch: any[];
-};
+type Props={financialStatements:any[];dividends:any[];ownership:any[];institutionalHolders:any[];insiderTransactions:any[];monthlyResearch:any[];quarterlyResearch:any[];secFilings:any[];identifiers:any[];provenance:any[];quality:any};
+const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
+const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFractionDigits:3});
+const pct=(v:any)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+function Card({id,eyebrow,title,children}:{id?:string;eyebrow:string;title:string;children:React.ReactNode}){return <section className="seo-card" id={id}><div className="seo-card-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>}
+function Empty({children}:{children:string}){return <div className="seo-empty">{children}</div>}
+function period(r:any){return `${r.period_end??r.fiscal_period??'—'}${r.period_type?' · '+String(r.period_type).replaceAll('_',' '):''}`}
+function statementRows(rows:any[],type:string){return rows.filter(r=>r.statement_type===type).sort((a,b)=>String(b.period_end??'').localeCompare(String(a.period_end??''))).slice(0,24)}
+function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="seo-data-table"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div>}
 
-const money = (v: any) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`;
-const num = (v: any) => v == null ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 4 });
-const pct = (v: any) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
-
-function Card({ id, eyebrow, title, children }: { id?: string; eyebrow: string; title: string; children: React.ReactNode }) {
-  return <section className="seo-card" id={id}><div className="seo-card-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>;
-}
-
-function Empty({ children }: { children: string }) {
-  return <div className="seo-empty">{children}</div>;
-}
-
-function statementRows(rows: any[], type: string) {
-  const filtered = rows.filter(r => r.statement_type === type);
-  const byKey = new Map<string, any>();
-  for (const r of filtered) {
-    const key = `${r.period_end ?? r.fiscal_period ?? ''}|${r.period_type ?? ''}`;
-    const old = byKey.get(key);
-    if (!old || (r.data_source === '3spread' && old.data_source !== '3spread')) byKey.set(key, r);
-  }
-  return [...byKey.values()].sort((a, b) => String(b.period_end ?? b.fiscal_period ?? '').localeCompare(String(a.period_end ?? a.fiscal_period ?? '')));
-}
-
-function periodLabel(r: any) {
-  const period = r.period_end ?? r.fiscal_period ?? '—';
-  const type = r.period_type ? String(r.period_type).replaceAll('_', ' ') : '';
-  return type ? `${period} · ${type}` : period;
-}
-
-export default function StockDataExpansion({ financialStatements, dividends, ownership, monthlyResearch, quarterlyResearch }: Props) {
-  const income = statementRows(financialStatements, 'income_statement');
-  const balance = statementRows(financialStatements, 'balance_sheet');
-  const cashflow = statementRows(financialStatements, 'cash_flow');
-
-  return <div className="seo-research-stack">
-    <Card id="financial-statements" eyebrow="FINANCIAL STATEMENTS" title="Income Statement, Balance Sheet & Cash Flow">
-      {financialStatements.length ? <>
-        <h3>Income Statement</h3>
-        {income.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Revenue</th><th>Cost of Revenue</th><th>Gross Profit</th><th>Operating Income</th><th>Pretax Income</th><th>Net Income</th><th>Basic EPS</th><th>Diluted EPS</th><th>Basic Shares</th><th>Diluted Shares</th></tr></thead><tbody>
-          {income.slice(0, 12).map(r => <tr key={r.id}><td>{periodLabel(r)}</td><td>{money(r.revenue)}</td><td>{money(r.cost_of_revenue)}</td><td>{money(r.gross_profit)}</td><td>{money(r.operating_income)}</td><td>{money(r.pretax_income)}</td><td>{money(r.net_income)}</td><td>{num(r.eps_basic)}</td><td>{num(r.eps_diluted)}</td><td>{num(r.shares_basic)}</td><td>{num(r.shares_diluted)}</td></tr>)}
-        </tbody></table></div> : <Empty>Income-statement data is unavailable.</Empty>}
-
-        <h3>Balance Sheet</h3>
-        {balance.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Cash & Equivalents</th><th>Current Assets</th><th>Total Assets</th><th>Current Liabilities</th><th>Total Liabilities</th><th>Total Debt</th><th>Shareholders' Equity</th></tr></thead><tbody>
-          {balance.slice(0, 12).map(r => <tr key={`bs-${r.id}`}><td>{periodLabel(r)}</td><td>{money(r.cash_and_equivalents)}</td><td>{money(r.current_assets)}</td><td>{money(r.total_assets)}</td><td>{money(r.current_liabilities)}</td><td>{money(r.total_liabilities)}</td><td>{money(r.total_debt)}</td><td>{money(r.shareholders_equity)}</td></tr>)}
-        </tbody></table></div> : <Empty>Balance-sheet data is unavailable.</Empty>}
-
-        <h3>Cash Flow Statement</h3>
-        {cashflow.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Operating Cash Flow</th><th>Capital Expenditure</th><th>Free Cash Flow</th><th>Cash & Equivalents</th><th>Total Debt</th></tr></thead><tbody>
-          {cashflow.slice(0, 12).map(r => <tr key={`cf-${r.id}`}><td>{periodLabel(r)}</td><td>{money(r.operating_cash_flow)}</td><td>{money(r.capital_expenditure)}</td><td>{money(r.free_cash_flow)}</td><td>{money(r.cash_and_equivalents)}</td><td>{money(r.total_debt)}</td></tr>)}
-        </tbody></table></div> : <Empty>Cash-flow statement data is unavailable.</Empty>}
-      </> : <Empty>Detailed financial statements will appear after a verified financial-statement sync runs.</Empty>}
-    </Card>
-
-    <Card id="cash-flow" eyebrow="CASH FLOW" title="Cash Flow Summary">
-      {cashflow.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Operating Cash Flow</th><th>CapEx</th><th>Free Cash Flow</th></tr></thead><tbody>
-        {cashflow.slice(0, 12).map(r => <tr key={`summary-cf-${r.id}`}><td>{periodLabel(r)}</td><td>{money(r.operating_cash_flow)}</td><td>{money(r.capital_expenditure)}</td><td>{money(r.free_cash_flow)}</td></tr>)}
-      </tbody></table></div> : <Empty>Cash-flow summary is unavailable.</Empty>}
-    </Card>
-
-    <Card id="dividend" eyebrow="DIVIDEND" title="Dividend History, Yield & Payment Dates">
-      {dividends.length ? <div className="seo-data-table"><table><thead><tr><th>Ex-Date</th><th>Record Date</th><th>Payment Date</th><th>Declaration Date</th><th>Amount</th><th>Frequency</th><th>Currency</th><th>Source</th></tr></thead><tbody>
-        {dividends.map(d => <tr key={d.id}><td>{d.ex_date ?? '—'}</td><td>{d.record_date ?? '—'}</td><td>{d.payment_date ?? '—'}</td><td>{d.declaration_date ?? '—'}</td><td>{d.amount == null ? '—' : `$${Number(d.amount).toFixed(4)}`}</td><td>{d.frequency ?? '—'}</td><td>{d.currency ?? 'USD'}</td><td>{d.data_source ?? '—'}</td></tr>)}
-      </tbody></table></div> : <Empty>Dividend history will appear when a verified dividend feed is connected.</Empty>}
-    </Card>
-
-    <Card id="ownership" eyebrow="OWNERSHIP" title="Institutional, Insider & Share Ownership">
-      {ownership.length ? <div className="seo-data-table"><table><thead><tr><th>Period</th><th>Shares Outstanding</th><th>Institutional %</th><th>Insider %</th><th>Float Shares</th><th>Source</th></tr></thead><tbody>
-        {ownership.map(o => <tr key={o.id}><td>{o.period_end ?? '—'}</td><td>{num(o.shares_outstanding)}</td><td>{pct(o.institutional_ownership_percent)}</td><td>{pct(o.insider_ownership_percent)}</td><td>{num(o.float_shares)}</td><td>{o.data_source ?? '—'}</td></tr>)}
-      </tbody></table></div> : <Empty>Ownership data will appear after a verified ownership feed is connected.</Empty>}
-    </Card>
-
-    <Card id="monthly-research" eyebrow="AI MONTHLY RESEARCH" title="Monthly Stock Research & What Changed">
-      {monthlyResearch.length ? monthlyResearch.map(r => <div className="faq-template-row" key={r.id}><h3>{r.research_month}</h3><div className="seo-data-table"><table><tbody>
-        <tr><th>Price Change</th><td>{pct(r.price_change_percent)}</td></tr><tr><th>Revenue Change</th><td>{pct(r.revenue_change_percent)}</td></tr><tr><th>EPS Change</th><td>{pct(r.eps_change_percent)}</td></tr><tr><th>Technical Summary</th><td>{r.technical_summary ?? '—'}</td></tr><tr><th>Fundamental Summary</th><td>{r.fundamental_summary ?? '—'}</td></tr><tr><th>News Summary</th><td>{r.news_summary ?? '—'}</td></tr><tr><th>Risk Summary</th><td>{r.risk_summary ?? '—'}</td></tr><tr><th>Catalyst Summary</th><td>{r.catalyst_summary ?? '—'}</td></tr><tr><th>AI Summary</th><td>{r.ai_summary ?? '—'}</td></tr><tr><th>Model</th><td>{r.model ?? '—'}</td></tr>
-      </tbody></table></div></div>) : <Empty>Monthly AI research will appear after the scheduled research job runs.</Empty>}
-    </Card>
-
-    <Card id="quarterly-research" eyebrow="AI QUARTERLY RESEARCH" title="Quarterly Earnings & Financial Research">
-      {quarterlyResearch.length ? quarterlyResearch.map(r => <div className="faq-template-row" key={r.id}><h3>{r.fiscal_period}</h3><div className="seo-data-table"><table><tbody>
-        <tr><th>Period End</th><td>{r.period_end ?? '—'}</td></tr><tr><th>Earnings Summary</th><td>{r.earnings_summary ?? '—'}</td></tr><tr><th>Financial Summary</th><td>{r.financial_summary ?? '—'}</td></tr><tr><th>Guidance</th><td>{r.guidance_summary ?? '—'}</td></tr><tr><th>Management Commentary</th><td>{r.management_commentary ?? '—'}</td></tr><tr><th>Risks</th><td>{r.risks_summary ?? '—'}</td></tr><tr><th>Catalysts</th><td>{r.catalysts_summary ?? '—'}</td></tr><tr><th>YoY</th><td>{r.yoy_summary ?? '—'}</td></tr><tr><th>QoQ</th><td>{r.qoq_summary ?? '—'}</td></tr><tr><th>AI Summary</th><td>{r.ai_summary ?? '—'}</td></tr><tr><th>Model</th><td>{r.model ?? '—'}</td></tr>
-      </tbody></table></div></div>) : <Empty>Quarterly research will appear after the earnings/filing research job runs.</Empty>}
-    </Card>
-  </div>;
+export default function StockDataExpansion({financialStatements,dividends,ownership,institutionalHolders,insiderTransactions,monthlyResearch,quarterlyResearch,secFilings,identifiers,provenance,quality}:Props){
+ const income=statementRows(financialStatements,'income_statement'), balance=statementRows(financialStatements,'balance_sheet'), cashflow=statementRows(financialStatements,'cash_flow');
+ return <div className="seo-research-stack">
+  <Card id="financial-statements" eyebrow="FINANCIAL STATEMENTS" title="Income Statement, Balance Sheet & Cash Flow">
+   {financialStatements.length?<><h3>Income Statement</h3>{income.length?<Table headers={['Period','Revenue','Cost of Revenue','Gross Profit','Operating Income','Pretax Income','Net Income','Basic EPS','Diluted EPS','Basic Shares','Diluted Shares']} rows={income.map(r=>[period(r),money(r.revenue),money(r.cost_of_revenue),money(r.gross_profit),money(r.operating_income),money(r.pretax_income),money(r.net_income),num(r.eps_basic),num(r.eps_diluted),num(r.shares_basic),num(r.shares_diluted)])}/>:<Empty>Income-statement data is unavailable.</Empty>}
+   <h3>Balance Sheet</h3>{balance.length?<Table headers={['Period','Cash','Current Assets','Total Assets','Current Liabilities','Total Liabilities','Debt','Equity']} rows={balance.map(r=>[period(r),money(r.cash_and_equivalents),money(r.current_assets),money(r.total_assets),money(r.current_liabilities),money(r.total_liabilities),money(r.total_debt),money(r.shareholders_equity)])}/>:<Empty>Balance-sheet data is unavailable.</Empty>}
+   <h3>Cash Flow Statement</h3>{cashflow.length?<Table headers={['Period','Operating CF','CapEx','FCF','Cash','Debt']} rows={cashflow.map(r=>[period(r),money(r.operating_cash_flow),money(r.capital_expenditure),money(r.free_cash_flow),money(r.cash_and_equivalents),money(r.total_debt)])}/>:<Empty>Cash-flow data is unavailable.</Empty>}
+   </>:<Empty>No normalized financial statements are stored for this stock.</Empty>}
+  </Card>
+  <Card id="dividend" eyebrow="DIVIDENDS" title="Dividend History & Yield">{dividends.length?<Table headers={['Ex-Date','Record','Payment','Declaration','Amount','Frequency','Currency','Yield','Payout','5Y CAGR','Streak','Source']} rows={dividends.map(d=>[d.ex_date??'—',d.record_date??'—',d.payment_date??'—',d.declaration_date??'—',d.amount==null?'—':`$${Number(d.amount).toFixed(4)}`,d.frequency??'—',d.currency??'USD',pct(d.dividend_yield),pct(d.payout_ratio),pct(d.five_year_cagr),num(d.growth_streak_years),d.data_source??'—'])}/>:<Empty>No dividend rows are stored for this stock.</Empty>}</Card>
+  <Card id="ownership" eyebrow="OWNERSHIP" title="Ownership Snapshots">{ownership.length?<Table headers={['Period','Shares Outstanding','Institutional %','Insider %','Float','Institutional Shares','Insider Shares','Source']} rows={ownership.map(o=>[o.period_end??'—',num(o.shares_outstanding),pct(o.institutional_ownership_percent),pct(o.insider_ownership_percent),num(o.float_shares),num(o.institutional_shares),num(o.insider_shares),o.data_source??'—'])}/>:<Empty>No ownership snapshots are stored for this stock.</Empty>}</Card>
+  <Card id="institutions" eyebrow="INSTITUTIONAL HOLDERS" title="Top Institutional Holders">{institutionalHolders.length?<Table headers={['Period','Holder','Shares Held','Market Value','Ownership %','Δ Shares','Δ %','Filing Date','Source']} rows={institutionalHolders.map(h=>[h.period_end??'—',h.holder_name??'—',num(h.shares_held),money(h.market_value),pct(h.ownership_percent),num(h.shares_change),pct(h.shares_change_percent),h.filing_date??'—',h.data_source??'—'])}/>:<Empty>No institutional-holder rows are stored for this stock.</Empty>}</Card>
+  <Card id="insiders" eyebrow="INSIDER TRANSACTIONS" title="Insider Buying & Selling History">{insiderTransactions.length?<Table headers={['Transaction','Insider','Title','Date','Filing','Shares','Price','Value','After','Code','Source']} rows={insiderTransactions.map(t=>[t.transaction_type??'—',t.insider_name??'—',t.insider_title??'—',t.transaction_date??'—',t.filing_date??'—',num(t.shares),money(t.price),money(t.value),num(t.shares_owned_after),t.transaction_code??'—',t.data_source??'—'])}/>:<Empty>No insider-transaction rows are stored for this stock.</Empty>}</Card>
+  <Card id="sec-filings" eyebrow="SEC FILINGS" title="SEC Filing History">{secFilings.length?<Table headers={['Form','Filing Date','Period','Accepted','Primary Document','Description','Source']} rows={secFilings.map(f=>[f.form_type??'—',f.filing_date??'—',f.filing_period??'—',f.accepted_at??'—',f.primary_document??'—',f.filing_description??'—',f.filing_url?<a href={f.filing_url} target="_blank" rel="noreferrer">Open filing</a>:'—'])}/>:<Empty>No SEC filing rows are stored for this stock.</Empty>}</Card>
+  <Card id="identifiers" eyebrow="IDENTIFIERS" title="Stock Identifiers"><Table headers={['Type','Value','Source','Verified']} rows={(identifiers??[]).map(x=>[x.identifier_type??'—',x.identifier_value??'—',x.source??'—',x.verified_at??'—'])}/></Card>
+  <Card id="research-timeline" eyebrow="RESEARCH" title="Monthly & Quarterly Research">
+   {monthlyResearch.length?monthlyResearch.map(r=><div className="research-entry" key={`m-${r.id}`}><h3>{r.research_month}</h3><p>Price {pct(r.price_change_percent)} · Revenue {pct(r.revenue_change_percent)} · EPS {pct(r.eps_change_percent)}</p><p>{r.ai_summary??r.fundamental_summary??r.technical_summary??'—'}</p></div>):null}
+   {quarterlyResearch.length?quarterlyResearch.map(r=><div className="research-entry" key={`q-${r.id}`}><h3>{r.fiscal_period??r.period_end??'—'}</h3><p>{r.ai_summary??r.financial_summary??r.earnings_summary??'—'}</p><p>Guidance: {r.guidance_summary??'—'} · Risks: {r.risks_summary??'—'} · Catalysts: {r.catalysts_summary??'—'}</p></div>):!monthlyResearch.length&&<Empty>No monthly or quarterly research is stored.</Empty>}
+  </Card>
+  <Card id="data-quality" eyebrow="DATA QUALITY" title="Data Quality & Provenance">
+   {quality?<Table headers={['Check Date','Identity','Market Data','Price History','Fundamentals','Technical','Earnings','Ownership','Filings','Overall','Missing','Stale','Validation Errors']} rows={[[quality.check_date,pct(quality.identity_score),pct(quality.market_data_score),pct(quality.price_history_score),pct(quality.fundamentals_score),pct(quality.technical_score),pct(quality.earnings_score),pct(quality.ownership_score),pct(quality.filings_score),pct(quality.overall_score),String(quality.missing_fields??'—'),String(quality.stale_fields??'—'),String(quality.validation_errors??'—')]]}/>:<Empty>No data-quality snapshot is stored for this stock.</Empty>}
+   {provenance?.length?<><h3>Recent Provenance</h3><Table headers={['Retrieved','Entity','Field','Source','Verified','Source Time']} rows={provenance.map(p=>[p.retrieved_at??'—',p.entity_type??'—',p.data_field??'—',p.source_name??'—',p.is_verified?'Yes':'No',p.source_timestamp??'—'])}/></>:null}
+  </Card>
+ </div>
 }
