@@ -12,6 +12,7 @@ function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div class
 
 export default function StockDataExpansion({financialStatements,dividends,ownership,institutionalHolders,insiderTransactions,monthlyResearch,quarterlyResearch,secFilings,identifiers,provenance,quality}:Props){
  const income=statementRows(financialStatements,'income_statement'), balance=statementRows(financialStatements,'balance_sheet'), cashflow=statementRows(financialStatements,'cash_flow');
+ const displayRows=(rows:any[], limit=24)=>rows.slice(0,limit);
  return <div className="seo-research-stack">
   <Card id="financial-statements" eyebrow="FINANCIAL STATEMENTS" title="Income Statement, Balance Sheet & Cash Flow">
    {financialStatements.length?<><h3>Income Statement</h3>{income.length?<Table headers={['Period','Revenue','Cost of Revenue','Gross Profit','Operating Income','Pretax Income','Net Income','Basic EPS','Diluted EPS','Basic Shares','Diluted Shares']} rows={displayRows(income).map(r=>[period(r),money(r.revenue),money(r.cost_of_revenue),money(r.gross_profit),money(r.operating_income),money(r.pretax_income),money(r.net_income),num(r.eps_basic),num(r.eps_diluted),num(r.shares_basic),num(r.shares_diluted)])}/>:<Empty>Income-statement data is unavailable.</Empty>}
