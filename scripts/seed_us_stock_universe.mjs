@@ -33,6 +33,14 @@ async function massive(path) {
 
 const slugify = (value) => String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+const normalizeCompanyName = (value) => String(value ?? '').trim()
+  .replace(/\s+Class\s+[A-Za-z0-9]+\s+(Common Stock|Ordinary Shares?)$/i, '')
+  .replace(/\s+Class\s+[A-Za-z0-9]+$/i, '')
+  .replace(/\s+(Common Stock|Ordinary Shares?|Common Shares?)$/i, '')
+  .replace(/\s+(American Depositary Shares|Depositary Shares).*$/i, '')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 const existingRows = await sql.query(
   `SELECT symbol, slug, company_name, exchange, sector, industry, description, logo_url, website_url, country, market_cap, currency, asset_type, is_active, is_indexable
    FROM public.stocks
@@ -53,7 +61,7 @@ while (next) {
     const marketCap = Number(ticker.market_cap);
     discovered.set(symbol, {
       symbol,
-      company_name: ticker.name ?? symbol,
+      company_name: normalizeCompanyName(ticker.name ?? symbol),
       // Keep the primary exchange exactly as supplied by the reference universe (e.g. XNAS/XNYS/XASE).
       exchange: ticker.primary_exchange ?? null,
       market_cap: Number.isFinite(marketCap) && marketCap > 0 ? marketCap : null,
@@ -96,7 +104,7 @@ for (const row of existingBySymbol.values()) {
   if (selectedSymbols.has(String(row.symbol).toUpperCase())) continue;
   selected.push({
     symbol: String(row.symbol).toUpperCase(),
-    company_name: row.company_name,
+    company_name: normalizeCompanyName(row.company_name),
     exchange: row.exchange,
     market_cap: row.market_cap == null ? null : Number(row.market_cap),
     description: row.description,
@@ -116,7 +124,7 @@ for (let i = 0; i < selected.length; i += 100) {
   const chunk = selected.slice(i, i + 100);
   for (const row of chunk) {
     const symbol = row.symbol;
-    const companyName = row.company_name || symbol;
+    const companyName = normalizeCompanyName(row.company_name || symbol);
     const slug = slugify(symbol);
     await sql.query(
       `INSERT INTO public.stocks
