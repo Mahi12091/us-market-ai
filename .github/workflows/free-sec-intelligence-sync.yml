@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: SEC bulk filings and XBRL
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
