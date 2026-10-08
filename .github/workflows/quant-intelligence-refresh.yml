@@ -17,4 +17,4 @@ jobs:
       - name: Refresh stock scores and rankings
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-        run: node scripts/generate_stock_scores.mjs
+        run: node scripts/generate_stock_scores_v2.mjs
