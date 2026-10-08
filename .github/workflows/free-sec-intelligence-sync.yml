@@ -1,0 +1,28 @@
+name: Free SEC Intelligence Sync
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *'
+jobs:
+  sec-intelligence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: SEC bulk filings and XBRL
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: node scripts/sync_sec_free_bulk_v2.mjs
+      - name: SEC insider transactions
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          SEC_INSIDER_DAYS: 180
+          SEC_INSIDER_MAX: 5000
+        run: node scripts/sync_sec_insider_free_v2.mjs
