@@ -89,7 +89,7 @@ async function insertEarnings(rows, chunkSize = 250) {
       'FROM (VALUES ' + tuples + ') AS v(stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.earnings e ' +
-        'WHERE e.stock_id=v.stock_id ' +
+        'WHERE e.stock_id=v.stock_id::bigint ' +
         'AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date ' +
         'AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period' +
       ')';
@@ -123,7 +123,7 @@ async function insertDividends(rows, chunkSize = 250) {
       'FROM (VALUES ' + tuples + ') AS v(stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.dividends d ' +
-        'WHERE d.stock_id=v.stock_id ' +
+        'WHERE d.stock_id=v.stock_id::bigint ' +
         'AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date ' +
         'AND d.amount IS NOT DISTINCT FROM v.amount' +
       ')';
