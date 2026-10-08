@@ -37,8 +37,8 @@ async function upsert(table, rows, conflict, chunkSize = 250) {
     const rawChunk = rows.slice(i, i + chunkSize);
     if (!rawChunk.length) continue;
 
-    // PostgreSQL ON CONFLICT DO UPDATE is deterministic: duplicate arbiter
-    // values within the same INSERT are rejected. Deduplicate the batch first.
+    // PostgreSQL ON CONFLICT DO UPDATE rejects duplicate arbiter values
+    // within the same INSERT, so deduplicate each batch first.
     const deduped = [...new Map(rawChunk.map(row => [
       conflictCols.map(key => String(row[key] ?? '')).join('\\x1f'),
       row
@@ -49,7 +49,19 @@ async function upsert(table, rows, conflict, chunkSize = 250) {
     const values = [];
     const tuples = chunk.map(row => '(' + keys.map(key => {
       values.push(row[key] ?? null);
-      return '
+      return '$' + values.length;
+    }).join(',') + ')').join(',');
+
+    const updates = keys.filter(key => !conflictCols.includes(key))
+      .map(key => '"' + key + '"=EXCLUDED."' + key + '"').join(',');
+
+    const q = 'INSERT INTO "' + table + '" (' + keys.map(k => '"' + k + '"').join(',') +
+      ') VALUES ' + tuples + ' ON CONFLICT (' + conflictCols.map(k => '"' + k + '"').join(',') +
+      ') DO ' + (updates ? 'UPDATE SET ' + updates : 'NOTHING');
+
+    await sql.query(q, values);
+  }
+}
 
 async function insertEarnings(rows, chunkSize = 250) {
   for (let i = 0; i < rows.length; i += chunkSize) {
