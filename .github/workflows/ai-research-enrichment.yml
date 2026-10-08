@@ -1,0 +1,42 @@
+name: AI Research Enrichment
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * *'
+jobs:
+  ai-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate monthly AI research
+        env:
+          NEON_REST_URL: ${{ secrets.NEON_REST_URL }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          AI_PROVIDER: openai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          AI_REQUEST_DELAY_MS: 1000
+        run: node scripts/generate_ai_research.mjs monthly
+      - name: Generate quarterly AI research
+        env:
+          NEON_REST_URL: ${{ secrets.NEON_REST_URL }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          AI_PROVIDER: openai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+          AI_REQUEST_DELAY_MS: 1000
+        run: node scripts/generate_ai_research.mjs quarterly
+      - name: Generate premium articles batch
+        env:
+          NEON_REST_URL: ${{ secrets.NEON_REST_URL }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          ARTICLE_BATCH_SIZE: 25
+        run: node scripts/generate_ai_articles.mjs
