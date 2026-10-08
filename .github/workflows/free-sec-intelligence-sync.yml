@@ -1,5 +1,7 @@
 name: Free SEC Intelligence Sync
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '30 4 * * *'
