@@ -106,7 +106,7 @@ async function mapCiks() {
       return '($' + (values.length - 1) + ',$' + values.length + ')';
     }).join(',');
     await sql.query(
-      'UPDATE stocks s SET cik=v.cik,data_last_verified_at=NOW() FROM (VALUES ' + tuples + ') AS v(id,cik) WHERE s.id=v.id',
+      'UPDATE stocks s SET cik=v.cik,data_last_verified_at=NOW() FROM (VALUES ' + tuples + ') AS v(id bigint,cik bigint) WHERE s.id=v.id',
       values
     );
   }
