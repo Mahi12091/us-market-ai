@@ -1,14 +1,22 @@
 name: Free SEC Intelligence Sync
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '30 4 * * *'
+
 jobs:
-  sec-intelligence:
+  sec-bulk-xbrl:
+    name: SEC bulk + XBRL
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_BATCH_SIZE: 500
+      SEC_BATCH_CONCURRENCY: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,15 +24,43 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install --no-audit --no-fund
-      - name: SEC bulk filings and XBRL
-        env:
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
-        run: node scripts/sync_sec_free_bulk_v2.mjs
+      - name: Download once, parse locally, parallel DB batches
+        run: node scripts/sync_sec_free_bulk_v3.mjs
+
+  sec-insider:
+    name: SEC insider transactions
+    needs: sec-bulk-xbrl
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_INSIDER_DAYS: 180
+      SEC_INSIDER_MAX: 5000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
       - name: SEC insider transactions
-        env:
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
-          SEC_INSIDER_DAYS: 180
-          SEC_INSIDER_MAX: 5000
         run: node scripts/sync_sec_insider_free_v2.mjs
+
+  sec-coverage-audit:
+    name: SEC coverage audit
+    needs: [sec-bulk-xbrl, sec-insider]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Audit SEC coverage
+        run: node scripts/audit_sec_coverage.mjs
