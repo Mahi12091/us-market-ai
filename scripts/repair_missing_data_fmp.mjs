@@ -20,11 +20,12 @@ let ok=0,failed=0;
 for(const s of stocks){
   try{
     const sym=encodeURIComponent(String(s.symbol).toUpperCase());
-    const [earn,divs,sec,ins] = await Promise.all([
+    const [earn,divs,sec,ins,holders] = await Promise.all([
       api(`/earnings?symbol=${sym}`),
       api(`/dividends?symbol=${sym}`),
       api(`/sec-filings-search/symbol?symbol=${sym}&from=2020-01-01&to=2099-12-31&page=0&limit=100`),
-      api(`/insider-trading/search?symbol=${sym}&page=0&limit=100`)
+      api(`/insider-trading/search?symbol=${sym}&page=0&limit=100`),
+      api(`/institutional-ownership/extract-analytics/holder?symbol=${sym}&year=2026&quarter=2&page=0&limit=100`)
     ]);
     for(const x of Array.isArray(earn)?earn:[]){
       await sql`INSERT INTO earnings(stock_id,earnings_date,fiscal_period,eps_estimate,eps_actual,eps_surprise,revenue_estimate,revenue_actual,revenue_surprise,data_source,created_at) VALUES(${s.id},${x.date??x.earningsDate??null},${x.fiscalDateEnding??x.fiscalPeriod??null},${x.epsEstimated??x.epsEstimate??null},${x.eps??x.epsActual??null},${x.epsSurprise??null},${x.revenueEstimated??x.revenueEstimate??null},${x.revenue??x.revenueActual??null},${x.revenueSurprise??null},'fmp',NOW()) ON CONFLICT DO NOTHING`;
@@ -34,6 +35,9 @@ for(const s of stocks){
     }
     for(const x of Array.isArray(sec)?sec:[]){
       await sql`INSERT INTO sec_filings(stock_id,cik,accession_number,form_type,filing_date,filing_period,accepted_at,primary_document,filing_url,filing_description,data_source,created_at) VALUES(${s.id},${x.cik??s.cik??null},${x.accessionNumber??null},${x.formType??null},${x.filingDate??null},${x.filingPeriod??null},${x.acceptedDate??null},${x.finalLink?String(x.finalLink).split('/').pop():null},${x.finalLink??x.link??null},${x.formType??null},'fmp',NOW()) ON CONFLICT DO NOTHING`;
+    }
+    for(const x of Array.isArray(holders)?holders:[]){
+      await sql`INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,ownership_percent,shares_change,shares_change_percent,filing_date,data_source,created_at) VALUES(${s.id},${x.investorName??'Unknown'},${x.cik??null},${x.date??'2026-06-30'},${x.sharesNumber??null},${x.marketValue??null},${x.ownership??null},${x.changeInSharesNumber??null},${x.changeInSharesNumberPercentage??null},${x.filingDate??null},'fmp-13f',NOW()) ON CONFLICT (stock_id,holder_name,period_end) DO UPDATE SET cik=EXCLUDED.cik,shares_held=EXCLUDED.shares_held,market_value=EXCLUDED.market_value,ownership_percent=EXCLUDED.ownership_percent,shares_change=EXCLUDED.shares_change,shares_change_percent=EXCLUDED.shares_change_percent,filing_date=EXCLUDED.filing_date,data_source=EXCLUDED.data_source`;
     }
     for(const x of Array.isArray(ins)?ins:[]){
       const shares=Number(x.securitiesTransacted??x.shares??0)||null;
@@ -45,4 +49,4 @@ for(const s of stocks){
   if((ok+failed)%10===0) console.log(JSON.stringify({processed:ok+failed,total:stocks.length,ok,failed}));
   await sleep(100);
 }
-console.log(JSON.stringify({total:stocks.length,ok,failed}));
+console.log(JSON.stringify({total:stocks.length,ok,failed,source:'FMP earnings/dividends/SEC/insider/13F',institutional_quarter:'2026-Q2'}));
