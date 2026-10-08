@@ -103,7 +103,9 @@ async function mapCiks() {
     const values = [];
     const tuples = chunk.map(r => {
       values.push(r.id, r.cik);
-      return '(
+      const n = values.length;
+      return '($' + (n - 1) + '::bigint,$' + n + '::bigint)';
+    }).join(',');
     await sql.query(
       'UPDATE stocks s SET cik=v.cik,data_last_verified_at=NOW() FROM (VALUES ' + tuples + ') AS v(id,cik) WHERE s.id=v.id',
       values
