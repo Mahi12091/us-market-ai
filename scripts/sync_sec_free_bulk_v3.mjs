@@ -51,15 +51,48 @@ async function upsert(table, rows, conflict, chunkSize = 250) {
   }
 }
 
+async function insertEarnings(rows, chunkSize = 250) {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    if (!chunk.length) continue;
+    const values = [];
+    const tuples = chunk.map(r => {
+      values.push(r.stock_id, r.earnings_date, r.fiscal_period, r.eps_actual, r.revenue_actual, r.data_source, r.created_at);
+      const n = values.length;
+      return '(nextval(\'public.earnings_id_seq\'),$' + (n - 6) + ',$' + (n - 5) + ',$' + (n - 4) + ',$' + (n - 3) + ',$' + (n - 2) + ',$' + n + ')';
+    }).join(',');
+    const q = 'INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
+      'SELECT v.id,v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
+      'FROM (VALUES ' + tuples + ') v(id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
+      'WHERE NOT EXISTS (SELECT 1 FROM public.earnings e WHERE e.stock_id=v.stock_id AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period)';
+    await sql.query(q, values);
+  }
+}
+
+async function insertDividends(rows, chunkSize = 250) {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    if (!chunk.length) continue;
+    const values = [];
+    const tuples = chunk.map(r => {
+      values.push(r.stock_id, r.declaration_date, r.amount, r.currency, r.data_source, r.created_at);
+      const n = values.length;
+      return '(nextval(\'public.dividends_id_seq\'),$' + (n - 5) + ',NULL,NULL,NULL,$' + (n - 4) + ',$' + (n - 3) + ',NULL,$' + (n - 2) + ',$' + (n - 1) + ',$' + n + ')';
+    }).join(',');
+    const q = 'INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
+      'SELECT v.id,v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
+      'FROM (VALUES ' + tuples + ') v(id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
+      'WHERE NOT EXISTS (SELECT 1 FROM public.dividends d WHERE d.stock_id=v.stock_id AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date AND d.amount IS NOT DISTINCT FROM v.amount)';
+    await sql.query(q, values);
+  }
+}
+
 async function mapCiks() {
   const file = path.join(TMP, 'company_tickers.json');
   await download('https://www.sec.gov/files/company_tickers.json', file);
   const j = JSON.parse(await fs.promises.readFile(file, 'utf8'));
   const map = new Map(Object.values(j).map(x => [String(x.ticker || '').toUpperCase(), cik(x.cik_str)]));
-  const stocks = await sql.query(
-    'SELECT id,symbol,cik FROM stocks WHERE is_active=true ORDER BY id'
-  );
-
+  const stocks = await sql.query('SELECT id,symbol FROM stocks WHERE is_active=true ORDER BY id');
   const updates = [];
   for (const s of stocks) {
     const c = map.get(String(s.symbol || '').toUpperCase());
@@ -73,8 +106,7 @@ async function mapCiks() {
       return '($' + (values.length - 1) + ',$' + values.length + ')';
     }).join(',');
     await sql.query(
-      'UPDATE stocks s SET cik=v.cik,data_last_verified_at=NOW() FROM (VALUES ' + tuples +
-      ') AS v(id,cik) WHERE s.id=v.id',
+      'UPDATE stocks s SET cik=v.cik,data_last_verified_at=NOW() FROM (VALUES ' + tuples + ') AS v(id,cik) WHERE s.id=v.id',
       values
     );
   }
@@ -82,9 +114,7 @@ async function mapCiks() {
 }
 
 async function getUniverse() {
-  const rows = await sql.query(
-    'SELECT id,symbol,cik FROM stocks WHERE is_active=true AND cik IS NOT NULL ORDER BY id'
-  );
+  const rows = await sql.query('SELECT id,symbol,cik FROM stocks WHERE is_active=true AND cik IS NOT NULL ORDER BY id');
   const clean = rows.map(x => ({ ...x, cik: cik(x.cik) })).filter(x => x.cik !== '0000000000');
   return MAX ? clean.slice(0, MAX) : clean;
 }
@@ -108,18 +138,12 @@ async function processBatch(stocks, submissionsDir, companyfactsDir, batchNo, to
           if (!accession || !FORM_RE.test(form)) continue;
           const doc = r.primaryDocument?.[i] || null;
           filingRows.push({
-            stock_id: s.id,
-            cik: s.cik,
-            accession_number: accession,
-            form_type: form,
-            filing_date: date(r.filingDate?.[i]),
-            filing_period: date(r.reportDate?.[i]),
+            stock_id: s.id, cik: s.cik, accession_number: accession, form_type: form,
+            filing_date: date(r.filingDate?.[i]), filing_period: date(r.reportDate?.[i]),
             accepted_at: r.accepted?.[i] ? new Date(r.accepted[i]).toISOString() : null,
-            primary_document: doc,
-            filing_url: filingUrl(s.cik, accession, doc),
+            primary_document: doc, filing_url: filingUrl(s.cik, accession, doc),
             filing_description: r.primaryDocDescription?.[i] || null,
-            data_source: 'SEC_EDGAR_BULK',
-            created_at: new Date().toISOString()
+            data_source: 'SEC_EDGAR_BULK', created_at: new Date().toISOString()
           });
         }
       }
@@ -128,13 +152,10 @@ async function processBatch(stocks, submissionsDir, companyfactsDir, batchNo, to
     const factsFile = path.join(companyfactsDir, 'CIK' + s.cik + '.json');
     if (!fs.existsSync(factsFile)) continue;
     const facts = JSON.parse(await fs.promises.readFile(factsFile, 'utf8')).facts || {};
-
     const fact = names => {
-      for (const n of names) {
-        for (const t of ['us-gaap', 'ifrs-full']) {
-          const x = facts?.[t]?.[n];
-          if (x) return x;
-        }
+      for (const n of names) for (const t of ['us-gaap', 'ifrs-full']) {
+        const x = facts?.[t]?.[n];
+        if (x) return x;
       }
       return null;
     };
@@ -147,8 +168,8 @@ async function processBatch(stocks, submissionsDir, companyfactsDir, batchNo, to
     const eps = factRows(fact(['EarningsPerShareDiluted', 'EarningsPerShareBasic']));
     const rev = factRows(fact(['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues']));
     const div = factRows(fact(['CommonStockDividendsPerShareDeclared', 'PaymentsOfDividendsCommonStock', 'PaymentsOfDividends']));
-
     const periods = new Map();
+
     for (const x of [...eps, ...rev]) {
       const key = (x.fy || '') + '|' + (x.fp || '') + '|' + (x.end || '');
       if (!periods.has(key)) periods.set(key, { end: x.end, filed: x.filed, fp: x.fp, eps: null, rev: null });
@@ -165,48 +186,36 @@ async function processBatch(stocks, submissionsDir, companyfactsDir, batchNo, to
     for (const p of periods.values()) {
       if (p.eps == null && p.rev == null) continue;
       earningsRows.push({
-        stock_id: s.id,
-        earnings_date: date(p.filed || p.end),
-        fiscal_period: p.fp || 'reported',
-        eps_actual: p.eps,
-        revenue_actual: p.rev,
-        data_source: 'SEC_XBRL_BULK',
-        created_at: new Date().toISOString()
+        stock_id: s.id, earnings_date: date(p.filed || p.end), fiscal_period: p.fp || 'reported',
+        eps_actual: p.eps, revenue_actual: p.rev, data_source: 'SEC_XBRL_BULK', created_at: new Date().toISOString()
       });
     }
 
     for (const x of div) {
       if (x.val == null || !x.end) continue;
       dividendRows.push({
-        stock_id: s.id,
-        ex_date: null,
-        declaration_date: date(x.filed || x.end),
-        amount: num(x.val),
-        currency: 'USD',
-        data_source: 'SEC_XBRL_BULK',
-        created_at: new Date().toISOString()
+        stock_id: s.id, declaration_date: date(x.filed || x.end), amount: num(x.val),
+        currency: 'USD', data_source: 'SEC_XBRL_BULK', created_at: new Date().toISOString()
       });
     }
   }
 
-  await upsert('sec_filings', filingRows, 'accession_number', 250);
-  if (earningsRows.length) await upsert('earnings', earningsRows, 'stock_id,earnings_date,fiscal_period', 250);
-  if (dividendRows.length) await upsert('dividends', dividendRows, 'stock_id,declaration_date,amount', 250);
+  const uniqueEarnings = [...new Map(earningsRows.map(r => [r.stock_id + '|' + r.earnings_date + '|' + r.fiscal_period, r])).values()];
+  const uniqueDividends = [...new Map(dividendRows.map(r => [r.stock_id + '|' + r.declaration_date + '|' + r.amount, r])).values()];
 
-  console.log(
-    'BATCH ' + batchNo + '/' + totalBatches +
-    ' stocks=' + stocks.length +
-    ' filings=' + filingRows.length +
-    ' earnings=' + earningsRows.length +
-    ' dividends=' + dividendRows.length
-  );
-  return { filings: filingRows.length, earnings: earningsRows.length, dividends: dividendRows.length };
+  await upsert('sec_filings', filingRows, 'accession_number', 250);
+  await insertEarnings(uniqueEarnings, 250);
+  await insertDividends(uniqueDividends, 250);
+
+  console.log('BATCH ' + batchNo + '/' + totalBatches + ' stocks=' + stocks.length +
+    ' filings=' + filingRows.length + ' earnings=' + uniqueEarnings.length + ' dividends=' + uniqueDividends.length);
+  return { filings: filingRows.length, earnings: uniqueEarnings.length, dividends: uniqueDividends.length };
 }
 
 async function main() {
   if (!process.env.NEON_DATABASE_URL) throw new Error('NEON_DATABASE_URL is required');
-
   console.log('SEC v3: download once -> local parse -> parallel DB batches');
+
   await mapCiks();
 
   const submissionsZip = path.join(TMP, 'submissions.zip');
@@ -226,7 +235,8 @@ async function main() {
   const batches = [];
   for (let i = 0; i < universe.length; i += BATCH_SIZE) batches.push(universe.slice(i, i + BATCH_SIZE));
 
-  console.log('SEC universe', universe.length, 'batches', batches.length, 'batch_size', BATCH_SIZE, 'parallel', CONCURRENCY);
+  console.log('SEC universe', universe.length, 'batches', batches.length,
+    'batch_size', BATCH_SIZE, 'parallel', CONCURRENCY);
 
   let cursor = 0;
   const totals = { filings: 0, earnings: 0, dividends: 0 };
@@ -242,7 +252,6 @@ async function main() {
   }
 
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, batches.length) }, worker));
-
   console.log('SEC v3 complete', JSON.stringify(totals));
 }
 
