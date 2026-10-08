@@ -11,7 +11,7 @@ const num=s=>{const n=Number(String(s||'').replace(/,/g,''));return Number.isFin
 async function get(url){const r=await fetch(url,{headers:{'User-Agent':UA,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error('SEC '+r.status);return r.text()}
 async function ownershipXml(url){const m=url.match(/^(https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/[^/]+\/[^/]+)\/[^/]+$/i);if(!m)return null;const j=JSON.parse(await get(m[1]+'/index.json'));const n=(j.directory?.item||[]).map(x=>x.name).find(x=>/\.xml$/i.test(x));return n?get(m[1]+'/'+n):null}
 async function main(){
- const rows=await sql`SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,sf.form_type FROM sec_filings sf WHERE sf.form_type IN ('3','3/A','4','4/A','5','5/A') AND sf.filing_date>=current_date-${DAYS} ORDER BY sf.filing_date DESC LIMIT ${MAX}`;
+ const rows=await sql`SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,sf.form_type FROM sec_filings sf WHERE sf.form_type IN ('3','3/A','4','4/A','5','5/A') AND sf.filing_date >= CURRENT_DATE - (${DAYS} * INTERVAL '1 day') ORDER BY sf.filing_date DESC LIMIT ${MAX}`;
  let inserted=0,skipped=0,failed=0;
  for(const f of rows)try{
   const xml=await ownershipXml(f.filing_url);if(!xml){skipped++;continue}
