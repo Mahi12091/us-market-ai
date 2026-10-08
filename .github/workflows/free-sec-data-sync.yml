@@ -1,0 +1,22 @@
+name: Free SEC Data Sync
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 4 * * *'
+jobs:
+  sec-bulk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Sync SEC bulk data
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          SEC_MODE: all
+        run: node scripts/sync_sec_free_bulk.mjs
