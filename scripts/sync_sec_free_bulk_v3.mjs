@@ -80,12 +80,12 @@ async function insertEarnings(rows, chunkSize = 250) {
         r.created_at
       );
       const n = values.length;
-      return '(
+      return '($' + (n - 6) + '::bigint,$' + (n - 5) + '::date,$' + (n - 4) + '::text,$' + (n - 3) + '::numeric,$' + (n - 2) + '::numeric,$' + (n - 1) + '::text,$' + n + '::timestamptz)';
     }).join(',');
 
     const q =
       'INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
-      'SELECT nextval(\'public.earnings_id_seq\'),v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
+      'SELECT nextval(\\'public.earnings_id_seq\\'),v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
       'FROM (VALUES ' + tuples + ') AS v(stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.earnings e ' +
@@ -114,12 +114,12 @@ async function insertDividends(rows, chunkSize = 250) {
         r.created_at
       );
       const n = values.length;
-      return '(
+      return '($' + (n - 5) + '::bigint,NULL,NULL,NULL,$' + (n - 4) + '::date,$' + (n - 3) + '::numeric,NULL,$' + (n - 2) + '::text,$' + (n - 1) + '::text,$' + n + '::timestamptz)';
     }).join(',');
 
     const q =
       'INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
-      'SELECT nextval(\'public.dividends_id_seq\'),v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
+      'SELECT nextval(\\'public.dividends_id_seq\\'),v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
       'FROM (VALUES ' + tuples + ') AS v(stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.dividends d ' +
