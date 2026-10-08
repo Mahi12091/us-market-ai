@@ -67,16 +67,33 @@ async function insertEarnings(rows, chunkSize = 250) {
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     if (!chunk.length) continue;
+
     const values = [];
     const tuples = chunk.map(r => {
-      values.push(r.stock_id, r.earnings_date, r.fiscal_period, r.eps_actual, r.revenue_actual, r.data_source, r.created_at);
+      values.push(
+        r.stock_id,
+        r.earnings_date,
+        r.fiscal_period,
+        r.eps_actual,
+        r.revenue_actual,
+        r.data_source,
+        r.created_at
+      );
       const n = values.length;
-      return '(nextval(\'public.earnings_id_seq\'),$' + (n - 6) + ',$' + (n - 5) + ',$' + (n - 4) + ',$' + (n - 3) + ',$' + (n - 2) + ',$' + n + ')';
+      return '($' + (n - 6) + ',$' + (n - 5) + ',$' + (n - 4) + ',$' + (n - 3) + ',$' + (n - 2) + ',$' + (n - 1) + ',$' + n + ')';
     }).join(',');
-    const q = 'INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
-      'SELECT v.id,v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
-      'FROM (VALUES ' + tuples + ') v(id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
-      'WHERE NOT EXISTS (SELECT 1 FROM public.earnings e WHERE e.stock_id=v.stock_id AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period)';
+
+    const q =
+      'INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
+      'SELECT nextval(\'public.earnings_id_seq\'),v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
+      'FROM (VALUES ' + tuples + ') AS v(stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
+      'WHERE NOT EXISTS (' +
+        'SELECT 1 FROM public.earnings e ' +
+        'WHERE e.stock_id=v.stock_id ' +
+        'AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date ' +
+        'AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period' +
+      ')';
+
     await sql.query(q, values);
   }
 }
@@ -85,16 +102,32 @@ async function insertDividends(rows, chunkSize = 250) {
   for (let i = 0; i < rows.length; i += chunkSize) {
     const chunk = rows.slice(i, i + chunkSize);
     if (!chunk.length) continue;
+
     const values = [];
     const tuples = chunk.map(r => {
-      values.push(r.stock_id, r.declaration_date, r.amount, r.currency, r.data_source, r.created_at);
+      values.push(
+        r.stock_id,
+        r.declaration_date,
+        r.amount,
+        r.currency,
+        r.data_source,
+        r.created_at
+      );
       const n = values.length;
-      return '(nextval(\'public.dividends_id_seq\'),$' + (n - 5) + ',NULL,NULL,NULL,$' + (n - 4) + ',$' + (n - 3) + ',NULL,$' + (n - 2) + ',$' + (n - 1) + ',$' + n + ')';
+      return '($' + (n - 5) + ',NULL,NULL,NULL,$' + (n - 4) + ',$' + (n - 3) + ',NULL,$' + (n - 2) + ',$' + (n - 1) + ',$' + n + ')';
     }).join(',');
-    const q = 'INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
-      'SELECT v.id,v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
-      'FROM (VALUES ' + tuples + ') v(id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
-      'WHERE NOT EXISTS (SELECT 1 FROM public.dividends d WHERE d.stock_id=v.stock_id AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date AND d.amount IS NOT DISTINCT FROM v.amount)';
+
+    const q =
+      'INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
+      'SELECT nextval(\'public.dividends_id_seq\'),v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
+      'FROM (VALUES ' + tuples + ') AS v(stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
+      'WHERE NOT EXISTS (' +
+        'SELECT 1 FROM public.dividends d ' +
+        'WHERE d.stock_id=v.stock_id ' +
+        'AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date ' +
+        'AND d.amount IS NOT DISTINCT FROM v.amount' +
+      ')';
+
     await sql.query(q, values);
   }
 }
