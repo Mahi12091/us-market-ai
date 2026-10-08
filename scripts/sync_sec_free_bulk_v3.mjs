@@ -68,33 +68,28 @@ async function insertEarnings(rows, chunkSize = 250) {
     const chunk = rows.slice(i, i + chunkSize);
     if (!chunk.length) continue;
 
-    const values = [];
-    const tuples = chunk.map(r => {
-      values.push(
-        r.stock_id,
-        r.earnings_date,
-        r.fiscal_period,
-        r.eps_actual,
-        r.revenue_actual,
-        r.data_source,
-        r.created_at
-      );
-      const n = values.length;
-      return '($' + (n - 6) + '::bigint,$' + (n - 5) + '::date,$' + (n - 4) + '::text,$' + (n - 3) + '::numeric,$' + (n - 2) + '::numeric,$' + (n - 1) + '::text,$' + n + '::timestamptz)';
-    }).join(',');
+    const payload = JSON.stringify(chunk.map(r => ({
+      stock_id: r.stock_id,
+      earnings_date: r.earnings_date,
+      fiscal_period: r.fiscal_period,
+      eps_actual: r.eps_actual,
+      revenue_actual: r.revenue_actual,
+      data_source: r.data_source,
+      created_at: r.created_at
+    })));
 
     const q =
-      'INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
-      'SELECT nextval(\'public.earnings_id_seq\'),v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at ' +
-      'FROM (VALUES ' + tuples + ') AS v(stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) ' +
-      'WHERE NOT EXISTS (' +
-        'SELECT 1 FROM public.earnings e ' +
-        'WHERE e.stock_id=v.stock_id ' +
-        'AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date ' +
-        'AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period' +
-      ')';
+      "INSERT INTO public.earnings (id,stock_id,earnings_date,fiscal_period,eps_actual,revenue_actual,data_source,created_at) " +
+      "SELECT nextval('public.earnings_id_seq'),v.stock_id,v.earnings_date,v.fiscal_period,v.eps_actual,v.revenue_actual,v.data_source,v.created_at " +
+      "FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,earnings_date date,fiscal_period text,eps_actual numeric,revenue_actual numeric,data_source text,created_at timestamptz) " +
+      "WHERE NOT EXISTS (" +
+      "SELECT 1 FROM public.earnings e " +
+      "WHERE e.stock_id=v.stock_id " +
+      "AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date " +
+      "AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period" +
+      ")";
 
-    await sql.query(q, values);
+    await sql.query(q, [payload]);
   }
 }
 
@@ -103,32 +98,27 @@ async function insertDividends(rows, chunkSize = 250) {
     const chunk = rows.slice(i, i + chunkSize);
     if (!chunk.length) continue;
 
-    const values = [];
-    const tuples = chunk.map(r => {
-      values.push(
-        r.stock_id,
-        r.declaration_date,
-        r.amount,
-        r.currency,
-        r.data_source,
-        r.created_at
-      );
-      const n = values.length;
-      return '($' + (n - 5) + '::bigint,NULL,NULL,NULL,$' + (n - 4) + '::date,$' + (n - 3) + '::numeric,NULL,$' + (n - 2) + '::text,$' + (n - 1) + '::text,$' + n + '::timestamptz)';
-    }).join(',');
+    const payload = JSON.stringify(chunk.map(r => ({
+      stock_id: r.stock_id,
+      declaration_date: r.declaration_date,
+      amount: r.amount,
+      currency: r.currency,
+      data_source: r.data_source,
+      created_at: r.created_at
+    })));
 
     const q =
-      'INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
-      'SELECT nextval(\'public.dividends_id_seq\'),v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at ' +
-      'FROM (VALUES ' + tuples + ') AS v(stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) ' +
-      'WHERE NOT EXISTS (' +
-        'SELECT 1 FROM public.dividends d ' +
-        'WHERE d.stock_id=v.stock_id ' +
-        'AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date ' +
-        'AND d.amount IS NOT DISTINCT FROM v.amount' +
-      ')';
+      "INSERT INTO public.dividends (id,stock_id,ex_date,record_date,payment_date,declaration_date,amount,frequency,currency,data_source,created_at) " +
+      "SELECT nextval('public.dividends_id_seq'),v.stock_id,v.ex_date,v.record_date,v.payment_date,v.declaration_date,v.amount,v.frequency,v.currency,v.data_source,v.created_at " +
+      "FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,ex_date date,record_date date,payment_date date,declaration_date date,amount numeric,frequency text,currency text,data_source text,created_at timestamptz) " +
+      "WHERE NOT EXISTS (" +
+      "SELECT 1 FROM public.dividends d " +
+      "WHERE d.stock_id=v.stock_id " +
+      "AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date " +
+      "AND d.amount IS NOT DISTINCT FROM v.amount" +
+      ")";
 
-    await sql.query(q, values);
+    await sql.query(q, [payload]);
   }
 }
 
