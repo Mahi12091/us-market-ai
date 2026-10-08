@@ -90,7 +90,7 @@ async function insertEarnings(rows, chunkSize = 250) {
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.earnings e ' +
         'WHERE e.stock_id=v.stock_id::bigint ' +
-        'AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date ' +
+        'AND e.earnings_date IS NOT DISTINCT FROM v.earnings_date::date ' +
         'AND e.fiscal_period IS NOT DISTINCT FROM v.fiscal_period' +
       ')';
 
@@ -124,8 +124,8 @@ async function insertDividends(rows, chunkSize = 250) {
       'WHERE NOT EXISTS (' +
         'SELECT 1 FROM public.dividends d ' +
         'WHERE d.stock_id=v.stock_id::bigint ' +
-        'AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date ' +
-        'AND d.amount IS NOT DISTINCT FROM v.amount' +
+        'AND d.declaration_date IS NOT DISTINCT FROM v.declaration_date::date ' +
+        'AND d.amount IS NOT DISTINCT FROM v.amount::numeric' +
       ')';
 
     await sql.query(q, values);
