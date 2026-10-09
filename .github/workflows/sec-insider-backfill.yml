@@ -1,0 +1,52 @@
+name: SEC Insider Ownership Backfill
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sec-insider-backfill.yml'
+      - 'scripts/sync_sec_insider_free_v2.mjs'
+  workflow_dispatch:
+  schedule:
+    - cron: '15 6 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: sec-insider-backfill
+  cancel-in-progress: false
+
+jobs:
+  insider-backfill:
+    name: Extended SEC Form 3/4/5 ingestion
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_INSIDER_DAYS: 365
+      SEC_INSIDER_MAX: 20000
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Wait for the active SEC sync to finish before backfill
+        shell: bash
+        run: |
+          while true; do
+            status="$(gh api repos/Mahi12091/us-market-ai/actions/runs/37901670406 --jq '.status' 2>/dev/null || echo completed)"
+            if [ "$status" != "in_progress" ] && [ "$status" != "queued" ] && [ "$status" != "waiting" ]; then
+              echo "Previous SEC sync status: $status; proceeding with extended insider backfill."
+              break
+            fi
+            echo "Previous SEC sync is $status; waiting 60 seconds to avoid concurrent ingestion."
+            sleep 60
+          done
+      - name: Parse extended SEC Form 3/4/5 filings
+        run: node scripts/sync_sec_insider_free_v2.mjs
