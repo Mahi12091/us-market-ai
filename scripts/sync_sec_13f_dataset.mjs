@@ -73,12 +73,18 @@ async function main() {
     readMap(coverFile, 'ACCESSION_NUMBER')
   ]);
   const nameMap = new Map();
+  const symbolMap = new Map(stocks.map(s => [String(s.symbol || '').toUpperCase().trim(), s]).filter(([k]) => k));
+  const cikMap = new Map(stocks.map(s => [String(s.cik || '').replace(/\\D/g, '').replace(/^0+/, ''), s]).filter(([k]) => k));
   for (const stock of stocks) {
     const key = norm(stock.company_name);
     if (!key) continue;
     if (nameMap.has(key)) nameMap.set(key, null); else nameMap.set(key, stock);
   }
-  const stockForIssuer = issuer => {
+  const stockForIssuer = (issuer, issuerCik = null, issuerTicker = null) => {
+    const cikKey = String(issuerCik || '').replace(/\\D/g, '').replace(/^0+/, '');
+    if (cikKey && cikMap.has(cikKey)) return cikMap.get(cikKey);
+    const tickerKey = String(issuerTicker || '').toUpperCase().trim();
+    if (tickerKey && symbolMap.has(tickerKey)) return symbolMap.get(tickerKey);
     const key = norm(issuer);
     if (!key) return null;
     if (nameMap.has(key)) return nameMap.get(key);
@@ -110,7 +116,7 @@ async function main() {
     const sub = submissions.get(accession);
     if (!cover || !sub) continue;
     const issuer = row.NAMEOFISSUER;
-    const stock = stockForIssuer(issuer);
+    const stock = stockForIssuer(issuer, row.CIK || row.ISSUERCIK || row.CIKOFISSUER, row.TICKER || row.SYMBOL);
     const shares = Number(String(row.SSHPRNAMT || '').replace(/,/g, ''));
     const val = Number(String(row.VALUE || '').replace(/,/g, ''));
     if (!stock || !issuer || !Number.isFinite(shares) || shares <= 0) { unmatched++; continue; }
