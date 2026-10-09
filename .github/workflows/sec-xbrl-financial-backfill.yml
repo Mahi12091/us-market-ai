@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       SEC_USER_AGENT: 'US Market AI research contact admin@example.com'
     steps:
       - uses: actions/checkout@v7
