@@ -12,7 +12,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clean = (v) => v == null || String(v).trim() === '' || String(v).trim().toLowerCase() === 'null' ? null : String(v).trim();
 const positive = (v) => Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
 
-async function get(url, provider, attempts = 4) {
+async function get(url, provider, attempts = 2) {
   let last = '';
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const response = await fetch(url, { headers: { Accept: 'application/json,text/csv,*/*' }, cache: 'no-store' });
@@ -20,7 +20,9 @@ async function get(url, provider, attempts = 4) {
     if (response.ok) return { response, body };
     last = `${provider} HTTP ${response.status}: ${body.slice(0, 350)}`;
     if (![408, 429, 500, 502, 503, 504].includes(response.status) || attempt === attempts) throw new Error(last);
-    await sleep(response.status === 429 ? 60000 : 2000 * attempt);
+    // The Massive free tier is rate-limited. Back off once rather than retrying
+    // every failed ticker for several minutes and starving the whole batch.
+    await sleep(response.status === 429 ? 65000 : 2000 * attempt);
   }
   throw new Error(last || `${provider} request failed`);
 }
@@ -175,8 +177,15 @@ await sql.query(`CREATE TABLE IF NOT EXISTS public.stock_metadata_enrichment_att
   status text,
   last_error text
 )`);
-const attemptedRows = await sql.query(`SELECT symbol FROM public.stock_metadata_enrichment_attempts WHERE attempted_at > now() - interval '30 days'`);
-const recentlyAttemptedSymbols = new Set(attemptedRows.map((row) => String(row.symbol).toUpperCase()));
+const attemptedRows = await sql.query(`SELECT symbol, status, attempted_at FROM public.stock_metadata_enrichment_attempts`);
+const nowMs = Date.now();
+const recentlyAttemptedSymbols = new Set(attemptedRows.filter((row) => {
+  const ageMs = nowMs - new Date(row.attempted_at).getTime();
+  if (row.status === 'checked') return ageMs < 30 * 24 * 60 * 60 * 1000;
+  if (row.status === 'error') return ageMs < 6 * 60 * 60 * 1000;
+  if (row.status === 'in_progress') return ageMs < 2 * 60 * 60 * 1000;
+  return false;
+}).map((row) => String(row.symbol).toUpperCase()));
 
 const stocks = await sql.query(`
   SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country, data_last_verified_at
@@ -268,8 +277,13 @@ if (MASSIVE_KEY && detailCandidates.length) {
     const symbol = String(stock.symbol).toUpperCase();
     let detailStatus = 'checked';
     let detailError = null;
-    const claim = await sql.query(`INSERT INTO public.stock_metadata_enrichment_attempts (symbol, attempted_at, status)
-      VALUES ($1, now(), 'in_progress') ON CONFLICT (symbol) DO NOTHING RETURNING symbol`, [symbol]);
+    const claim = await sql.query(`INSERT INTO public.stock_metadata_enrichment_attempts (symbol, attempted_at, status, last_error)
+      VALUES ($1, now(), 'in_progress', NULL)
+      ON CONFLICT (symbol) DO UPDATE SET attempted_at = now(), status = 'in_progress', last_error = NULL
+      WHERE (stock_metadata_enrichment_attempts.status = 'error' AND stock_metadata_enrichment_attempts.attempted_at < now() - interval '6 hours')
+         OR (stock_metadata_enrichment_attempts.status = 'in_progress' AND stock_metadata_enrichment_attempts.attempted_at < now() - interval '2 hours')
+         OR (stock_metadata_enrichment_attempts.status = 'checked' AND stock_metadata_enrichment_attempts.attempted_at < now() - interval '30 days')
+      RETURNING symbol`, [symbol]);
     if (!claim.length) continue;
     const wait = 12500 - (Date.now() - lastDetailsRequestAt);
     if (wait > 0) await sleep(wait);
