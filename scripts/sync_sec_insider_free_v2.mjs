@@ -57,7 +57,7 @@ async function syncInstitutionalHoldings() {
       const parts = parsedUrl.pathname.split('/').filter(Boolean);
       const edgar = parts.indexOf('edgar');
       if (edgar < 0 || !parts[edgar + 3] || !parts[edgar + 4]) { unmatched++; continue; }
-      const base = parsedUrl.origin + '/' + parts.slice(0, edgar + 5).join('/');
+      const base = parsedUrl.origin + '/' + parts.slice(0, edgar + 4).join('/');
       const listing = JSON.parse(await get(base + '/index.json'));
       const files = (listing.directory && listing.directory.item ? listing.directory.item : []).map(x => x.name);
       const infoName = files.find(name => /infotable.*\.xml$/i.test(name)) || files.find(name => /infotable/i.test(name) && /\.xml$/i.test(name));
