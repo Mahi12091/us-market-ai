@@ -45,6 +45,28 @@ async function main(){
     // Use JSON recordset for safe idempotent bulk insert; avoids relying on optional unique constraints.
     const payload=JSON.stringify(chunk);
     const q="INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) SELECT v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,holder_name text,cik text,period_end date,shares_held numeric,market_value numeric,filing_date date) WHERE NOT EXISTS (SELECT 1 FROM institutional_holders h WHERE h.stock_id=v.stock_id AND h.holder_name=v.holder_name AND h.cik=v.cik AND h.period_end=v.period_end)";
+    const result=await sql.query(q+' RETURNING stock_id',[payload]);inserted+=result.length;
+  };
+  for await(const row of rows(infoFile)){
+    scanned++;
+    const accession=row.ACCESSION_NUMBER;const cover=coverpages.get(accession);const sub=submissions.get(accession);
+    if(!cover||!sub)continue;
+    const issuer=row.NAMEOFISSUER;const stock=stockForIssuer(issuer);const shares=Number(String(row.SSHPRNAMT||'').replace(/,/g,''));const val=Number(String(row.VALUE||'').replace(/,/g,''));
+    if(!stock||!issuer||!Number.isFinite(shares)||shares<=0){unmatched++;continue;}
+    const period=date(cover.REPORTCALENDARORQUARTER)||date(sub.PERIODOFREPORT);const filed=date(sub.FILING_DATE);
+    if(!period)continue;
+    const value=Number.isFinite(val)&&val>=0?val*1000:null;
+    batch.push({stock_id:Number(stock.id),holder_name:cover.FILINGMANAGER_NAME||('13F filer '+sub.CIK),cik:String(sub.CIK||'').replace(/^0+/,'')||null,period_end:period,shares_held:shares,market_value:value,filing_date:filed});
+    matched++;
+    if(batch.length>=200)await flush();
+    if(scanned%500000===0)console.log(JSON.stringify({scanned,matched,inserted,unmatched}));
+  }
+  await flush();
+  const snapshots=await sql.query("INSERT INTO ownership_snapshots(stock_id,period_end,shares_outstanding,institutional_ownership_percent,insider_ownership_percent,float_shares,data_source,created_at,institutional_shares,insider_shares,top_holders) SELECT h.stock_id,h.period_end,f.shares_outstanding,CASE WHEN f.shares_outstanding>0 THEN SUM(h.shares_held)/f.shares_outstanding*100 ELSE NULL END,NULL,NULL,'SEC_13F_DATASET',NOW(),SUM(h.shares_held),NULL,jsonb_agg(jsonb_build_object('holder_name',h.holder_name,'cik',h.cik,'shares_held',h.shares_held,'market_value',h.market_value,'period_end',h.period_end) ORDER BY h.market_value DESC NULLS LAST) FROM institutional_holders h LEFT JOIN LATERAL(SELECT shares_outstanding FROM fundamentals f0 WHERE f0.stock_id=h.stock_id AND f0.shares_outstanding>0 ORDER BY f0.report_date DESC NULLS LAST LIMIT 1) f ON true WHERE h.period_end=(SELECT MAX(h2.period_end) FROM institutional_holders h2 WHERE h2.stock_id=h.stock_id) AND NOT EXISTS(SELECT 1 FROM ownership_snapshots o WHERE o.stock_id=h.stock_id AND o.period_end=h.period_end) GROUP BY h.stock_id,h.period_end,f.shares_outstanding RETURNING stock_id");
+  console.log(JSON.stringify({source:'SEC Form 13F quarterly dataset',dataset_url:url,stocks_in_universe:stocks.length,infotable_rows_scanned:scanned,matched_issuer_rows:matched,inserted_holdings:inserted,unmatched_rows:unmatched,ownership_snapshots_added:snapshots.length},null,2));
+}
+main().catch(e=>{console.error(e);process.exit(1)});    const payload=JSON.stringify(chunk);
+    const q="INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) SELECT v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,holder_name text,cik text,period_end date,shares_held numeric,market_value numeric,filing_date date) WHERE NOT EXISTS (SELECT 1 FROM institutional_holders h WHERE h.stock_id=v.stock_id AND h.holder_name=v.holder_name AND h.cik=v.cik AND h.period_end=v.period_end)";
     await sql.query(q,[payload]);inserted+=chunk.length;
   };
   for await(const row of rows(infoFile)){
