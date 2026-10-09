@@ -170,14 +170,14 @@ async function main() {
     "), insider AS (" +
     " SELECT stock_id,SUM(shares_owned_after) AS insider_shares FROM insider_latest GROUP BY stock_id" +
     "), cap AS (" +
-    " SELECT DISTINCT ON (stock_id) stock_id,shares_outstanding,float_shares FROM fundamentals" +
+    " SELECT DISTINCT ON (stock_id) stock_id,shares_outstanding FROM fundamentals" +
     " WHERE shares_outstanding>0 ORDER BY stock_id,report_date DESC NULLS LAST" +
     ") " +
     "INSERT INTO ownership_snapshots(stock_id,period_end,shares_outstanding,institutional_ownership_percent,insider_ownership_percent,float_shares,data_source,created_at,institutional_shares,insider_shares,top_holders) " +
     "SELECT i.stock_id,i.period_end,c.shares_outstanding," +
     " CASE WHEN c.shares_outstanding>0 THEN i.institutional_shares/c.shares_outstanding*100 ELSE NULL END," +
     " CASE WHEN c.shares_outstanding>0 AND x.insider_shares>0 THEN x.insider_shares/c.shares_outstanding*100 ELSE NULL END," +
-    " c.float_shares,'SEC_13F_DATASET+SEC_FORM_3_4_5',NOW(),i.institutional_shares,x.insider_shares,i.top_holders " +
+    " NULL,'SEC_13F_DATASET+SEC_FORM_3_4_5',NOW(),i.institutional_shares,x.insider_shares,i.top_holders " +
     "FROM inst i LEFT JOIN cap c ON c.stock_id=i.stock_id LEFT JOIN insider x ON x.stock_id=i.stock_id " +
     "ON CONFLICT (stock_id,period_end) DO UPDATE SET " +
     "shares_outstanding=COALESCE(EXCLUDED.shares_outstanding,ownership_snapshots.shares_outstanding)," +
