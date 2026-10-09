@@ -3,6 +3,11 @@ name: Free SEC Intelligence Sync
 on:
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/free-sec-intelligence-sync.yml'
+      - 'scripts/sync_sec_free_bulk_v3.mjs'
+      - 'scripts/sync_sec_insider_free_v2.mjs'
+      - 'scripts/audit_sec_coverage.mjs'
   workflow_dispatch:
   schedule:
     - cron: '30 4 * * *'
