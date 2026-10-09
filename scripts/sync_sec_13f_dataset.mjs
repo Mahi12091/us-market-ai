@@ -84,7 +84,7 @@ async function main() {
     if (nameMap.has(key)) return nameMap.get(key);
     let match = null;
     for (const [name, stock] of nameMap) {
-      if (!stock || name.length < 9 || !(name.includes(key) || key.includes(name))) continue;
+      if (!stock || name.length < 7 || key.length < 7 || !(name.includes(key) || key.includes(name))) continue;
       if (match && match.id !== stock.id) return null;
       match = stock;
     }
