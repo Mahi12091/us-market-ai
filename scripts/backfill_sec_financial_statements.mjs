@@ -141,7 +141,8 @@ function buildRows(stock, items) {
     }
     raw.push({stock_id:stock.id,ticker:stock.symbol,block_id:blockId,filing_id:first.filed||null,cik:cik(stock.cik),form_type:first.form,source_url:'https://www.sec.gov/edgar/search/',statement_type:statementType,period_of_report:first.end,period_end:first.end,period_type:first.periodType,fiscal_year:first.fy,fiscal_quarter:/^Q[1-4]$/.test(first.fp)?Number(first.fp.slice(1)):null,currency:'USD',statement_json:{sections,source:'SEC_XBRL_BULK',fields:Object.fromEntries(rows.map(x=>[x.field,x.val]))},raw_json:{source:'SEC_XBRL_BULK',tags:rows.map(x=>x.tag)},created_at:now,updated_at:now});
     const normalizedRow={stock_id:stock.id,statement_type:statementType,period_type:first.periodType,fiscal_period:first.fiscalPeriod,period_end:first.end,data_source:'SEC_XBRL_BULK',created_at:now,updated_at:now};
-    for (const x of rows) normalizedRow[x.field]=x.val;
+    const normalizedAllowed = new Set(['revenue','cost_of_revenue','gross_profit','operating_income','pretax_income','net_income','eps_basic','eps_diluted','shares_basic','shares_diluted','cash_and_equivalents','short_term_investments','total_assets','current_assets','total_liabilities','current_liabilities','total_debt','shareholders_equity','operating_cash_flow','capital_expenditure','free_cash_flow','ebitda','ebit','rd_expense','sga_expense','tax_expense','stock_based_compensation','acquisitions','debt_issuance','debt_repayment','dividends_paid','buybacks']);
+    for (const x of rows) if (normalizedAllowed.has(x.field)) normalizedRow[x.field]=x.val;
     if (type==='cashflow' && map.operating_cash_flow!=null && map.capital_expenditure!=null) normalizedRow.free_cash_flow=map.operating_cash_flow-map.capital_expenditure;
     normalized.push(normalizedRow);
   }
