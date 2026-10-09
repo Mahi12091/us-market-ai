@@ -12,6 +12,10 @@ on:
   schedule:
     - cron: '30 4 * * *'
 
+concurrency:
+  group: sec-intelligence-sync
+  cancel-in-progress: true
+
 jobs:
   sec-bulk-xbrl:
     name: SEC bulk + XBRL
