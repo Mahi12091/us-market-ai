@@ -299,8 +299,8 @@ for (const [index, stock] of stocks.entries()) {
     if (DEEP) {
       const apiSymbol=symbol.replace(/\./g,'-');
       [metrics,ratios]=await Promise.all([
-        getAll(`/v1/financials/metrics?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`),
-        getAll(`/v1/financials/ratios?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`)
+        getAll(`/v1/financials/metrics?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=1000`),
+        getAll(`/v1/financials/ratios?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=1000`)
       ]);
       await upsertBatch('threespread_metrics',metrics.filter(r=>r?.category&&r?.period_end).map(r=>({stock_id:stockId,ticker:symbol,period_end:r.period_end,period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),category:r.category,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r})),'stock_id,category,period_end,period_type');
       await upsertBatch('threespread_ratios',ratios.filter(r=>r?.ratio_name&&r?.period_end).map(r=>({stock_id:stockId,ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name,value:num(r.value),value_pctile:num(r.value_pctile),missing_inputs:r.missing_inputs??null,period_end:r.period_end,period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),spine:r.spine??null,derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r})),'stock_id,ratio_name,period_end,period_type');
