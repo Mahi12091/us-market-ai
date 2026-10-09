@@ -15,12 +15,19 @@ async function main(){
  let inserted=0,skipped=0,failed=0;
  for(const f of rows)try{
   const xml=await ownershipXml(f.filing_url);if(!xml){skipped++;continue}
-  const owner=tag(xml,'rptOwnerName'),title=tag(xml,'officerTitle')||tag(xml,'otherText'),txDate=date(tag(xml,'transactionDate')),code=tag(xml,'transactionCode'),shares=num(tag(xml,'transactionShares')),price=num(tag(xml,'transactionPricePerShare')),after=num(tag(xml,'sharesOwnedFollowingTransaction'));
-  if(!owner||!txDate||shares==null){skipped++;continue}
-  const type={P:'Purchase',S:'Sale',A:'Award/Grant',D:'Disposition',F:'Tax Withholding',M:'Option Exercise',G:'Gift',J:'Other'}[code]||code||'Other';
-  const exists=await sql`SELECT 1 FROM insider_transactions WHERE stock_id=${f.stock_id} AND insider_name=${owner} AND transaction_date=${txDate} AND transaction_code=${code||null} AND shares=${shares} AND filing_url=${f.filing_url} LIMIT 1`;
-  if(exists.length){skipped++;continue}
-  await sql`INSERT INTO insider_transactions(stock_id,insider_name,insider_title,transaction_date,filing_date,transaction_type,shares,price,value,shares_owned_after,transaction_code,filing_url,data_source,created_at) VALUES(${f.stock_id},${owner},${title},${txDate},${date(f.filing_date)},${type},${shares},${price},${price!=null?shares*price:null},${after},${code},${f.filing_url},'SEC_FORM_3_4_5',NOW())`;inserted++;
+  const owner=tag(xml,'rptOwnerName'),title=tag(xml,'officerTitle')||tag(xml,'otherText');
+  const transactions=xml.match(/<(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\\b[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\\s*>/gi)||[];
+  if(!owner||!transactions.length){skipped++;continue}
+  let insertedForFiling=0;
+  for(const tx of transactions){
+   const txDate=date(tag(tx,'transactionDate')),code=tag(tx,'transactionCode'),shares=num(tag(tx,'transactionShares')),price=num(tag(tx,'transactionPricePerShare')),after=num(tag(tx,'sharesOwnedFollowingTransaction'));
+   if(!txDate||shares==null){skipped++;continue}
+   const type={P:'Purchase',S:'Sale',A:'Award/Grant',D:'Disposition',F:'Tax Withholding',M:'Option Exercise',G:'Gift',J:'Other'}[code]||code||'Other';
+   const exists=await sql`SELECT 1 FROM insider_transactions WHERE stock_id=${f.stock_id} AND insider_name=${owner} AND transaction_date=${txDate} AND transaction_code IS NOT DISTINCT FROM ${code||null} AND shares=${shares} AND filing_url=${f.filing_url} LIMIT 1`;
+   if(exists.length){skipped++;continue}
+   await sql`INSERT INTO insider_transactions(stock_id,insider_name,insider_title,transaction_date,filing_date,transaction_type,shares,price,value,shares_owned_after,transaction_code,filing_url,data_source,created_at) VALUES(${f.stock_id},${owner},${title},${txDate},${date(f.filing_date)},${type},${shares},${price},${price!=null?shares*price:null},${after},${code},${f.filing_url},'SEC_FORM_3_4_5',NOW())`;inserted++;insertedForFiling++;
+  }
+  if(!insertedForFiling) skipped++;
  }catch(e){failed++}
  await sleep(180);
  console.log('Insider parsed',inserted,'skipped',skipped,'failed',failed);
