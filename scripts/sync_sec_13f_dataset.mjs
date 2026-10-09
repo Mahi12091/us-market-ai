@@ -40,12 +40,13 @@ async function main(){
   const nameMap=new Map();for(const s of stocks){const k=norm(s.company_name);if(k){if(nameMap.has(k))nameMap.set(k,null);else nameMap.set(k,s);}}
   const stockForIssuer=issuer=>{const k=norm(issuer);if(!k)return null;const exact=nameMap.get(k);if(exact)return exact;let match=null;for(const [name,stock] of nameMap){if(!stock)continue;if(name.length>=9&&(name.includes(k)||k.includes(name))){if(match&&match.id!==stock.id)return null;match=stock;}}return match;};
   const batch=[];let scanned=0,matched=0,inserted=0,unmatched=0;
-  const flush=async()=>{if(!batch.length)return;const chunk=batch.splice(0,batch.length);const values=[];const tuples=chunk.map(r=>{values.push(r.stock_id,r.holder_name,r.cik,r.period_end,r.shares_held,r.market_value,r.filing_date);const n=values.length;return '($'+(n-6)+'::bigint,$'+(n-5)+'::text,$'+(n-4)+'::text,$'+(n-3)+'::date,$'+(n-2)+'::numeric,$'+(n-1)+'::numeric,$'+n+'::date)';}).join(',');
-    const result=await sql.query('INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) VALUES '+tuples.replace(/\)\s*,/g,') ,') .replace(/\)$/g,')')+'',[]).catch(()=>null);
-    // Use JSON recordset for safe idempotent bulk insert; avoids relying on optional unique constraints.
+  const flush=async()=>{
+    if(!batch.length)return;
+    const chunk=batch.splice(0,batch.length);
     const payload=JSON.stringify(chunk);
-    const q="INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) SELECT v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,holder_name text,cik text,period_end date,shares_held numeric,market_value numeric,filing_date date) WHERE NOT EXISTS (SELECT 1 FROM institutional_holders h WHERE h.stock_id=v.stock_id AND h.holder_name=v.holder_name AND h.cik=v.cik AND h.period_end=v.period_end)";
-    const result=await sql.query(q+' RETURNING stock_id',[payload]);inserted+=result.length;
+    const q="INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) SELECT v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,holder_name text,cik text,period_end date,shares_held numeric,market_value numeric,filing_date date) WHERE NOT EXISTS (SELECT 1 FROM institutional_holders h WHERE h.stock_id=v.stock_id AND h.holder_name=v.holder_name AND h.cik=v.cik AND h.period_end=v.period_end) RETURNING stock_id";
+    const result=await sql.query(q,[payload]);
+    inserted+=result.length;
   };
   for await(const row of rows(infoFile)){
     scanned++;
