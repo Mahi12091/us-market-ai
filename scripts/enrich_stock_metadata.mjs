@@ -268,6 +268,9 @@ if (MASSIVE_KEY && detailCandidates.length) {
     const symbol = String(stock.symbol).toUpperCase();
     let detailStatus = 'checked';
     let detailError = null;
+    const claim = await sql.query(`INSERT INTO public.stock_metadata_enrichment_attempts (symbol, attempted_at, status)
+      VALUES ($1, now(), 'in_progress') ON CONFLICT (symbol) DO NOTHING RETURNING symbol`, [symbol]);
+    if (!claim.length) continue;
     const wait = 12500 - (Date.now() - lastDetailsRequestAt);
     if (wait > 0) await sleep(wait);
     try {
