@@ -158,13 +158,36 @@ async function main() {
   }
   await flush();
   const snapshots = await sql.query(
+    "WITH latest_period AS (" +
+    " SELECT stock_id,MAX(period_end) AS period_end FROM institutional_holders GROUP BY stock_id" +
+    "), inst AS (" +
+    " SELECT h.stock_id,h.period_end,SUM(h.shares_held) AS institutional_shares," +
+    " jsonb_agg(jsonb_build_object('holder_name',h.holder_name,'cik',h.cik,'shares_held',h.shares_held,'market_value',h.market_value,'period_end',h.period_end) ORDER BY h.market_value DESC NULLS LAST) AS top_holders" +
+    " FROM institutional_holders h JOIN latest_period lp ON lp.stock_id=h.stock_id AND lp.period_end=h.period_end GROUP BY h.stock_id,h.period_end" +
+    "), insider_latest AS (" +
+    " SELECT DISTINCT ON (stock_id,LOWER(COALESCE(insider_name,''))) stock_id,insider_name,shares_owned_after,transaction_date,filing_date" +
+    " FROM insider_transactions WHERE shares_owned_after>0 ORDER BY stock_id,LOWER(COALESCE(insider_name,'')),transaction_date DESC NULLS LAST,filing_date DESC NULLS LAST" +
+    "), insider AS (" +
+    " SELECT stock_id,SUM(shares_owned_after) AS insider_shares FROM insider_latest GROUP BY stock_id" +
+    "), cap AS (" +
+    " SELECT DISTINCT ON (stock_id) stock_id,shares_outstanding,float_shares FROM fundamentals" +
+    " WHERE shares_outstanding>0 ORDER BY stock_id,report_date DESC NULLS LAST" +
+    ") " +
     "INSERT INTO ownership_snapshots(stock_id,period_end,shares_outstanding,institutional_ownership_percent,insider_ownership_percent,float_shares,data_source,created_at,institutional_shares,insider_shares,top_holders) " +
-    "SELECT h.stock_id,h.period_end,f.shares_outstanding,CASE WHEN f.shares_outstanding>0 THEN SUM(h.shares_held)/f.shares_outstanding*100 ELSE NULL END,NULL,NULL,'SEC_13F_DATASET',NOW(),SUM(h.shares_held),NULL," +
-    "jsonb_agg(jsonb_build_object('holder_name',h.holder_name,'cik',h.cik,'shares_held',h.shares_held,'market_value',h.market_value,'period_end',h.period_end) ORDER BY h.market_value DESC NULLS LAST) " +
-    "FROM institutional_holders h LEFT JOIN LATERAL(SELECT shares_outstanding FROM fundamentals f0 WHERE f0.stock_id=h.stock_id AND f0.shares_outstanding>0 ORDER BY f0.report_date DESC NULLS LAST LIMIT 1) f ON true " +
-    "WHERE h.period_end=(SELECT MAX(h2.period_end) FROM institutional_holders h2 WHERE h2.stock_id=h.stock_id) " +
-    "AND NOT EXISTS(SELECT 1 FROM ownership_snapshots o WHERE o.stock_id=h.stock_id AND o.period_end=h.period_end) " +
-    "GROUP BY h.stock_id,h.period_end,f.shares_outstanding RETURNING stock_id"
+    "SELECT i.stock_id,i.period_end,c.shares_outstanding," +
+    " CASE WHEN c.shares_outstanding>0 THEN i.institutional_shares/c.shares_outstanding*100 ELSE NULL END," +
+    " CASE WHEN c.shares_outstanding>0 AND x.insider_shares>0 THEN x.insider_shares/c.shares_outstanding*100 ELSE NULL END," +
+    " c.float_shares,'SEC_13F_DATASET+SEC_FORM_3_4_5',NOW(),i.institutional_shares,x.insider_shares,i.top_holders " +
+    "FROM inst i LEFT JOIN cap c ON c.stock_id=i.stock_id LEFT JOIN insider x ON x.stock_id=i.stock_id " +
+    "ON CONFLICT (stock_id,period_end) DO UPDATE SET " +
+    "shares_outstanding=COALESCE(EXCLUDED.shares_outstanding,ownership_snapshots.shares_outstanding)," +
+    "institutional_ownership_percent=COALESCE(EXCLUDED.institutional_ownership_percent,ownership_snapshots.institutional_ownership_percent)," +
+    "insider_ownership_percent=COALESCE(EXCLUDED.insider_ownership_percent,ownership_snapshots.insider_ownership_percent)," +
+    "float_shares=COALESCE(EXCLUDED.float_shares,ownership_snapshots.float_shares)," +
+    "institutional_shares=COALESCE(EXCLUDED.institutional_shares,ownership_snapshots.institutional_shares)," +
+    "insider_shares=COALESCE(EXCLUDED.insider_shares,ownership_snapshots.insider_shares)," +
+    "top_holders=COALESCE(EXCLUDED.top_holders,ownership_snapshots.top_holders)," +
+    "data_source=EXCLUDED.data_source,created_at=NOW() RETURNING stock_id"
   );
   console.log(JSON.stringify({ source: 'SEC Form 13F quarterly dataset', dataset_url: url, stocks_in_universe: stocks.length, infotable_rows_scanned: scanned, matched_issuer_rows: matched, inserted_holdings: inserted, unmatched_rows: unmatched, ownership_snapshots_added: snapshots.length }, null, 2));
 }
