@@ -54,4 +54,5 @@ for (const stock of stocks) {
   } catch(e) { failed++; console.error('[news]',stock.symbol,String(e?.message||e).slice(0,180)); }
   await sleep(350);
 }
-console.log(JSON.stringify({source:'Google News RSS (free)',stocks_processed:stocks.length,articles_seen:seen,rows_written:written,failed_stocks:failed,remaining_strategy:'least-recently-updated stocks first',sentiment:'neutral unless independently computed'},null,2));
+await sql`UPDATE free_news_sync_state SET last_stock_id=${Number(stocks[stocks.length-1].id)},updated_at=NOW() WHERE id=1`;
+console.log(JSON.stringify({source:'Google News RSS (free)',stocks_processed:stocks.length,articles_seen:seen,rows_written:written,failed_stocks:failed,next_cursor:Number(stocks[stocks.length-1].id),sentiment:'neutral unless independently computed'},null,2));
