@@ -14,6 +14,21 @@ const BATCH_SIZE = Number(process.env.SEC_BATCH_SIZE || 500);
 const CONCURRENCY = Number(process.env.SEC_BATCH_CONCURRENCY || 5);
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'usmarketai-sec-v3-'));
 const execFileAsync = promisify(execFile);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function queryWithRetry(query, values, attempts = 6) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await sql.query(query, values);
+    } catch (error) {
+      const retryable = ['40P01', '40001', '55P03'].includes(String(error?.code || ''));
+      if (!retryable || attempt >= attempts) throw error;
+      const waitMs = Math.min(15000, 500 * (2 ** (attempt - 1)));
+      console.warn('[SEC] retrying transient database conflict', { code: error.code, attempt, waitMs });
+      await sleep(waitMs);
+    }
+  }
+}
 
 const date = v => v ? String(v).slice(0, 10) : null;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
@@ -59,7 +74,7 @@ async function upsert(table, rows, conflict, chunkSize = 250) {
       ') VALUES ' + tuples + ' ON CONFLICT (' + conflictCols.map(k => '"' + k + '"').join(',') +
       ') DO ' + (updates ? 'UPDATE SET ' + updates : 'NOTHING');
 
-    await sql.query(q, values);
+    await queryWithRetry(q, values);
   }
 }
 
