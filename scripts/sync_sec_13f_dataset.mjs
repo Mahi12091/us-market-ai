@@ -72,9 +72,25 @@ async function main() {
     readMap(submissionFile, 'ACCESSION_NUMBER'),
     readMap(coverFile, 'ACCESSION_NUMBER')
   ]);
+  const stockAliases = await sql.query(
+    "SELECT si.stock_id,si.identifier_type,si.identifier_value FROM public.stock_identifiers si"
+  );
   const nameMap = new Map();
   const symbolMap = new Map(stocks.map(s => [String(s.symbol || '').toUpperCase().trim(), s]).filter(([k]) => k));
   const cikMap = new Map(stocks.map(s => [String(s.cik || '').replace(/\D/g, '').replace(/^0+/, ''), s]).filter(([k]) => k));
+  for (const alias of stockAliases) {
+    const value = String(alias.identifier_value || '').trim();
+    if (!value) continue;
+    const target = stocks.find(s => Number(s.id) === Number(alias.stock_id));
+    if (!target) continue;
+    if (/cik/i.test(alias.identifier_type)) {
+      const key = value.replace(/\D/g, '').replace(/^0+/, '');
+      if (key && !cikMap.has(key)) cikMap.set(key, target);
+    } else if (/ticker|symbol/i.test(alias.identifier_type)) {
+      const key = value.toUpperCase();
+      if (key && !symbolMap.has(key)) symbolMap.set(key, target);
+    }
+  }
   for (const stock of stocks) {
     const key = norm(stock.company_name);
     if (!key) continue;
@@ -118,7 +134,9 @@ async function main() {
     const sub = submissions.get(accession);
     if (!cover || !sub) continue;
     const issuer = row.NAMEOFISSUER;
-    const stock = stockForIssuer(issuer, row.CIK || row.ISSUERCIK || row.CIKOFISSUER, row.TICKER || row.SYMBOL);
+    const issuerCik = row.ISSUERCIK || row.CIKOFISSUER || row.ISSUER_CIK || row.CIK || null;
+    const issuerTicker = row.TICKER || row.SYMBOL || row.TICKER_SYMBOL || null;
+    const stock = stockForIssuer(issuer, issuerCik, issuerTicker);
     const shares = Number(String(row.SSHPRNAMT || '').replace(/,/g, ''));
     const val = Number(String(row.VALUE || '').replace(/,/g, ''));
     if (!stock || !issuer || !Number.isFinite(shares) || shares <= 0) { unmatched++; continue; }
