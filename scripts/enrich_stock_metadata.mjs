@@ -143,7 +143,7 @@ function classifySector(industry, description) {
 }
 
 function classifySectorFromSic(sicCode) {
-  const sic = Number(String(sicCode ?? '').replace(/\\D/g, ''));
+  const sic = Number(String(sicCode ?? '').replace(/\D/g, ''));
   if (!Number.isFinite(sic) || sic <= 0) return null;
   if (sic >= 100 && sic < 1000) return 'Consumer Staples';
   if (sic >= 1000 && sic < 1300) return 'Basic Materials';
@@ -307,7 +307,7 @@ for (const stock of stocks) {
   const provider = profiles.get(String(stock.symbol).toUpperCase()) || {};
   const industry = provider.industry ?? stock.industry ?? null;
   const description = provider.description ?? stock.description ?? null;
-  const sector = provider.sector ?? stock.sector ?? classifySector(industry, description) ?? classifySectorFromSic(provider.sic_code);
+  const sector = provider.sector ?? stock.sector ?? classifySector(industry, description) ?? classifySectorFromSic(provider.sic_code) ?? 'Other';
   const website = provider.website_url ?? stock.website_url ?? null;
   // If a provider supplies the official site but not a hosted logo, use the site's favicon as a visual fallback.
   const domain = website ? (() => { try { return new URL(website.startsWith('http') ? website : `https://${website}`).hostname.replace(/^www\./, ''); } catch { return null; } })() : null;
