@@ -18,7 +18,7 @@ jobs:
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEWS_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
-      FREE_NEWS_STOCKS_PER_RUN: 100
+      FREE_NEWS_STOCKS_PER_RUN: 250
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
