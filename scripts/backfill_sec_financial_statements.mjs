@@ -24,7 +24,7 @@ async function download(url, file) {
     await sleep(2000*attempt);
   }
 }
-async function upsert(table, rows, conflict, chunkSize=100) {
+async function upsert(table, rows, conflict, chunkSize=100, doNothing=false) {
   const cols = conflict.split(',').map(x=>x.trim());
   for (let i=0;i<rows.length;i+=chunkSize) {
     const chunk=[...new Map(rows.slice(i,i+chunkSize).map(r=>[cols.map(k=>String(r[k]??'')).join('|'),r])).values()];
@@ -32,8 +32,8 @@ async function upsert(table, rows, conflict, chunkSize=100) {
     const keys=[...new Set(chunk.flatMap(r=>Object.keys(r)))], values=[];
     const tuples=chunk.map(row=>'('+keys.map(k=>{const v=row[k]??null;values.push(v!==null&&typeof v==='object'?JSON.stringify(v):v);return '$'+values.length;}).join(',')+')').join(',');
     const q='INSERT INTO public.'+table+' ('+keys.map(k=>'"'+k+'"').join(',')+') VALUES '+tuples+
-      ' ON CONFLICT ('+cols.map(k=>'"'+k+'"').join(',')+') DO UPDATE SET '+
-      keys.filter(k=>!cols.includes(k)).map(k=>'"'+k+'"=EXCLUDED."'+k+'"').join(',');
+      ' ON CONFLICT ('+cols.map(k=>'"'+k+'"').join(',')+') DO '+(doNothing?'NOTHING':'UPDATE SET '+
+      keys.filter(k=>!cols.includes(k)).map(k=>'"'+k+'"=EXCLUDED."'+k+'"').join(','));
     await sql.query(q,values);
   }
 }
@@ -65,7 +65,6 @@ const TAGS = {
   stock_based_compensation: ['ShareBasedCompensation'],
   dividends_paid: ['PaymentsOfDividendsCommonStock','PaymentsOfDividends'],
   buybacks: ['PaymentsForRepurchaseOfCommonStock'],
-  ebitda: ['OperatingIncomeLoss','DepreciationDepletionAndAmortization']
 };
 const GROUP = {
   income: new Set(['revenue','cost_of_revenue','gross_profit','operating_income','pretax_income','net_income','eps_basic','eps_diluted','shares_basic','shares_diluted','rd_expense','sga_expense','tax_expense']),
@@ -152,7 +151,7 @@ function buildRows(stock, items) {
     const price=num(stock.market_cap);
     const revenue=map.revenue, gross=map.gross_profit, op=map.operating_income, net=map.net_income, equity=map.shareholders_equity, assets=map.total_assets, debt=map.total_debt, cash=map.cash_and_equivalents, cfo=map.operating_cash_flow, capex=map.capital_expenditure;
     const fcf=cfo!=null&&capex!=null?cfo-capex:null;
-    fundamental={stock_id:stock.id,fiscal_period:'FY-'+String(latestEnd).slice(0,4),fiscal_year:Number(String(latestEnd).slice(0,4)),period_type:'annual',report_date:latestEnd,data_source:'SEC_XBRL_BULK',updated_at:now,market_cap:price, revenue,gross_profit:gross,operating_income:op,net_income:net,eps:map.eps_diluted??map.eps_basic,cost_of_revenue:map.cost_of_revenue,pretax_income:map.pretax_income,total_assets:assets,total_liabilities:map.total_liabilities,cash_and_equivalents:cash,total_debt:debt,shareholders_equity:equity,current_assets:map.current_assets,current_liabilities:map.current_liabilities,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,rd_expense:map.rd_expense,sga_expense:map.sga_expense,tax_expense:map.tax_expense,ebit:op,ebitda:map.ebitda??null};
+    fundamental={stock_id:stock.id,fiscal_period:'FY-'+String(latestEnd).slice(0,4),fiscal_year:Number(String(latestEnd).slice(0,4)),period_type:'annual',report_date:latestEnd,data_source:'SEC_XBRL_BULK',updated_at:now,market_cap:price, revenue,gross_profit:gross,operating_income:op,net_income:net,eps:map.eps_diluted??map.eps_basic,cost_of_revenue:map.cost_of_revenue,pretax_income:map.pretax_income,total_assets:assets,total_liabilities:map.total_liabilities,cash_and_equivalents:cash,total_debt:debt,shareholders_equity:equity,current_assets:map.current_assets,current_liabilities:map.current_liabilities,operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,rd_expense:map.rd_expense,sga_expense:map.sga_expense,tax_expense:map.tax_expense,ebit:op,ebitda:op!=null&&map.depreciation_amortization!=null?op+map.depreciation_amortization:null};
     if(revenue&&gross!=null)fundamental.gross_margin=gross/revenue*100;
     if(revenue&&op!=null)fundamental.operating_margin=op/revenue*100;
     if(revenue&&net!=null)fundamental.net_margin=net/revenue*100;
@@ -183,8 +182,8 @@ async function main() {
       if(!built.raw.length&&!built.line.length&&!built.normalized.length&&!built.fundamental){noFacts++;continue;}
       await upsert('threespread_financial_statements',built.raw,'stock_id,block_id',50);
       await upsert('threespread_statement_line_items',built.line,'stock_id,block_id,item_key',200);
-      await upsert('financial_statements',built.normalized,'stock_id,statement_type,period_type,fiscal_period',50);
-      if(built.fundamental) await upsert('fundamentals',[built.fundamental],'stock_id,fiscal_period',1);
+      await upsert('financial_statements',built.normalized,'stock_id,statement_type,period_type,fiscal_period',50,true);
+      if(built.fundamental) await upsert('fundamentals',[built.fundamental],'stock_id,fiscal_period',1,true);
       rawCount+=built.raw.length; lineCount+=built.line.length; normalizedCount+=built.normalized.length; fundamentalsCount+=built.fundamental?1:0; processed++;
     } catch(e) { console.error('[SEC XBRL] '+stock.symbol+' failed: '+e.message); }
     if((i+1)%100===0) console.log(JSON.stringify({progress:i+1,total:stocks.length,processed,rawCount,lineCount,normalizedCount,fundamentalsCount,noFacts}));
