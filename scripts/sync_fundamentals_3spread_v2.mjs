@@ -90,6 +90,14 @@ async function dbAll(table, params = {}, pageSize = 500) {
   return rows;
 }
 
+async function getFirstPage(path) {
+  const u = new URL(API + path);
+  const body = await getJson(u.pathname + u.search);
+  if (Array.isArray(body?.data)) return body.data;
+  if (Array.isArray(body)) return body;
+  return [];
+}
+
 function normalizedPeriodType(r) {
   const p = String(r.period_type ?? r.period ?? '').toLowerCase();
   if (p.includes('quarter') || p.includes('three_month') || p.includes('three month')) return 'quarterly';
@@ -258,9 +266,9 @@ for (const [index, stock] of stocks.entries()) {
     let fetched=false;
     if (!statements.length) {
       const apiSymbol=symbol.replace(/\./g,'-');
-      statements=await getAll(`/v1/financials/statements?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`);
+      statements=await getFirstPage(`/v1/financials/statements?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`);
       fetched=true;
-      if (!statements.length && apiSymbol!==symbol) statements=await getAll(`/v1/financials/statements?ticker=${encodeURIComponent(symbol)}&version=latest&limit=10`);
+      if (!statements.length && apiSymbol!==symbol) statements=await getFirstPage(`/v1/financials/statements?ticker=${encodeURIComponent(symbol)}&version=latest&limit=10`);
     }
     if (fetched && statements.length) {
       // Keep canonical statement snapshots, but do not persist the full raw payload twice.
@@ -299,8 +307,8 @@ for (const [index, stock] of stocks.entries()) {
     if (DEEP) {
       const apiSymbol=symbol.replace(/\./g,'-');
       [metrics,ratios]=await Promise.all([
-        getAll(`/v1/financials/metrics?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=100`),
-        getAll(`/v1/financials/ratios?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=100`)
+        getFirstPage(`/v1/financials/metrics?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=100`),
+        getFirstPage(`/v1/financials/ratios?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=100`)
       ]);
       await upsertBatch('threespread_metrics',metrics.filter(r=>r?.category&&r?.period_end).map(r=>({stock_id:stockId,ticker:symbol,period_end:r.period_end,period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??null,fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),category:r.category,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r})),'stock_id,category,period_end,period_type');
       const normalizedRatios=ratios.map(r=>({ ...r, _ratio_name:r.ratio_name??r.name??r.ratio??r.metric_name??r.category??null, _period_end:r.period_end??r.period_of_report??null }));
