@@ -1,0 +1,37 @@
+name: SEC XBRL Financial Coverage Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backfill_sec_financial_statements.mjs'
+      - '.github/workflows/sec-xbrl-financial-backfill.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sec-xbrl-financial-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: 'US Market AI research contact admin@example.com'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Validate secrets
+        run: |
+          set -euo pipefail
+          test -n "$NEON_DATABASE_URL" || (echo 'NEON_DATABASE_URL is not configured'; exit 1)
+      - name: Ingest real SEC XBRL financial facts for missing coverage
+        run: node scripts/backfill_sec_financial_statements.mjs
