@@ -36,7 +36,7 @@ async function main(){
 
 async function syncInstitutionalHoldings() {
   const filings = await sql.query(
-    "SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,s.company_name AS filer_name,s.symbol AS filer_symbol " +
+    "SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_period,sf.filing_url,s.company_name AS filer_name,s.symbol AS filer_symbol " +
     "FROM public.sec_filings sf JOIN public.stocks s ON s.id=sf.stock_id " +
     "WHERE sf.form_type IN ('13F-HR','13F-HR/A') AND sf.filing_date >= CURRENT_DATE - ($1::int * INTERVAL '1 day') " +
     "ORDER BY sf.filing_date DESC LIMIT $2",
@@ -63,7 +63,7 @@ async function syncInstitutionalHoldings() {
       const infoName = files.find(name => /infotable.*\.xml$/i.test(name)) || files.find(name => /infotable/i.test(name) && /\.xml$/i.test(name));
       if (!infoName) { unmatched++; continue; }
       const xml = await get(base + '/' + infoName);
-      const periodEnd = date(tag(xml, 'periodOfReport')) || date(filing.filing_date);
+      const periodEnd = date(filing.filing_period) || date(tag(xml, 'periodOfReport')) || date(filing.filing_date);
       const blocks = xml.match(/<(?:[A-Za-z0-9_.-]+:)?infoTable\b[^>]*>[\s\S]*?<\/(?:[A-Za-z0-9_.-]+:)?infoTable\s*>/gi) || [];
       if (!blocks.length) { unmatched++; continue; }
       parsed++;
