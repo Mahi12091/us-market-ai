@@ -1,6 +1,12 @@
 name: 3spread Controlled Fundamental Sync
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/3spread-controlled-fundamental-sync.yml'
+      - 'scripts/sync_fundamentals_3spread_v2.mjs'
+      - 'scripts/run_3spread_resumable.mjs'
   workflow_dispatch:
     inputs:
       batch_number:
@@ -31,7 +37,7 @@ jobs:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
-      SYNC_3SPREAD_METRICS_RATIOS: 'false'
+      SYNC_3SPREAD_METRICS_RATIOS: 'true'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -110,12 +116,24 @@ jobs:
           fs.writeFileSync(path, source);
           console.log('[3spread] primary API key + exact stock identity + conflict-safe financial writes configured');
           NODE
-      - name: Run true-resumable 3spread sync
+      - name: Run resumable metrics and ratios backfill across all stock batches
         env:
-          SYNC_BATCH_NUMBER: ${{ inputs.batch_number }}
-          SYNC_BATCH_SIZE_INPUT: ${{ inputs.batch_size }}
+          SYNC_BATCH_SIZE_INPUT: '250'
           SYNC_BATCH_DELAY_MS: '75'
-        run: node scripts/run_3spread_resumable.mjs
+        run: |
+          set +e
+          for batch in $(seq 1 22); do
+            echo "[3spread-phase1] Starting batch $batch/22"
+            SYNC_BATCH_NUMBER="$batch" node scripts/run_3spread_resumable.mjs
+            status=$?
+            if [ "$status" -eq 2 ]; then
+              echo "[3spread-phase1] Provider rate limit or transient outage; checkpoint saved. Stop here so the next run resumes safely."
+              exit 0
+            fi
+            if [ "$status" -ne 0 ]; then
+              echo "[3spread-phase1] Batch $batch returned $status; continue to later batches because failures are checkpointed."
+            fi
+          done
       - name: Verify 3spread raw tables and resumable progress
         run: |
           node --input-type=module <<'NODE'
