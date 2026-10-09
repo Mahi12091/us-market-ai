@@ -150,8 +150,8 @@ function classifySectorFromSic(sicCode) {
   if (sic >= 1300 && sic < 1400) return 'Energy';
   if (sic >= 1400 && sic < 1800) return 'Industrials';
   if (sic >= 2000 && sic < 2100) return 'Consumer Staples';
-  if (sic >= 2800 && sic < 2840) return 'Basic Materials';
   if (sic >= 2830 && sic < 2840) return 'Healthcare';
+  if (sic >= 2800 && sic < 2830) return 'Basic Materials';
   if (sic >= 3500 && sic < 3600) return 'Technology';
   if (sic >= 3600 && sic < 3700) return 'Technology';
   if (sic >= 3700 && sic < 3800) return 'Industrials';
