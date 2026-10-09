@@ -103,9 +103,11 @@ async function main() {
     const chunk = batch; batch = [];
     const payload = JSON.stringify(chunk);
     const q = "INSERT INTO institutional_holders(stock_id,holder_name,cik,period_end,shares_held,market_value,filing_date,data_source,created_at) " +
-      "SELECT v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() " +
+      "SELECT DISTINCT ON (v.stock_id,v.holder_name,v.period_end) v.stock_id,v.holder_name,v.cik,v.period_end,v.shares_held,v.market_value,v.filing_date,'SEC_13F_DATASET',NOW() " +
       "FROM jsonb_to_recordset($1::jsonb) AS v(stock_id bigint,holder_name text,cik text,period_end date,shares_held numeric,market_value numeric,filing_date date) " +
-      "WHERE NOT EXISTS (SELECT 1 FROM institutional_holders h WHERE h.stock_id=v.stock_id AND h.holder_name=v.holder_name AND h.cik=v.cik AND h.period_end=v.period_end) RETURNING stock_id";
+      "ORDER BY v.stock_id,v.holder_name,v.period_end,v.market_value DESC NULLS LAST " +
+      "ON CONFLICT (stock_id,holder_name,period_end) DO UPDATE SET cik=EXCLUDED.cik,shares_held=EXCLUDED.shares_held,market_value=EXCLUDED.market_value,filing_date=EXCLUDED.filing_date,data_source=EXCLUDED.data_source,created_at=NOW() " +
+      "RETURNING stock_id";
     const result = await sql.query(q, [payload]);
     inserted += result.length;
   };
