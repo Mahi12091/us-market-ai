@@ -25,7 +25,7 @@ jobs:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       SEC_BATCH_SIZE: 500
-      SEC_BATCH_CONCURRENCY: 5
+      SEC_BATCH_CONCURRENCY: 2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
