@@ -68,20 +68,20 @@ async function main() {
   const coverFile = find('COVERPAGE'); const infoFile = find('INFOTABLE'); const submissionFile = find('SUBMISSION');
   if (!coverFile || !infoFile || !submissionFile) throw new Error('SEC 13F ZIP missing expected files: ' + files.map(f => path.basename(f)).join(', '));
   const [stocks, submissions, coverpages] = await Promise.all([
-    sql.query("SELECT id,symbol,company_name FROM stocks WHERE is_active=true AND asset_type='stock'"),
+    sql.query("SELECT id,symbol,company_name,cik FROM stocks WHERE is_active=true AND asset_type='stock'"),
     readMap(submissionFile, 'ACCESSION_NUMBER'),
     readMap(coverFile, 'ACCESSION_NUMBER')
   ]);
   const nameMap = new Map();
   const symbolMap = new Map(stocks.map(s => [String(s.symbol || '').toUpperCase().trim(), s]).filter(([k]) => k));
-  const cikMap = new Map(stocks.map(s => [String(s.cik || '').replace(/\\D/g, '').replace(/^0+/, ''), s]).filter(([k]) => k));
+  const cikMap = new Map(stocks.map(s => [String(s.cik || '').replace(/\D/g, '').replace(/^0+/, ''), s]).filter(([k]) => k));
   for (const stock of stocks) {
     const key = norm(stock.company_name);
     if (!key) continue;
     if (nameMap.has(key)) nameMap.set(key, null); else nameMap.set(key, stock);
   }
   const stockForIssuer = (issuer, issuerCik = null, issuerTicker = null) => {
-    const cikKey = String(issuerCik || '').replace(/\\D/g, '').replace(/^0+/, '');
+    const cikKey = String(issuerCik || '').replace(/\D/g, '').replace(/^0+/, '');
     if (cikKey && cikMap.has(cikKey)) return cikMap.get(cikKey);
     const tickerKey = String(issuerTicker || '').toUpperCase().trim();
     if (tickerKey && symbolMap.has(tickerKey)) return symbolMap.get(tickerKey);
