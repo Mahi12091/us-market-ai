@@ -84,7 +84,7 @@ function selectFacts(facts) {
       if (!fact?.units) continue;
       const unitNames=Object.keys(fact.units);
       const preferred=field.startsWith('eps_')?unitNames.find(x=>x.includes('per')):field.startsWith('shares_')?unitNames.find(x=>x==='shares'):unitNames.find(x=>x==='USD')||unitNames[0];
-      const values=(fact.units[preferred]||[]).filter(x=>/^(10-K|10-Q|20-F|40-F)$/.test(x.form||'')&&x.end&&num(x.val)!==null);
+      const values=(fact.units[preferred]||[]).filter(x=>/^(10-K|10-Q|20-F|40-F|N-CSR|N-CSRS|N-CSR\/A|N-CSRS\/A|N-2|N-2\/A|N-30D|N-30D\/A|N-1A|N-1A\/A)$/i.test(x.form||'')&&x.end&&num(x.val)!==null);
       if (values.length) { chosen={tag,unit:preferred,values}; break; }
     }
     if (chosen) result.set(field,chosen);
