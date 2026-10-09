@@ -93,9 +93,14 @@ for (let i = 0; i < stocks.length; i++) {
   const stock = stocks[i];
   const [existing] = await sql`SELECT status, attempts FROM public.three_spread_sync_progress WHERE stock_id = ${stock.id}`;
 
-  if (existing?.status === 'completed') {
+  const [deepCoverage] = await sql`
+    SELECT
+      EXISTS (SELECT 1 FROM public.threespread_metrics WHERE stock_id = ${stock.id}) AS has_metrics,
+      EXISTS (SELECT 1 FROM public.threespread_ratios WHERE stock_id = ${stock.id}) AS has_ratios
+  `;
+  if (existing?.status === 'completed' && deepCoverage?.has_metrics && deepCoverage?.has_ratios) {
     skipped++;
-    console.log(`[3spread-resumable] ${i + 1}/${stocks.length} ${stock.symbol} already completed; skip`);
+    console.log(`[3spread-resumable] ${i + 1}/${stocks.length} ${stock.symbol} all target tables complete; skip`);
     continue;
   }
 
