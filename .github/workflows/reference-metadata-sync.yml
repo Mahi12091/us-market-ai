@@ -7,7 +7,6 @@ on:
   push:
     paths:
       - 'scripts/seed_us_stock_universe.mjs'
-      - 'scripts/enrich_stock_metadata.mjs'
       - '.github/workflows/reference-metadata-sync.yml'
 
 permissions:
@@ -53,10 +52,6 @@ jobs:
 
       - name: Refresh 5,000-stock universe
         run: node scripts/seed_us_stock_universe.mjs
-
-      - name: Enrich stock metadata
-        continue-on-error: true
-        run: node scripts/enrich_stock_metadata.mjs
 
       - name: Verify stock universe
         run: |
