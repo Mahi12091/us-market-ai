@@ -179,9 +179,10 @@ await sql.query(`CREATE TABLE IF NOT EXISTS public.stock_metadata_enrichment_att
 )`);
 const attemptedRows = await sql.query(`SELECT symbol, status, attempted_at FROM public.stock_metadata_enrichment_attempts`);
 const nowMs = Date.now();
+const attemptBySymbol = new Map(attemptedRows.map((row) => [String(row.symbol).toUpperCase(), row]));
 const recentlyAttemptedSymbols = new Set(attemptedRows.filter((row) => {
   const ageMs = nowMs - new Date(row.attempted_at).getTime();
-  if (row.status === 'checked') return ageMs < 30 * 24 * 60 * 60 * 1000;
+  if (row.status === 'checked') return ageMs < 6 * 60 * 60 * 1000;
   if (row.status === 'error') return ageMs < 6 * 60 * 60 * 1000;
   if (row.status === 'in_progress') return ageMs < 2 * 60 * 60 * 1000;
   return false;
@@ -267,6 +268,14 @@ const detailCandidates = stocks.filter((stock) => {
   const required = ['sector', 'industry', 'description', 'website_url', 'logo_url'];
   const hasMissing = required.some((field) => !clean(provider[field] ?? stock[field]));
   return hasMissing && !recentlyAttemptedSymbols.has(symbol);
+}).sort((a, b) => {
+  // Exhaust never-attempted symbols before retrying older checked/error symbols.
+  // Otherwise a small alphabetic batch can loop forever once its retry window expires.
+  const attemptA = attemptBySymbol.get(String(a.symbol).toUpperCase());
+  const attemptB = attemptBySymbol.get(String(b.symbol).toUpperCase());
+  if (!attemptA && attemptB) return -1;
+  if (attemptA && !attemptB) return 1;
+  return new Date(attemptA?.attempted_at ?? 0).getTime() - new Date(attemptB?.attempted_at ?? 0).getTime();
 }).slice(0, Math.max(1, Number(process.env.MASSIVE_DETAILS_BATCH_SIZE || 350)));
 
 let detailsAttempted = 0;
