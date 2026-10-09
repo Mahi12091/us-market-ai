@@ -122,7 +122,7 @@ function normalizeMassive(row) {
     currency: clean(row.currency_name)?.toUpperCase(),
     country: null,
     sic_code: clean(row.sic_code),
-    source: 'Massive reference tickers',
+    source: 'Massive reference ticker details',
   };
 }
 
@@ -142,8 +142,35 @@ function classifySector(industry, description) {
   return null;
 }
 
+function classifySectorFromSic(sicCode) {
+  const sic = Number(String(sicCode ?? '').replace(/\\D/g, ''));
+  if (!Number.isFinite(sic) || sic <= 0) return null;
+  if (sic >= 100 && sic < 1000) return 'Consumer Staples';
+  if (sic >= 1000 && sic < 1300) return 'Basic Materials';
+  if (sic >= 1300 && sic < 1400) return 'Energy';
+  if (sic >= 1400 && sic < 1800) return 'Industrials';
+  if (sic >= 2000 && sic < 2100) return 'Consumer Staples';
+  if (sic >= 2800 && sic < 2840) return 'Basic Materials';
+  if (sic >= 2830 && sic < 2840) return 'Healthcare';
+  if (sic >= 3500 && sic < 3600) return 'Technology';
+  if (sic >= 3600 && sic < 3700) return 'Technology';
+  if (sic >= 3700 && sic < 3800) return 'Industrials';
+  if (sic >= 3800 && sic < 3900) return 'Healthcare';
+  if (sic >= 4000 && sic < 4800) return 'Industrials';
+  if (sic >= 4800 && sic < 4900) return 'Communication Services';
+  if (sic >= 4900 && sic < 5000) return 'Utilities';
+  if (sic >= 5000 && sic < 5200) return 'Industrials';
+  if (sic >= 5200 && sic < 6000) return 'Consumer Discretionary';
+  if (sic >= 6000 && sic < 6500) return 'Financial Services';
+  if (sic >= 6500 && sic < 6800) return 'Real Estate';
+  if (sic >= 7000 && sic < 7400) return 'Consumer Discretionary';
+  if (sic >= 8000 && sic < 8100) return 'Healthcare';
+  if (sic >= 8700 && sic < 8800) return 'Industrials';
+  return 'Other';
+}
+
 const stocks = await sql.query(`
-  SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country
+  SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country, data_last_verified_at
   FROM public.stocks
   WHERE asset_type = 'stock' AND is_active IS TRUE
   ORDER BY symbol
@@ -215,13 +242,58 @@ if (MASSIVE_KEY) {
   console.warn('[metadata] MASSIVE_API_KEY is not configured; skipped Massive fallback.');
 }
 
+
+const detailCandidates = stocks.filter((stock) => {
+  const symbol = String(stock.symbol).toUpperCase();
+  const provider = profiles.get(symbol) || {};
+  const required = ['sector', 'industry', 'description', 'website_url', 'logo_url'];
+  const hasMissing = required.some((field) => !clean(provider[field] ?? stock[field]));
+  const verifiedAt = stock.data_last_verified_at ? new Date(stock.data_last_verified_at).getTime() : 0;
+  const recentlyChecked = verifiedAt > Date.now() - 30 * 24 * 60 * 60 * 1000;
+  return hasMissing && !recentlyChecked;
+}).slice(0, Math.max(1, Number(process.env.MASSIVE_DETAILS_BATCH_SIZE || 350)));
+
+let detailsAttempted = 0;
+let lastDetailsRequestAt = 0;
+if (MASSIVE_KEY && detailCandidates.length) {
+  console.log(`[metadata] Fetching detailed Massive profiles for ${detailCandidates.length} stocks (resume-safe batch).`);
+  for (const stock of detailCandidates) {
+    const symbol = String(stock.symbol).toUpperCase();
+    const wait = 12500 - (Date.now() - lastDetailsRequestAt);
+    if (wait > 0) await sleep(wait);
+    try {
+      const url = new URL(`/v3/reference/tickers/${encodeURIComponent(symbol)}`, MASSIVE_BASE);
+      url.searchParams.set('apiKey', MASSIVE_KEY);
+      lastDetailsRequestAt = Date.now();
+      const { body } = await get(url, 'Massive ticker details');
+      const payload = JSON.parse(body);
+      const raw = payload.results;
+      if (raw && typeof raw === 'object') {
+        const detail = normalizeMassive(raw);
+        if (detail) {
+          const previous = profiles.get(symbol) || {};
+          const merged = { ...previous };
+          for (const [key, value] of Object.entries(detail)) {
+            if (key !== 'symbol' && value != null && (merged[key] == null || ['industry', 'description', 'website_url', 'logo_url', 'sic_code', 'exchange'].includes(key))) merged[key] = value;
+          }
+          profiles.set(symbol, merged);
+        }
+      }
+    } catch (error) {
+      console.warn(`[metadata] Detail lookup failed for ${symbol}: ${error.message}`);
+    }
+    detailsAttempted += 1;
+    if (detailsAttempted % 25 === 0) console.log(`[metadata] detailed profiles checked ${detailsAttempted}/${detailCandidates.length}`);
+  }
+}
+
 let updated = 0;
 let fieldsFilled = { exchange: 0, sector: 0, industry: 0, description: 0, website_url: 0, logo_url: 0 };
 for (const stock of stocks) {
   const provider = profiles.get(String(stock.symbol).toUpperCase()) || {};
   const industry = provider.industry ?? stock.industry ?? null;
   const description = provider.description ?? stock.description ?? null;
-  const sector = provider.sector ?? stock.sector ?? classifySector(industry, description);
+  const sector = provider.sector ?? stock.sector ?? classifySector(industry, description) ?? classifySectorFromSic(provider.sic_code);
   const website = provider.website_url ?? stock.website_url ?? null;
   // If a provider supplies the official site but not a hosted logo, use the site's favicon as a visual fallback.
   const domain = website ? (() => { try { return new URL(website.startsWith('http') ? website : `https://${website}`).hostname.replace(/^www\./, ''); } catch { return null; } })() : null;
@@ -247,9 +319,10 @@ for (const stock of stocks) {
       market_cap = COALESCE($8, market_cap),
       currency = COALESCE(NULLIF($9, ''), currency),
       country = COALESCE(NULLIF($10, ''), country),
+      data_last_verified_at = CASE WHEN $12::boolean THEN now() ELSE data_last_verified_at END,
       updated_at = now()
     WHERE id = $11
-  `, [name ?? null, exchange, sector, industry, description, website, logo, marketCap, currency, country, stock.id]);
+  `, [name ?? null, exchange, sector, industry, description, website, logo, marketCap, currency, country, stock.id, detailsAttempted > 0 && detailCandidates.some((candidate) => candidate.id === stock.id)]);
   updated += 1;
   if (updated % 500 === 0) console.log(`[metadata] updated ${updated}/${stocks.length}`);
 }
@@ -274,6 +347,8 @@ const result = {
   massive_pages: massivePages,
   massive_matched_records: massiveMatches,
   massive_unavailable: massiveUnavailable,
+  massive_detail_candidates: detailCandidates.length,
+  massive_details_attempted: detailsAttempted,
   newly_filled_by_field: fieldsFilled,
   remaining_missing: audit[0] ?? null,
 };
