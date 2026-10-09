@@ -6,17 +6,35 @@ const DAYS=Number(process.env.SEC_INSIDER_DAYS||180);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const clean=s=>String(s||'').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').trim();
 const tag=(xml,name)=>{const m=xml.match(new RegExp('<(?:[A-Za-z0-9_.-]+:)?'+name+'[^>]*>([\\s\\S]*?)</(?:[A-Za-z0-9_.-]+:)?'+name+'>','i'));return m?clean(m[1]):null};
-const date=s=>s?String(s).slice(0,10):null;
+const date=s=>{if(!s)return null;const raw=String(s).trim();const iso=raw.match(/^(\\d{4}-\\d{2}-\\d{2})/);if(iso&&Number.isFinite(Date.parse(iso[1])))return iso[1];if(!/\\b\\d{4}\\b/.test(raw))return null;const parsed=Date.parse(raw);return Number.isFinite(parsed)?new Date(parsed).toISOString().slice(0,10):null;};
 const num=s=>{const n=Number(String(s||'').replace(/,/g,''));return Number.isFinite(n)?n:null};
 async function get(url){const r=await fetch(url,{headers:{'User-Agent':UA,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error('SEC '+r.status);return r.text()}
-async function ownershipXml(url){return get(url)}
+async function ownershipXml(url){
+ const parsed=new URL(url),parts=parsed.pathname.split('/').filter(Boolean),edgar=parts.indexOf('edgar');
+ if(edgar<0||!parts[edgar+3])return get(url);
+ const base=parsed.origin+'/'+parts.slice(0,edgar+4).join('/');
+ let items=[];
+ try{const listing=JSON.parse(await get(base+'/index.json'));items=(listing.directory?.item||[]).map(x=>x.name).filter(n=>/\\.xml$/i.test(n)&&!n.includes('/')&&!/^xsl/i.test(n));}
+ catch{return get(url);}
+ const score=name=>/^(ownership|form[345]|doc[345])[^/]*\\.xml$/i.test(name)?0:/^primary_doc\\.xml$/i.test(name)?1:2;
+ items.sort((a,b)=>score(a)-score(b));
+ for(const name of items){
+  try{
+   const xml=await get(base+'/'+name);
+   const owner=/<(?:[A-Za-z0-9_.-]+:)?rptOwnerName\\b/i.test(xml);
+   const tx=/<(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\\b/i.test(xml);
+   if(owner&&tx)return xml;
+  }catch{}
+ }
+ return get(url);
+}
 async function main(){
  const rows=await sql`SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,sf.form_type FROM sec_filings sf WHERE sf.form_type IN ('3','3/A','4','4/A','5','5/A') AND sf.filing_date >= CURRENT_DATE - (${DAYS} * INTERVAL '1 day') ORDER BY sf.filing_date DESC LIMIT ${MAX}`;
  let inserted=0,skipped=0,failed=0;
  for(const f of rows)try{
   const xml=await ownershipXml(f.filing_url);if(!xml){skipped++;continue}
   const owner=tag(xml,'rptOwnerName'),title=tag(xml,'officerTitle')||tag(xml,'otherText');
-  const transactions=xml.match(/<(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\b[^>]*>[\s\S]*?<\/(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\s*>/gi)||[];
+  const transactions=[...(xml.match(/<(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\\b[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z0-9_.-]+:)?nonDerivativeTransaction\\s*>/gi)||[]),...(xml.match(/<(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\\b[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z0-9_.-]+:)?derivativeTransaction\\s*>/gi)||[])];
   if(!owner||!transactions.length){skipped++;continue}
   let insertedForFiling=0;
   for(const tx of transactions){
