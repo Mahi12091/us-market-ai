@@ -37,6 +37,7 @@ jobs:
     timeout-minutes: 360
     env:
       THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
+      THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
@@ -54,7 +55,7 @@ jobs:
       - name: Validate secrets
         run: |
           set -euo pipefail
-          for name in THREESPREAD_API_KEY NEON_DATABASE_URL; do
+          for name in THREESPREAD_API_KEY THREESPREAD_API_KEY2 NEON_DATABASE_URL; do
             if [ -z "${!name:-}" ]; then echo "$name is not configured."; exit 1; fi
           done
       - name: Apply Neon schema
@@ -83,8 +84,6 @@ jobs:
           import fs from 'node:fs';
           const path = 'scripts/sync_fundamentals_3spread_v2.mjs';
           let source = fs.readFileSync(path, 'utf8');
-          source = source.replaceAll('THREESPREAD_API_KEY2', 'THREESPREAD_API_KEY');
-
           const oldSelection = `const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
           const startOffset = Math.max(0, Number(process.env.SYNC_START_OFFSET || 0));
           const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
@@ -117,7 +116,7 @@ jobs:
           if (source.includes(oldCall)) source = source.replace(oldCall, newCall);
 
           fs.writeFileSync(path, source);
-          console.log('[3spread] primary API key + exact stock identity + conflict-safe financial writes configured');
+          console.log('[3spread] API key 2 + exact stock identity + conflict-safe financial writes configured');
           NODE
       - name: Run resumable metrics and ratios backfill across all stock batches
         env:
