@@ -169,6 +169,15 @@ function classifySectorFromSic(sicCode) {
   return 'Other';
 }
 
+await sql.query(`CREATE TABLE IF NOT EXISTS public.stock_metadata_enrichment_attempts (
+  symbol text PRIMARY KEY,
+  attempted_at timestamptz NOT NULL DEFAULT now(),
+  status text,
+  last_error text
+)`);
+const attemptedRows = await sql.query(`SELECT symbol FROM public.stock_metadata_enrichment_attempts WHERE attempted_at > now() - interval '30 days'`);
+const recentlyAttemptedSymbols = new Set(attemptedRows.map((row) => String(row.symbol).toUpperCase()));
+
 const stocks = await sql.query(`
   SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country, data_last_verified_at
   FROM public.stocks
@@ -248,9 +257,7 @@ const detailCandidates = stocks.filter((stock) => {
   const provider = profiles.get(symbol) || {};
   const required = ['sector', 'industry', 'description', 'website_url', 'logo_url'];
   const hasMissing = required.some((field) => !clean(provider[field] ?? stock[field]));
-  const verifiedAt = stock.data_last_verified_at ? new Date(stock.data_last_verified_at).getTime() : 0;
-  const recentlyChecked = verifiedAt > Date.now() - 30 * 24 * 60 * 60 * 1000;
-  return hasMissing && !recentlyChecked;
+  return hasMissing && !recentlyAttemptedSymbols.has(symbol);
 }).slice(0, Math.max(1, Number(process.env.MASSIVE_DETAILS_BATCH_SIZE || 350)));
 
 let detailsAttempted = 0;
@@ -259,6 +266,8 @@ if (MASSIVE_KEY && detailCandidates.length) {
   console.log(`[metadata] Fetching detailed Massive profiles for ${detailCandidates.length} stocks (resume-safe batch).`);
   for (const stock of detailCandidates) {
     const symbol = String(stock.symbol).toUpperCase();
+    let detailStatus = 'checked';
+    let detailError = null;
     const wait = 12500 - (Date.now() - lastDetailsRequestAt);
     if (wait > 0) await sleep(wait);
     try {
@@ -280,8 +289,13 @@ if (MASSIVE_KEY && detailCandidates.length) {
         }
       }
     } catch (error) {
+      detailStatus = 'error';
+      detailError = String(error.message).slice(0, 500);
       console.warn(`[metadata] Detail lookup failed for ${symbol}: ${error.message}`);
     }
+    await sql.query(`INSERT INTO public.stock_metadata_enrichment_attempts (symbol, attempted_at, status, last_error)
+      VALUES ($1, now(), $2, $3)
+      ON CONFLICT (symbol) DO UPDATE SET attempted_at = EXCLUDED.attempted_at, status = EXCLUDED.status, last_error = EXCLUDED.last_error`, [symbol, detailStatus, detailError]);
     detailsAttempted += 1;
     if (detailsAttempted % 25 === 0) console.log(`[metadata] detailed profiles checked ${detailsAttempted}/${detailCandidates.length}`);
   }
