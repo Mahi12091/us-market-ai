@@ -6,7 +6,8 @@ on:
     paths:
       - '.github/workflows/free-sec-intelligence-sync.yml'
       - 'scripts/sync_sec_free_bulk_v3.mjs'
-      - 'scripts/sync_sec_insider_free_v2.mjs'\n      - 'scripts/sync_sec_13f_dataset.mjs'
+      - 'scripts/sync_sec_insider_free_v2.mjs'
+      - 'scripts/sync_sec_13f_dataset.mjs'
       - 'scripts/audit_sec_coverage.mjs'
   workflow_dispatch:
   schedule:
@@ -56,9 +57,27 @@ jobs:
       - name: SEC insider transactions
         run: node scripts/sync_sec_insider_free_v2.mjs
 
+  sec-13f-dataset:
+    name: Official SEC 13F dataset
+    needs: sec-bulk-xbrl
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Ingest official quarterly 13F dataset
+        run: node scripts/sync_sec_13f_dataset.mjs
+
   sec-coverage-audit:
     name: SEC coverage audit
-    needs: [sec-bulk-xbrl, sec-insider]
+    needs: [sec-bulk-xbrl, sec-insider, sec-13f-dataset]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
