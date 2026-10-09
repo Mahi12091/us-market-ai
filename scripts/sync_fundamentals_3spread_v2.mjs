@@ -296,7 +296,7 @@ for (const [index, stock] of stocks.entries()) {
     await upsertBatch('financial_statements',normalized,'stock_id,statement_type,period_type,fiscal_period');
 
     let metrics=[], ratios=[];
-    if (DEEP && fetched) {
+    if (DEEP) {
       const apiSymbol=symbol.replace(/\./g,'-');
       [metrics,ratios]=await Promise.all([
         getAll(`/v1/financials/metrics?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`),
