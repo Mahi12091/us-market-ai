@@ -29,7 +29,7 @@ async function main(){
   await fs.promises.mkdir(path.join(TMP,'data'),{recursive:true});
   await execFileAsync('unzip',['-q','-o',zip,'-d',path.join(TMP,'data')]);
   const files=(await fs.promises.readdir(path.join(TMP,'data'),{recursive:true})).map(f=>path.join(TMP,'data',f)).filter(f=>fs.existsSync(f)&&fs.statSync(f).isFile());
-  const find=name=>files.find(f=>path.basename(f).toUpperCase()===name+'.TXT')||files.find(f=>path.basename(f).toUpperCase()===name+'.CSV')||files.find(f=>path.basename(f).toUpperCase()===name);
+  const find=name=>files.find(f=>path.basename(f).toUpperCase()===name+'.TXT')||files.find(f=>path.basename(f).toUpperCase()===name+'.CSV')||files.find(f=>path.basename(f).toUpperCase()===name+'.TSV')||files.find(f=>path.basename(f).toUpperCase()===name);
   const coverFile=find('COVERPAGE'), infoFile=find('INFOTABLE'), submissionFile=find('SUBMISSION');
   if(!coverFile||!infoFile||!submissionFile)throw new Error('SEC 13F ZIP missing expected SUBMISSION/COVERPAGE/INFOTABLE files: '+files.map(f=>path.basename(f)).join(','));
   const [stocks,submissions,coverpages]=await Promise.all([
