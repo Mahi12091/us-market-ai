@@ -8,12 +8,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const decode = s => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
 const tag = (xml, name) => { const m = xml.match(new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>', 'i')); return m ? decode(m[1].replace(/<[^>]+>/g, '')) : null; };
 function parseItems(xml) {
-  return [...xml.matchAll(/<item[^>]*>([\\s\\S]*?)<\\/item>/gi)].map(m => {
+  return [...xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi)].map(m => {
     const x=m[1]; const title=tag(x,'title'); const link=tag(x,'link') || tag(x,'guid'); const pub=tag(x,'pubDate');
     const source=tag(x,'source'); const desc=tag(x,'description');
     const parsed=pub ? new Date(pub) : null;
     return {title, url:link, published_at:parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null, source, summary:desc};
-  }).filter(x => x.title && x.url && /^https?:\\/\\//i.test(x.url));
+  }).filter(x => x.title && x.url && (x.url.startsWith('http://') || x.url.startsWith('https://')));
 }
 async function fetchRss(stock) {
   const q = '"' + String(stock.symbol).replace(/[^A-Za-z0-9.-]/g,'') + '" stock';
