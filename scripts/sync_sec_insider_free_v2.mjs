@@ -85,7 +85,7 @@ async function syncInstitutionalHoldings() {
     "SELECT h.stock_id,MAX(h.period_end),f.shares_outstanding,CASE WHEN f.shares_outstanding > 0 THEN SUM(h.shares_held)/f.shares_outstanding*100 ELSE NULL END,NULL,NULL,'SEC_13F_HR',NOW(),SUM(h.shares_held),NULL, " +
     "jsonb_agg(jsonb_build_object('holder_name',h.holder_name,'cik',h.cik,'shares_held',h.shares_held,'market_value',h.market_value,'period_end',h.period_end) ORDER BY h.market_value DESC NULLS LAST) " +
     "FROM public.institutional_holders h LEFT JOIN LATERAL (SELECT shares_outstanding FROM public.fundamentals f0 WHERE f0.stock_id=h.stock_id AND f0.shares_outstanding > 0 ORDER BY f0.report_date DESC NULLS LAST LIMIT 1) f ON true " +
-    "WHERE NOT EXISTS (SELECT 1 FROM public.ownership_snapshots o WHERE o.stock_id=h.stock_id AND o.period_end=(SELECT MAX(h2.period_end) FROM public.institutional_holders h2 WHERE h2.stock_id=h.stock_id)) " +
+    "WHERE h.period_end=(SELECT MAX(h2.period_end) FROM public.institutional_holders h2 WHERE h2.stock_id=h.stock_id) AND NOT EXISTS (SELECT 1 FROM public.ownership_snapshots o WHERE o.stock_id=h.stock_id AND o.period_end=h.period_end) " +
     "GROUP BY h.stock_id,f.shares_outstanding RETURNING stock_id"
   );
   console.log('[13F] ' + JSON.stringify({ filings: filings.length, parsed_filings: parsed, inserted_holdings: inserted, ownership_snapshots_added: snapshotResult.length, unmatched_issuer_rows: unmatched, failed }));
