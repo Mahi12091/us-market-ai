@@ -8,10 +8,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const decode = s => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
 const tag = (xml, name) => { const m = xml.match(new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>', 'i')); return m ? decode(m[1].replace(/<[^>]+>/g, '')) : null; };
 function parseItems(xml) {
-  return [...xml.matchAll(/<item(?:\\s[^>]*)?>([\\s\\S]*?)<\\/item>/gi)].map(m => {
+  return [...xml.matchAll(/<item[^>]*>([\\s\\S]*?)<\\/item>/gi)].map(m => {
     const x=m[1]; const title=tag(x,'title'); const link=tag(x,'link') || tag(x,'guid'); const pub=tag(x,'pubDate');
-    const source=tag(x,'source');
-    const desc=tag(x,'description');
+    const source=tag(x,'source'); const desc=tag(x,'description');
     const parsed=pub ? new Date(pub) : null;
     return {title, url:link, published_at:parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null, source, summary:desc};
   }).filter(x => x.title && x.url && /^https?:\\/\\//i.test(x.url));
@@ -29,14 +28,19 @@ async function fetchRss(stock) {
   }
   return [];
 }
-const stocks = await sql`
-  SELECT s.id,s.symbol,s.company_name
-  FROM stocks s
-  WHERE s.is_active=true AND s.asset_type='stock'
-  ORDER BY (
-    SELECT MAX(n.published_at) FROM news n WHERE n.stock_id=s.id
-  ) ASC NULLS FIRST, s.id
-  LIMIT ${BATCH}
+await sql`CREATE TABLE IF NOT EXISTS free_news_sync_state (id integer PRIMARY KEY DEFAULT 1 CHECK (id=1), last_stock_id bigint NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT NOW())`;
+await sql`INSERT INTO free_news_sync_state(id,last_stock_id) VALUES(1,0) ON CONFLICT(id) DO NOTHING`;
+const state = await sql`SELECT last_stock_id FROM free_news_sync_state WHERE id=1`;
+const lastId = Number(state[0]?.last_stock_id || 0);
+let stocks = await sql`
+  SELECT id,symbol,company_name FROM stocks
+  WHERE is_active=true AND asset_type='stock' AND id > ${lastId}
+  ORDER BY id LIMIT ${BATCH}
+`;
+if (!stocks.length) stocks = await sql`
+  SELECT id,symbol,company_name FROM stocks
+  WHERE is_active=true AND asset_type='stock'
+  ORDER BY id LIMIT ${BATCH}
 `;
 if (!stocks.length) { console.log('No active stocks found'); process.exit(0); }
 let seen=0, written=0, failed=0;
