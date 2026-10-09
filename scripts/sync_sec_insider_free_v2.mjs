@@ -16,7 +16,7 @@ async function main(){
  for(const f of rows)try{
   const xml=await ownershipXml(f.filing_url);if(!xml){skipped++;continue}
   const owner=tag(xml,'rptOwnerName'),title=tag(xml,'officerTitle')||tag(xml,'otherText');
-  const transactions=xml.match(/<(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\\b[^>]*>[\\s\\S]*?<\\/(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\\s*>/gi)||[];
+  const transactions=xml.match(/<(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\b[^>]*>[\s\S]*?<\/(?:[A-Za-z0-9_.-]+:)?(?:nonDerivativeTransaction|derivativeTransaction)\s*>/gi)||[];
   if(!owner||!transactions.length){skipped++;continue}
   let insertedForFiling=0;
   for(const tx of transactions){
