@@ -22,6 +22,8 @@ await sql`
   )
 `;
 
+await sql`ALTER TABLE public.three_spread_sync_progress ADD COLUMN IF NOT EXISTS deep_sync_completed boolean NOT NULL DEFAULT false`;
+
 await sql`
   INSERT INTO public.three_spread_sync_progress (stock_id, status, completed_at, updated_at)
   SELECT DISTINCT stock_id, 'completed', now(), now()
@@ -91,14 +93,14 @@ let transientUpstreamFailure = false;
 
 for (let i = 0; i < stocks.length; i++) {
   const stock = stocks[i];
-  const [existing] = await sql`SELECT status, attempts FROM public.three_spread_sync_progress WHERE stock_id = ${stock.id}`;
+  const [existing] = await sql`SELECT status, attempts, deep_sync_completed FROM public.three_spread_sync_progress WHERE stock_id = ${stock.id}`;
 
   const [deepCoverage] = await sql`
     SELECT
       EXISTS (SELECT 1 FROM public.threespread_metrics WHERE stock_id = ${stock.id}) AS has_metrics,
       EXISTS (SELECT 1 FROM public.threespread_ratios WHERE stock_id = ${stock.id}) AS has_ratios
   `;
-  if (existing?.status === 'completed' && deepCoverage?.has_metrics && deepCoverage?.has_ratios) {
+  if (existing?.status === 'completed' && existing?.deep_sync_completed === true) {
     skipped++;
     console.log(`[3spread-resumable] ${i + 1}/${stocks.length} ${stock.symbol} all target tables complete; skip`);
     continue;
@@ -121,7 +123,7 @@ for (let i = 0; i < stocks.length; i++) {
   const isTransient5xx = /3spread (500|502|503|504):/i.test(output);
 
   if (ok) {
-    await sql`UPDATE public.three_spread_sync_progress SET status='completed', last_error=NULL, completed_at=now(), updated_at=now() WHERE stock_id=${stock.id}`;
+    await sql`UPDATE public.three_spread_sync_progress SET status='completed', last_error=NULL, deep_sync_completed=true, completed_at=now(), updated_at=now() WHERE stock_id=${stock.id}`;
     completed++;
     console.log(`[3spread-resumable] ${stock.symbol} checkpoint saved`);
   } else {
