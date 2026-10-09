@@ -168,7 +168,12 @@ async function main() {
   await download('https://www.sec.gov/Archives/edgar/daily-index/xbrl/companyfacts.zip',zip);
   await fs.promises.mkdir(dir,{recursive:true});
   await execFileAsync('unzip',['-q','-o',zip,'-d',dir]);
-  const stocks=await sql`SELECT id,symbol,cik,market_cap FROM public.stocks WHERE is_active=true AND asset_type='stock' ORDER BY id`;
+  const stocks=await sql`SELECT s.id,s.symbol,s.cik,s.market_cap FROM public.stocks s WHERE s.is_active=true AND s.asset_type='stock' AND (
+    NOT EXISTS (SELECT 1 FROM public.fundamentals f WHERE f.stock_id=s.id) OR
+    NOT EXISTS (SELECT 1 FROM public.financial_statements f WHERE f.stock_id=s.id) OR
+    NOT EXISTS (SELECT 1 FROM public.threespread_statement_line_items f WHERE f.stock_id=s.id) OR
+    NOT EXISTS (SELECT 1 FROM public.threespread_financial_statements f WHERE f.stock_id=s.id)
+  ) ORDER BY s.id`;
   let processed=0, rawCount=0, lineCount=0, normalizedCount=0, fundamentalsCount=0, noFacts=0;
   for(let i=0;i<stocks.length;i++){
     const stock=stocks[i]; if(!stock.cik) { noFacts++; continue; }
