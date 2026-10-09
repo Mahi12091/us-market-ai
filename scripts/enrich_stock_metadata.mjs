@@ -60,13 +60,40 @@ function parseProviderBody(body) {
   return parseCsv(trimmed);
 }
 
+function normalizeExchange(value) {
+  const raw = clean(value);
+  if (!raw) return null;
+  const key = raw.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  const aliases = {
+    'NASDAQ': 'XNAS',
+    'NASDAQ GLOBAL SELECT': 'XNAS',
+    'NASDAQ GLOBAL MARKET': 'XNAS',
+    'NASDAQ CAPITAL MARKET': 'XNAS',
+    'NASDAQ GM': 'XNAS',
+    'NASDAQ CM': 'XNAS',
+    'NEW YORK STOCK EXCHANGE': 'XNYS',
+    'NYSE': 'XNYS',
+    'NYSE ARCA': 'ARCX',
+    'NYSE AMERICAN': 'XASE',
+    'AMERICAN STOCK EXCHANGE': 'XASE',
+    'NYSE MKT': 'XASE',
+    'BATS': 'BATS',
+    'CBOE BZX': 'BATS',
+    'IEX': 'IEXG',
+    'INVESTORS EXCHANGE': 'IEXG',
+    'OTC MARKETS': 'OTCM',
+    'OTC': 'OTCM',
+  };
+  return aliases[key] ?? raw;
+}
+
 function normalizeFmp(row) {
   const symbol = clean(row.symbol)?.toUpperCase();
   if (!symbol) return null;
   return {
     symbol,
     company_name: clean(row.companyName ?? row.company_name),
-    exchange: clean(row.exchangeShortName ?? row.exchange ?? row.exchangeFullName),
+    exchange: normalizeExchange(row.exchangeShortName ?? row.exchange ?? row.exchangeFullName),
     sector: clean(row.sector),
     industry: clean(row.industry),
     description: clean(row.description),
