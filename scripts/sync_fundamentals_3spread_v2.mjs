@@ -67,7 +67,7 @@ async function db(table, { method = 'GET', params = {}, body } = {}) {
   if (method === 'POST') {
     const rows = Array.isArray(body) ? body : [body || {}]; if (!rows.length) return [];
     const keys = [...new Set(rows.flatMap(r => Object.keys(r)))]; const vals = [];
-    const tuples = rows.map(row => `(${keys.map(k => { vals.push(row[k] ?? null); return `$${vals.length}`; }).join(',')})`).join(',');
+    const tuples = rows.map(row => `(${keys.map(k => { const value = row[k] ?? null; vals.push(value !== null && typeof value === 'object' ? JSON.stringify(value) : value); return `$${vals.length}`; }).join(',')})`).join(',');
     let q = `INSERT INTO ${qid(table)} (${keys.map(qid).join(',')}) VALUES ${tuples}`;
     const conflict = String(params.on_conflict || '').split(',').map(x => x.trim()).filter(Boolean);
     if (conflict.length) {
