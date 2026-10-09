@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      NEWS_USER_AGENT: USMarketAI/1.0 contact: support@usmarketai.com
+      NEWS_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
       FREE_NEWS_STOCKS_PER_RUN: 100
     steps:
       - uses: actions/checkout@v4
