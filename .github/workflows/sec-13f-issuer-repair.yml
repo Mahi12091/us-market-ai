@@ -1,0 +1,52 @@
+name: SEC 13F Issuer Matching Repair
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sec-13f-issuer-repair.yml'
+      - 'scripts/repair_sec_13f_issuer_matching.mjs'
+  workflow_dispatch:
+  schedule:
+    - cron: '45 7 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: sec-13f-issuer-repair
+  cancel-in-progress: false
+
+jobs:
+  repair-issuer-matches:
+    name: Reprocess official SEC 13F dataset with normalized issuer names
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Wait for base SEC sync and extended insider backfill
+        shell: bash
+        run: |
+          for run_id in 37901670406 37902494906; do
+            while true; do
+              status="$(gh api "repos/Mahi12091/us-market-ai/actions/runs/$run_id" --jq '.status' 2>/dev/null || echo completed)"
+              if [ "$status" != "in_progress" ] && [ "$status" != "queued" ] && [ "$status" != "waiting" ]; then
+                echo "Run $run_id finished with status: $status"
+                break
+              fi
+              echo "Run $run_id is $status; waiting 60 seconds to avoid overlapping database ingestion."
+              sleep 60
+            done
+          done
+      - name: Reprocess SEC 13F with stronger issuer normalization
+        run: node scripts/repair_sec_13f_issuer_matching.mjs
