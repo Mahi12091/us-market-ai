@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 90
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
     steps:
       - name: Checkout repository
