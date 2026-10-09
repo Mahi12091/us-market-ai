@@ -25,4 +25,62 @@ async function main(){
  await sleep(180);
  console.log('Insider parsed',inserted,'skipped',skipped,'failed',failed);
 }
-main().catch(e=>{console.error(e);process.exit(1)})
+
+
+async function syncInstitutionalHoldings() {
+  const filings = await sql.query(
+    "SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,s.company_name AS filer_name,s.symbol AS filer_symbol " +
+    "FROM public.sec_filings sf JOIN public.stocks s ON s.id=sf.stock_id " +
+    "WHERE sf.form_type IN ('13F-HR','13F-HR/A') AND sf.filing_date >= CURRENT_DATE - ($1::int * INTERVAL '1 day') " +
+    "ORDER BY sf.filing_date DESC LIMIT $2",
+    [Math.max(DAYS, 190), Math.max(400, Math.min(1500, MAX))]
+  );
+  const stocks = await sql.query("SELECT id,symbol,company_name FROM public.stocks WHERE is_active=true AND asset_type='stock'");
+  const nameMap = new Map();
+  const normalize = value => clean(value).toLowerCase().replace(/&/g, ' and ').replace(/\b(incorporated|inc|corporation|corp|company|co|limited|ltd|plc)\b/g, ' ').replace(/[^a-z0-9]/g, '');
+  for (const stock of stocks) {
+    const key = normalize(stock.company_name || '');
+    if (key && !nameMap.has(key)) nameMap.set(key, stock);
+    else if (key) nameMap.set(key, null);
+  }
+  let parsed = 0, inserted = 0, unmatched = 0, failed = 0;
+  for (const filing of filings) {
+    try {
+      const parsedUrl = new URL(filing.filing_url);
+      const parts = parsedUrl.pathname.split('/').filter(Boolean);
+      const edgar = parts.indexOf('edgar');
+      if (edgar < 0 || !parts[edgar + 3] || !parts[edgar + 4]) { unmatched++; continue; }
+      const base = parsedUrl.origin + '/' + parts.slice(0, edgar + 5).join('/');
+      const listing = JSON.parse(await get(base + '/index.json'));
+      const files = (listing.directory && listing.directory.item ? listing.directory.item : []).map(x => x.name);
+      const infoName = files.find(name => /infotable.*\.xml$/i.test(name)) || files.find(name => /infotable/i.test(name) && /\.xml$/i.test(name));
+      if (!infoName) { unmatched++; continue; }
+      const xml = await get(base + '/' + infoName);
+      const periodEnd = date(tag(xml, 'periodOfReport')) || date(filing.filing_date);
+      const blocks = xml.match(/<(?:[A-Za-z0-9_.-]+:)?infoTable\b[^>]*>[\s\S]*?<\/(?:[A-Za-z0-9_.-]+:)?infoTable\s*>/gi) || [];
+      if (!blocks.length) { unmatched++; continue; }
+      parsed++;
+      for (const block of blocks) {
+        const issuer = tag(block, 'nameOfIssuer');
+        const stock = nameMap.get(normalize(issuer || ''));
+        const shares = num(tag(block, 'sshPrnamt'));
+        const valueThousands = num(tag(block, 'value'));
+        if (!stock || shares == null || !issuer) { unmatched++; continue; }
+        const marketValue = valueThousands == null ? null : valueThousands * 1000;
+        const query =
+          "INSERT INTO public.institutional_holders (stock_id,holder_name,cik,period_end,shares_held,market_value,ownership_percent,shares_change,shares_change_percent,filing_date,data_source,created_at) " +
+          "SELECT $1,$2,$3,$4,$5,$6,NULL,NULL,NULL,$7,$8,NOW() WHERE NOT EXISTS (" +
+          "SELECT 1 FROM public.institutional_holders WHERE stock_id=$1 AND holder_name=$2 AND cik=$3 AND period_end=$4)";
+        await sql.query(query, [Number(stock.id), filing.filer_name || filing.filer_symbol || 'SEC 13F filer', String(filing.cik || '').replace(/^0+/, ''), periodEnd, shares, marketValue, date(filing.filing_date), 'SEC_13F_HR']);
+        inserted++;
+      }
+    } catch (error) {
+      failed++;
+      if (failed <= 10) console.error('[13F] ' + filing.filing_url + ': ' + error.message);
+    }
+    await sleep(180);
+  }
+  console.log('[13F] ' + JSON.stringify({ filings: filings.length, parsed_filings: parsed, inserted_holdings: inserted, unmatched_issuer_rows: unmatched, failed }));
+}
+
+main().then(syncInstitutionalHoldings).catch(e=>{console.error(e);process.exit(1)})
