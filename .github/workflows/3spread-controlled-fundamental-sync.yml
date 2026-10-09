@@ -18,6 +18,9 @@ on:
         required: false
         default: '250'
 
+  schedule:
+    - cron: '30 5 * * *'
+
 permissions:
   contents: read
 
