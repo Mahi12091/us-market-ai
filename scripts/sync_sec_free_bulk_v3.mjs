@@ -218,7 +218,7 @@ async function processBatch(stocks, submissionsDir, companyfactsDir, batchNo, to
 
     const eps = factRows(fact(['EarningsPerShareDiluted', 'EarningsPerShareBasic']));
     const rev = factRows(fact(['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues']));
-    const div = factRows(fact(['CommonStockDividendsPerShareDeclared', 'PaymentsOfDividendsCommonStock', 'PaymentsOfDividends']));
+    const div = factRows(fact(['CommonStockDividendsPerShareDeclared']));
     const periods = new Map();
 
     for (const x of [...eps, ...rev]) {
