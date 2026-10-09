@@ -9,7 +9,7 @@ const tag=(xml,name)=>{const m=xml.match(new RegExp('<(?:[A-Za-z0-9_.-]+:)?'+nam
 const date=s=>s?String(s).slice(0,10):null;
 const num=s=>{const n=Number(String(s||'').replace(/,/g,''));return Number.isFinite(n)?n:null};
 async function get(url){const r=await fetch(url,{headers:{'User-Agent':UA,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error('SEC '+r.status);return r.text()}
-async function ownershipXml(url){const m=url.match(/^(https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/[^/]+\/[^/]+)\/[^/]+$/i);if(!m)return null;const j=JSON.parse(await get(m[1]+'/index.json'));const n=(j.directory?.item||[]).map(x=>x.name).find(x=>/\.xml$/i.test(x));return n?get(m[1]+'/'+n):null}
+async function ownershipXml(url){if(!/^https:\/\/www\\.sec\\.gov\/Archives\/edgar\/data\//i.test(url))return null;return get(url)}
 async function main(){
  const rows=await sql`SELECT sf.stock_id,sf.cik,sf.accession_number,sf.filing_date,sf.filing_url,sf.form_type FROM sec_filings sf WHERE sf.form_type IN ('3','3/A','4','4/A','5','5/A') AND sf.filing_date >= CURRENT_DATE - (${DAYS} * INTERVAL '1 day') ORDER BY sf.filing_date DESC LIMIT ${MAX}`;
  let inserted=0,skipped=0,failed=0;
