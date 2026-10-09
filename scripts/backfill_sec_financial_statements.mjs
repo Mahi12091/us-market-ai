@@ -162,6 +162,97 @@ function buildRows(stock, items) {
   }
   return {raw,line,normalized,fundamental};
 }
+
+async function fmpJson(endpoint) {
+  if (!process.env.FMP_API_KEY) return [];
+  const u = new URL('https://financialmodelingprep.com/stable/' + endpoint);
+  u.searchParams.set('apikey', process.env.FMP_API_KEY);
+  for (let attempt=1; attempt<=3; attempt++) {
+    const r = await fetch(u, {headers:{Accept:'application/json'}});
+    const body = await r.text();
+    if (r.ok) {
+      let parsed=[]; try { parsed=body?JSON.parse(body):[]; } catch {}
+      return Array.isArray(parsed)?parsed:(Array.isArray(parsed?.data)?parsed.data:[]);
+    }
+    if ([429,500,502,503,504].includes(r.status) && attempt<3) { await sleep(1000*attempt); continue; }
+    throw new Error('FMP HTTP '+r.status+': '+body.slice(0,250));
+  }
+  return [];
+}
+function fmpPeriod(row) {
+  const year=String(row.calendarYear||row.fiscalYear||row.date||'').slice(0,4);
+  const p=String(row.period||'FY').toUpperCase();
+  return year ? 'FY-'+year+( /^Q[1-4]$/.test(p)?'-'+p:'') : String(row.date||'latest');
+}
+function fmpType(row) { return /^Q[1-4]$/i.test(String(row.period||''))?'quarterly':'annual'; }
+async function backfillFmp(stock) {
+  if (!process.env.FMP_API_KEY) return false;
+  const symbol=String(stock.symbol||'').trim().toUpperCase();
+  if (!symbol) return false;
+  const q='symbol='+encodeURIComponent(symbol)+'&limit=1&period=annual';
+  const [income,balance,cash]=await Promise.all([
+    fmpJson('income-statement?'+q), fmpJson('balance-sheet-statement?'+q), fmpJson('cash-flow-statement?'+q)
+  ]);
+  const inc=income[0]||{}, bal=balance[0]||{}, cf=cash[0]||{};
+  const pick=(obj,...keys)=>{for(const k of keys){const n=num(obj?.[k]);if(n!=null)return n;}return null;};
+  const now=new Date().toISOString();
+  const statementDefs=[
+    {type:'income_statement',data:inc,fields:[
+      ['revenue','revenue'],['cost_of_revenue','costOfRevenue'],['gross_profit','grossProfit'],['operating_income','operatingIncome'],['pretax_income','incomeBeforeTax'],['net_income','netIncome'],['eps_basic','eps'],['eps_diluted','epsDiluted'],['shares_basic','weightedAverageShsOut'],['shares_diluted','weightedAverageShsOutDil'],['rd_expense','researchAndDevelopmentExpenses'],['sga_expense','sellingGeneralAndAdministrativeExpenses'],['tax_expense','incomeTaxExpense']
+    ]},
+    {type:'balance_sheet',data:bal,fields:[
+      ['cash_and_equivalents','cashAndCashEquivalents'],['short_term_investments','shortTermInvestments'],['total_assets','totalAssets'],['current_assets','totalCurrentAssets'],['total_liabilities','totalLiabilities'],['current_liabilities','totalCurrentLiabilities'],['total_debt','totalDebt'],['long_term_debt','longTermDebt'],['shareholders_equity','totalStockholdersEquity']
+    ]},
+    {type:'cash_flow',data:cf,fields:[
+      ['operating_cash_flow','operatingCashFlow'],['capital_expenditure','capitalExpenditure'],['free_cash_flow','freeCashFlow'],['stock_based_compensation','stockBasedCompensation'],['dividends_paid','commonDividendsPaid'],['buybacks','commonStockRepurchased']
+    ]}
+  ];
+  const raw=[],line=[],normalized=[];
+  for(const def of statementDefs){
+    const row=def.data;
+    const periodEnd=row.date||row.filingDate;
+    if(!periodEnd) continue;
+    const values={};
+    for(const [field,key] of def.fields){const v=pick(row,key);if(v!=null)values[field]=v;}
+    if(!Object.keys(values).length) continue;
+    const periodType=fmpType(row), fiscalPeriod=fmpPeriod(row), fy=Number(String(periodEnd).slice(0,4));
+    const blockId='FMP-'+symbol+'-'+periodEnd+'-'+def.type;
+    const sections={};
+    for(const [field,value] of Object.entries(values)){
+      const sec=sectionFor(field);
+      sections[sec]??={};
+      sections[sec][field]={label:field,value,source:'FMP',tag:field};
+      line.push({stock_id:stock.id,ticker:symbol,block_id:blockId,filing_id:row.fillingDate||row.filingDate||null,statement_type:def.type,section:sec,item_key:field,label:field,value,source:'FMP',members:{provider:'Financial Modeling Prep',period:row.period||'FY'},currency:'USD',period_end:periodEnd,period_type:periodType,fiscal_year:fy,fiscal_quarter:/^Q[1-4]$/i.test(String(row.period||''))?Number(String(row.period).slice(1)):null,raw_item:{field,value,source:'FMP'},created_at:now,updated_at:now});
+    }
+    raw.push({stock_id:stock.id,ticker:symbol,block_id:blockId,filing_id:row.filingDate||null,cik:stock.cik?cik(stock.cik):null,form_type:row.period||'FY',source_url:'https://financialmodelingprep.com/stable/'+def.type,statement_type:def.type,period_of_report:periodEnd,period_end:periodEnd,period_type:periodType,fiscal_year:fy,fiscal_quarter:/^Q[1-4]$/i.test(String(row.period||''))?Number(String(row.period).slice(1)):null,currency:'USD',statement_json:{sections,source:'FMP',fields:values},raw_json:{source:'FMP',symbol,period:row.period||'FY',date:periodEnd},created_at:now,updated_at:now});
+    const norm={stock_id:stock.id,statement_type:def.type,period_type:periodType,fiscal_period:fiscalPeriod,period_end:periodEnd,data_source:'FMP',created_at:now,updated_at:now,...values};
+    if(def.type==='cash_flow'&&values.operating_cash_flow!=null&&values.capital_expenditure!=null)norm.free_cash_flow=values.free_cash_flow??(values.operating_cash_flow-Math.abs(values.capital_expenditure));
+    normalized.push(norm);
+  }
+  if(!raw.length&&!line.length&&!normalized.length) return false;
+  await upsert('threespread_financial_statements',raw,'stock_id,block_id',50);
+  await upsert('threespread_statement_line_items',line,'stock_id,block_id,item_key',200);
+  await upsert('financial_statements',normalized,'stock_id,statement_type,period_type,fiscal_period',50,true);
+  const revenue=pick(inc,'revenue'),gross=pick(inc,'grossProfit'),op=pick(inc,'operatingIncome'),net=pick(inc,'netIncome');
+  const assets=pick(bal,'totalAssets'),liabilities=pick(bal,'totalLiabilities'),equity=pick(bal,'totalStockholdersEquity','totalEquity'),cashValue=pick(bal,'cashAndCashEquivalents','cashAndShortTermInvestments'),debt=pick(bal,'totalDebt','longTermDebt');
+  const cfo=pick(cf,'operatingCashFlow'),capex=pick(cf,'capitalExpenditure'),fcf=pick(cf,'freeCashFlow')??(cfo!=null&&capex!=null?cfo-Math.abs(capex):null);
+  const reportDate=inc.date||bal.date||cf.date||null;
+  if(reportDate){
+    const fp=fmpPeriod(inc.date?inc:bal.date?bal:cf);
+    const fundamental={stock_id:stock.id,fiscal_period:fp,fiscal_year:Number(String(reportDate).slice(0,4)),period_type:fmpType(inc.date?inc:bal.date?bal:cf),report_date:reportDate,data_source:'FMP',updated_at:now,market_cap:num(stock.market_cap),revenue,gross_profit:gross,operating_income:op,net_income:net,eps:pick(inc,'epsDiluted','eps'),cost_of_revenue:pick(inc,'costOfRevenue'),pretax_income:pick(inc,'incomeBeforeTax'),total_assets:assets,total_liabilities:liabilities,cash_and_equivalents:cashValue,total_debt:debt,shareholders_equity:equity,current_assets:pick(bal,'totalCurrentAssets'),current_liabilities:pick(bal,'totalCurrentLiabilities'),operating_cash_flow:cfo,capital_expenditure:capex,free_cash_flow:fcf,rd_expense:pick(inc,'researchAndDevelopmentExpenses'),sga_expense:pick(inc,'sellingGeneralAndAdministrativeExpenses'),tax_expense:pick(inc,'incomeTaxExpense')};
+    if(revenue&&gross!=null)fundamental.gross_margin=gross/revenue*100;
+    if(revenue&&op!=null)fundamental.operating_margin=op/revenue*100;
+    if(revenue&&net!=null)fundamental.net_margin=net/revenue*100;
+    if(revenue&&fcf!=null)fundamental.fcf_margin=fcf/revenue*100;
+    if(equity&&net!=null)fundamental.roe=net/equity*100;
+    if(assets&&net!=null)fundamental.roa=net/assets*100;
+    if(equity&&debt!=null)fundamental.debt_equity=debt/equity;
+    await upsert('fundamentals',[fundamental],'stock_id,fiscal_period',1,true);
+  }
+  console.log('[FMP fallback] '+symbol+' inserted '+raw.length+' statement blocks and '+line.length+' line items');
+  return true;
+}
+
 async function main() {
   const zip=path.join(TMP,'companyfacts.zip'), dir=path.join(TMP,'companyfacts');
   console.log('[SEC XBRL] Downloading SEC companyfacts bulk ZIP');
@@ -176,21 +267,27 @@ async function main() {
   ) ORDER BY s.id`;
   let processed=0, rawCount=0, lineCount=0, normalizedCount=0, fundamentalsCount=0, noFacts=0;
   for(let i=0;i<stocks.length;i++){
-    const stock=stocks[i]; if(!stock.cik) { noFacts++; continue; }
-    const file=path.join(dir,'CIK'+cik(stock.cik)+'.json');
-    if(!fs.existsSync(file)){noFacts++;continue;}
+    const stock=stocks[i];
     try {
-      const j=JSON.parse(await fs.promises.readFile(file,'utf8'));
-      const selected=selectFacts(j.facts||{});
-      const items=periodFacts(selected,stock);
-      const built=buildRows(stock,items);
-      if(!built.raw.length&&!built.line.length&&!built.normalized.length&&!built.fundamental){noFacts++;continue;}
-      await upsert('threespread_financial_statements',built.raw,'stock_id,block_id',50);
-      await upsert('threespread_statement_line_items',built.line,'stock_id,block_id,item_key',200);
-      await upsert('financial_statements',built.normalized,'stock_id,statement_type,period_type,fiscal_period',50,true);
-      if(built.fundamental) await upsert('fundamentals',[built.fundamental],'stock_id,fiscal_period',1,true);
-      rawCount+=built.raw.length; lineCount+=built.line.length; normalizedCount+=built.normalized.length; fundamentalsCount+=built.fundamental?1:0; processed++;
-    } catch(e) { console.error('[SEC XBRL] '+stock.symbol+' failed: '+e.message); }
+      let built={raw:[],line:[],normalized:[],fundamental:null};
+      const file=stock.cik?path.join(dir,'CIK'+cik(stock.cik)+'.json'):null;
+      if(file&&fs.existsSync(file)){
+        const j=JSON.parse(await fs.promises.readFile(file,'utf8'));
+        const selected=selectFacts(j.facts||{});
+        built=buildRows(stock,periodFacts(selected,stock));
+      }
+      if(built.raw.length||built.line.length||built.normalized.length||built.fundamental){
+        await upsert('threespread_financial_statements',built.raw,'stock_id,block_id',50);
+        await upsert('threespread_statement_line_items',built.line,'stock_id,block_id,item_key',200);
+        await upsert('financial_statements',built.normalized,'stock_id,statement_type,period_type,fiscal_period',50,true);
+        if(built.fundamental) await upsert('fundamentals',[built.fundamental],'stock_id,fiscal_period',1,true);
+        rawCount+=built.raw.length; lineCount+=built.line.length; normalizedCount+=built.normalized.length; fundamentalsCount+=built.fundamental?1:0; processed++;
+      } else {
+        const fmpOk=await backfillFmp(stock);
+        if(fmpOk) { processed++; console.log('[SEC XBRL] SEC facts absent; FMP fallback covered '+stock.symbol); }
+        else { noFacts++; console.log('[SEC XBRL] no usable SEC/FMP facts for '+stock.symbol); }
+      }
+    } catch(e) { console.error('[SEC/FMP] '+stock.symbol+' failed: '+e.message); }
     if((i+1)%100===0) console.log(JSON.stringify({progress:i+1,total:stocks.length,processed,rawCount,lineCount,normalizedCount,fundamentalsCount,noFacts}));
   }
   const report=await sql`SELECT COUNT(*) FILTER (WHERE s.is_active AND s.asset_type='stock')::int AS universe,
