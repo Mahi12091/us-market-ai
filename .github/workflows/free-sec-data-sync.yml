@@ -1,8 +1,6 @@
-name: Free SEC Data Sync
+name: Free SEC Data Sync (legacy)
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '30 4 * * *'
 jobs:
   sec-bulk:
     runs-on: ubuntu-latest
@@ -13,8 +11,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - name: Sync SEC bulk data
+      - run: npm install --no-audit --no-fund
+      - name: Sync legacy SEC bulk data
         env:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
           SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
