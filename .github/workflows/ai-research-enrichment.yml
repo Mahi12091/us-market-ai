@@ -13,7 +13,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
       - name: Generate monthly AI research
         env:
           NEON_REST_URL: ${{ secrets.NEON_REST_URL }}
