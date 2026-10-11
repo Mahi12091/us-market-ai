@@ -30,7 +30,7 @@ async function yahooHistory(symbol) {
       stock_id: null, timeframe: '1d', timestamp: new Date(timestamps[i] * 1000).toISOString(),
       open: n(bars.open?.[i]), high: n(bars.high?.[i]), low: n(bars.low?.[i]), close,
       volume: bars.volume?.[i] == null ? null : Math.trunc(Number(bars.volume[i])),
-      adjusted_close: n(adjusted[i]), data_source: fetched.source
+      adjusted_close: n(adjusted[i]), data_source: 'YAHOO_FINANCE_CHART_FREE'
     });
   }
   if (!history.length) throw new Error('Yahoo returned no usable daily bars');
@@ -62,7 +62,7 @@ async function stooqHistory(symbol) {
 }
 
 async function fetchHistory(symbol) {
-  try { return { history: await yahooHistory(symbol), source: fetched.source }; }
+  try { return { history: await yahooHistory(symbol), source: 'YAHOO_FINANCE_CHART_FREE' }; }
   catch (yahooError) {
     try { return { history: await stooqHistory(symbol), source: 'STOOQ_FREE' }; }
     catch (stooqError) {
@@ -125,7 +125,7 @@ for (const stock of missing) {
       price: round(price), open: last.open, high: last.high, low: last.low,
       previous_close: round(previousClose), change: round(change), change_percent: round(changePercent),
       volume: last.volume, market_status: lastDate < new Date().toISOString().slice(0, 10) ? 'closed' : 'open',
-      quote_timestamp: quoteTimestamp, data_source: 'YAHOO_FINANCE_CHART_FREE',
+      quote_timestamp: quoteTimestamp, data_source: fetched.source,
       average_volume: avgVolume > 0 ? Math.round(avgVolume) : null,
       dollar_volume: last.volume != null ? round(price * last.volume, 2) : null,
       week_52_high: Number.isFinite(high52) ? round(high52) : null,
