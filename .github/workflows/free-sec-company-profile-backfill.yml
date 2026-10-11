@@ -1,0 +1,37 @@
+name: Free SEC Company Profile Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backfill_stock_profile_from_sec.mjs'
+      - '.github/workflows/free-sec-company-profile-backfill.yml'
+  schedule:
+    - cron: '20 7 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-sec-company-profile-backfill
+  cancel-in-progress: false
+
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Validate database connection
+        run: test -n "$NEON_DATABASE_URL"
+      - name: Fill missing headquarters and SIC industry fields
+        run: node scripts/backfill_stock_profile_from_sec.mjs
