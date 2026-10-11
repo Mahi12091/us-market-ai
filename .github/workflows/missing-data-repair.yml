@@ -1,0 +1,78 @@
+name: Missing Data Repair
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/missing-data-repair.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: missing-data-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Validate database secret
+        run: test -n "$NEON_DATABASE_URL"
+      - name: Start local Neon REST adapter for existing indicator engine
+        run: |
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then
+              echo "Neon REST adapter ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
+          exit 1
+      - name: Recalculate missing technical indicators for all active stocks
+        run: |
+          set -euo pipefail
+          for batch in $(seq 0 10); do
+            echo "Technical indicator batch $((batch + 1))/11"
+            STOCK_BATCH_INDEX="$batch" STOCK_BATCH_SIZE=500 node scripts/compute_technical_indicators.mjs
+          done
+      - name: Derive fundamentals from available financial statements
+        run: node scripts/calculate_derived_fundamentals.mjs
+      - name: Backfill verified SEC company metadata
+        run: node scripts/backfill_stock_profile_from_sec.mjs
+      - name: Final missing-field audit
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          const rows = await sql.query(`
+            SELECT 'active_stocks' AS metric, COUNT(*)::bigint AS value FROM stocks WHERE is_active
+            UNION ALL SELECT 'stocks_missing_market_cap', COUNT(*) FROM stocks WHERE is_active AND market_cap IS NULL
+            UNION ALL SELECT 'stocks_missing_ceo', COUNT(*) FROM stocks WHERE is_active AND ceo IS NULL
+            UNION ALL SELECT 'stocks_missing_founded_year', COUNT(*) FROM stocks WHERE is_active AND founded_year IS NULL
+            UNION ALL SELECT 'stocks_missing_headquarters', COUNT(*) FROM stocks WHERE is_active AND headquarters IS NULL
+            UNION ALL SELECT 'stocks_missing_description', COUNT(*) FROM stocks WHERE is_active AND description IS NULL
+            UNION ALL SELECT 'technical_rows_missing_mfi_or_williams_r', COUNT(*) FROM technical_indicators WHERE mfi IS NULL OR williams_r IS NULL
+            UNION ALL SELECT 'risk_rows_missing_sharpe_or_sortino', COUNT(*) FROM risk_metrics WHERE sharpe_ratio IS NULL OR sortino_ratio IS NULL
+            UNION ALL SELECT 'predictions_missing_uncertainty', COUNT(*) FROM predictions WHERE uncertainty IS NULL
+            UNION ALL SELECT 'long_term_predictions_missing_uncertainty', COUNT(*) FROM long_term_predictions WHERE uncertainty IS NULL
+          `);
+          console.table(rows);
+          NODE
