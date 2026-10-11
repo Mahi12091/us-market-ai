@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 const sql=neon(process.env.NEON_DATABASE_URL);
-const UA=process.env.SEC_USER_AGENT||'US Market AI research admin@example.com';
+const UA=process.env.SEC_USER_AGENT||'USMarketAI/1.0 contact: support@usmarketai.com';
 const MAX=Number(process.env.SEC_INSIDER_MAX||5000);
 const DAYS=Number(process.env.SEC_INSIDER_DAYS||180);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -8,7 +8,20 @@ const clean=s=>String(s||'').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').trim()
 const tag=(xml,name)=>{const m=xml.match(new RegExp('<(?:[A-Za-z0-9_.-]+:)?'+name+'[^>]*>([\\s\\S]*?)</(?:[A-Za-z0-9_.-]+:)?'+name+'>','i'));return m?clean(m[1]):null};
 const date=s=>{if(!s)return null;const raw=String(s).trim();const iso=raw.match(/^(\d{4}-\d{2}-\d{2})/);if(iso&&Number.isFinite(Date.parse(iso[1])))return iso[1];if(!/\b\d{4}\b/.test(raw))return null;const parsed=Date.parse(raw);return Number.isFinite(parsed)?new Date(parsed).toISOString().slice(0,10):null;};
 const num=s=>{const n=Number(String(s||'').replace(/,/g,''));return Number.isFinite(n)?n:null};
-async function get(url){const r=await fetch(url,{headers:{'User-Agent':UA,'Accept-Encoding':'gzip, deflate'}});if(!r.ok)throw new Error('SEC '+r.status);return r.text()}
+async function get(url){
+  let last;
+  for(let attempt=1;attempt<=6;attempt++){
+    await sleep(1100);
+    try{
+      const r=await fetch(url,{headers:{'User-Agent':UA,'Accept-Encoding':'gzip, deflate','Accept':'application/xml, text/xml, application/json, */*'}});
+      if(r.ok)return r.text();
+      last=new Error('SEC '+r.status+' '+url);
+      if(r.status!==429 && r.status<500)throw last;
+    }catch(e){last=e;if(!/SEC 429|SEC 5\d\d|fetch failed|network/i.test(String(e?.message||e)) || attempt===6)throw e;}
+    if(attempt<6)await sleep(Math.min(15000,1500*2**(attempt-1)));
+  }
+  throw last||new Error('SEC request failed');
+}
 async function ownershipXml(url){
  const parsed=new URL(url),parts=parsed.pathname.split('/').filter(Boolean),edgar=parts.indexOf('edgar');
  if(edgar<0||!parts[edgar+3])return get(url);
@@ -47,7 +60,7 @@ async function main(){
   }
   if(!insertedForFiling) skipped++;
  }catch(e){failed++}
- await sleep(180);
+ await sleep(1000);
  console.log('Insider parsed',inserted,'skipped',skipped,'failed',failed);
 }
 
