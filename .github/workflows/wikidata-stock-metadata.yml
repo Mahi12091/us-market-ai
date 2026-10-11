@@ -1,4 +1,4 @@
-name: Wikidata Stock Metadata Fallback
+name: Wikipedia + Wikidata Stock Metadata Fallback
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: us-market-ai-wikidata-metadata
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   enrich:
@@ -40,5 +40,5 @@ jobs:
             exit 1
           fi
 
-      - name: Enrich missing metadata from Wikidata
+      - name: Enrich missing metadata from Wikipedia and Wikidata entity search
         run: node scripts/enrich_stock_metadata_wikidata.mjs
