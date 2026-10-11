@@ -47,9 +47,12 @@ function build(row,horizon){
   const damped=combined*(0.70+0.30*agreement);
   const ret=clamp(damped*annualVol*Math.sqrt(cfg.days/252)*cfg.m,-cfg.cap,cfg.cap);
   const pred=current*(1+ret);
+  const uncertainty=current*annualVol*Math.sqrt(cfg.days/252);
+  const confidenceLower=Math.max(0.0001,pred-uncertainty);
+  const confidenceUpper=pred+uncertainty;
   const dir=direction(ret);
   const conf=clamp(40+agreement*25+dq*20+Math.min(1,Math.abs(damped))*10,40,82);
-  return {current_price:Number(current.toFixed(4)),predicted_price:Number(pred.toFixed(4)),predicted_change_percent:Number((ret*100).toFixed(3)),direction:dir,confidence:Number(conf.toFixed(1)),signal:dir==='bullish'?'positive-quant-score':dir==='bearish'?'negative-quant-score':'mixed-quant-score',feature_summary:{model:'quant-v3.0',technical_weight:0.65,fundamental_weight:0.35,technical_score:ts,fundamental_score:fs,combined_score:Number(combined.toFixed(4)),damped_score:Number(damped.toFixed(4)),agreement:Number(agreement.toFixed(4)),data_quality:Number(dq.toFixed(4)),annualized_volatility:annualVol,horizon_days:cfg.days,factors:all,note:'Quantitative estimate. Confidence is not a probability of correctness.'}};
+  return {current_price:Number(current.toFixed(4)),predicted_price:Number(pred.toFixed(4)),predicted_change_percent:Number((ret*100).toFixed(3)),direction:dir,confidence:Number(conf.toFixed(1)),uncertainty:Number(uncertainty.toFixed(6)),confidence_lower:Number(confidenceLower.toFixed(4)),confidence_upper:Number(confidenceUpper.toFixed(4)),signal:dir==='bullish'?'positive-quant-score':dir==='bearish'?'negative-quant-score':'mixed-quant-score',feature_summary:{model:'quant-v3.0',technical_weight:0.65,fundamental_weight:0.35,technical_score:ts,fundamental_score:fs,combined_score:Number(combined.toFixed(4)),damped_score:Number(damped.toFixed(4)),agreement:Number(agreement.toFixed(4)),data_quality:Number(dq.toFixed(4)),annualized_volatility:annualVol,horizon_days:cfg.days,factors:all,note:'Quantitative estimate. Confidence is not a probability of correctness.',uncertainty_method:'one_sigma_annualized_volatility'}};
 }
 
 const batchSize=Math.max(1,Number(process.env.STOCK_BATCH_SIZE??500));
@@ -61,7 +64,7 @@ for(const row of rows){
   for(const horizon of ['24h','7d','30d','90d']){
     const p=build(row,horizon); if(!p) continue;
     await sql.query(`DELETE FROM predictions WHERE stock_id=$1 AND horizon=$2 AND model_version='quant-v3.0'`,[Number(row.id),horizon]);
-    await sql.query(`INSERT INTO predictions (stock_id,model_version,prediction_time,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,signal,feature_summary,model_name,generated_date,feature_version) VALUES ($1,'quant-v3.0',now(),$2,$3,$4,$5,$6,$7,$8,$9::jsonb,'Quantitative Ensemble',current_date,'v3')`,[Number(row.id),horizon,p.current_price,p.predicted_price,p.predicted_change_percent,p.direction,p.confidence,p.signal,JSON.stringify(p.feature_summary)]);
+    await sql.query(`INSERT INTO predictions (stock_id,model_version,prediction_time,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,confidence_lower,confidence_upper,uncertainty,signal,feature_summary,model_name,generated_date,feature_version) VALUES ($1,'quant-v3.0',now(),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,'Quantitative Ensemble',current_date,'v3')`,[Number(row.id),horizon,p.current_price,p.predicted_price,p.predicted_change_percent,p.direction,p.confidence,p.confidence_lower,p.confidence_upper,p.uncertainty,p.signal,JSON.stringify(p.feature_summary)]);
     generated++;
   }
   if(!rows.length) skipped++;
