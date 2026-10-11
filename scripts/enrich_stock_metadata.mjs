@@ -104,6 +104,14 @@ function normalizeFmp(row) {
     market_cap: positive(row.marketCap ?? row.market_cap),
     currency: clean(row.currency)?.toUpperCase(),
     country: clean(row.country),
+    ceo: clean(row.ceo),
+    headquarters: clean([row.address, row.city, row.state, row.zip, row.country].filter((x) => clean(x)).join(', ')),
+    city: clean(row.city),
+    state: clean(row.state),
+    employees: positive(row.fullTimeEmployees ?? row.employees),
+    founded_year: positive(row.foundedYear ?? row.foundingYear),
+    ipo_listing_date: clean(row.ipoDate),
+    investor_relations_url: clean(row.irWebsite ?? row.investorRelationsUrl),
     source: 'FMP profile bulk',
   };
 }
@@ -123,6 +131,12 @@ function normalizeMassive(row) {
     market_cap: positive(row.market_cap),
     currency: clean(row.currency_name)?.toUpperCase(),
     country: null,
+    headquarters: clean([row.address?.address1, row.address?.city, row.address?.state, row.address?.postal_code, row.address?.country].filter((x) => clean(x)).join(', ')),
+    city: clean(row.address?.city),
+    state: clean(row.address?.state),
+    employees: positive(row.total_employees),
+    founded_year: positive(row.founded_year),
+    ipo_listing_date: clean(row.list_date),
     sic_code: clean(row.sic_code),
     source: 'Massive reference ticker details',
   };
@@ -189,7 +203,7 @@ const recentlyAttemptedSymbols = new Set(attemptedRows.filter((row) => {
 }).map((row) => String(row.symbol).toUpperCase()));
 
 const stocks = await sql.query(`
-  SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country, data_last_verified_at
+  SELECT id, symbol, company_name, exchange, sector, industry, description, website_url, logo_url, market_cap, currency, country, ceo, headquarters, founded_year, city, state, employees, ipo_listing_date, investor_relations_url, data_last_verified_at
   FROM public.stocks
   WHERE asset_type = 'stock' AND is_active IS TRUE
   ORDER BY symbol
@@ -343,6 +357,14 @@ for (const stock of stocks) {
   const marketCap = provider.market_cap ?? (positive(stock.market_cap));
   const currency = provider.currency ?? stock.currency ?? null;
   const country = provider.country ?? stock.country ?? null;
+  const ceo = provider.ceo ?? stock.ceo ?? null;
+  const headquarters = provider.headquarters ?? stock.headquarters ?? null;
+  const foundedYear = provider.founded_year ?? stock.founded_year ?? null;
+  const city = provider.city ?? stock.city ?? null;
+  const state = provider.state ?? stock.state ?? null;
+  const employees = provider.employees ?? stock.employees ?? null;
+  const ipoListingDate = provider.ipo_listing_date ?? stock.ipo_listing_date ?? null;
+  const investorRelationsUrl = provider.investor_relations_url ?? stock.investor_relations_url ?? null;
 
   for (const [key, value] of Object.entries({ exchange, sector, industry, description, website_url: website, logo_url: logo })) {
     if ((stock[key] == null || String(stock[key]).trim() === '') && value != null && String(value).trim() !== '') fieldsFilled[key] += 1;
@@ -359,10 +381,18 @@ for (const stock of stocks) {
       market_cap = COALESCE($8, market_cap),
       currency = COALESCE(NULLIF($9, ''), currency),
       country = COALESCE(NULLIF($10, ''), country),
-      data_last_verified_at = CASE WHEN $12::boolean THEN now() ELSE data_last_verified_at END,
+      ceo = COALESCE(NULLIF($11, ''), ceo),
+      headquarters = COALESCE(NULLIF($12, ''), headquarters),
+      founded_year = COALESCE($13, founded_year),
+      city = COALESCE(NULLIF($14, ''), city),
+      state = COALESCE(NULLIF($15, ''), state),
+      employees = COALESCE($16, employees),
+      ipo_listing_date = COALESCE(NULLIF($17, '')::date, ipo_listing_date),
+      investor_relations_url = COALESCE(NULLIF($18, ''), investor_relations_url),
+      data_last_verified_at = CASE WHEN $20::boolean THEN now() ELSE data_last_verified_at END,
       updated_at = now()
-    WHERE id = $11
-  `, [name ?? null, exchange, sector, industry, description, website, logo, marketCap, currency, country, stock.id, detailsAttempted > 0 && detailCandidates.some((candidate) => candidate.id === stock.id)]);
+    WHERE id = $19
+  `, [name ?? null, exchange, sector, industry, description, website, logo, marketCap, currency, country, ceo, headquarters, foundedYear, city, state, employees, ipoListingDate, investorRelationsUrl, stock.id, detailsAttempted > 0 && detailCandidates.some((candidate) => candidate.id === stock.id)]);
   updated += 1;
   if (updated % 500 === 0) console.log(`[metadata] updated ${updated}/${stocks.length}`);
 }
