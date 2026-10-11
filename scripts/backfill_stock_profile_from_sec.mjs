@@ -53,7 +53,7 @@ async function flush() {
     'industry=COALESCE(NULLIF(s.industry,\'\'),src.industry), ' +
     'sub_industry=COALESCE(NULLIF(s.sub_industry,\'\'),CASE WHEN s.industry IS NOT NULL THEN src.sub_industry END), ' +
     'data_last_verified_at=NOW() ' +
-    'FROM src WHERE s.id=src.id AND (s.headquarters IS NULL OR s.city IS NULL OR s.state IS NULL OR s.industry IS NULL OR (s.industry IS NOT NULL AND s.sub_industry IS NULL)) ' +
+    'FROM src WHERE s.id=src.id AND (s.headquarters IS NULL OR s.city IS NULL OR s.state IS NULL OR s.industry IS NULL OR s.sub_industry IS NULL) ' +
     'RETURNING s.id',
     [payload]
   );
