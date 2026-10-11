@@ -3,9 +3,8 @@ import { neon } from '@neondatabase/serverless';
 const databaseUrl = process.env.NEON_DATABASE_URL;
 if (!databaseUrl) throw new Error('NEON_DATABASE_URL is not configured.');
 const sql = neon(databaseUrl);
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clean = (value) => value == null || String(value).trim() === '' ? null : String(value).trim();
-const norm = (value) => String(value ?? '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+const norm = (value) => String(value ?? '').toLowerCase().replace(/&/g, ' and ').replace(/\b(incorporated|inc|corporation|corp|company|co|limited|ltd|plc|holdings|holding|class [a-z]|ordinary shares)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 const yearOf = (value) => {
   const match = String(value ?? '').match(/^([+-]?\d{4,})-/);
   if (!match) return null;
@@ -13,12 +12,17 @@ const yearOf = (value) => {
   return year >= 1600 && year <= new Date().getFullYear() ? year : null;
 };
 const similarity = (a, b) => {
-  const x = new Set(norm(a).split(/\s+/).filter((w) => w.length > 2));
-  const y = new Set(norm(b).split(/\s+/).filter((w) => w.length > 2));
+  const x = new Set(norm(a).split(/\s+/).filter((w) => w.length > 1));
+  const y = new Set(norm(b).split(/\s+/).filter((w) => w.length > 1));
   if (!x.size || !y.size) return 0;
   let common = 0;
   for (const word of x) if (y.has(word)) common += 1;
   return common / Math.max(x.size, y.size);
+};
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const headers = {
+  'User-Agent': 'USMarketAI/1.0 (company metadata enrichment; https://usmarketai.com)',
+  'Accept': 'application/json'
 };
 
 const stocks = await sql.query(`
@@ -34,110 +38,115 @@ const stocks = await sql.query(`
     )
   ORDER BY symbol
 `);
-console.log(`[wikidata] Candidate stocks with one or more missing fields: ${stocks.length}`);
+console.log(`[wikipedia] Candidate stocks with one or more missing fields: ${stocks.length}`);
 
-const byTicker = new Map();
-for (const stock of stocks) {
-  const ticker = String(stock.symbol ?? '').trim().toUpperCase();
-  if (!ticker || !/^[A-Z0-9.\-^]+$/.test(ticker)) continue;
-  if (!byTicker.has(ticker)) byTicker.set(ticker, []);
-  byTicker.get(ticker).push(stock);
+const counts = { candidates: stocks.length, wikipedia_pages_found: 0, wikidata_entities_found: 0, stocks_updated: 0, ceo_filled: 0, founded_year_filled: 0, headquarters_filled: 0, website_filled: 0, logo_filled: 0, description_filled: 0, unmatched: 0, errors: 0 };
+const poolSize = 5;
+let cursor = 0;
+let completed = 0;
+
+async function fetchJson(url) {
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(18000) });
+  if (!response.ok) throw new Error(`HTTP ${response.status} from ${new URL(url).hostname}`);
+  return response.json();
 }
-const tickers = [...byTicker.keys()];
-const counts = { tickers_queried: 0, wikidata_entities_matched: 0, stocks_updated: 0, ceo_filled: 0, founded_year_filled: 0, headquarters_filled: 0, website_filled: 0, logo_filled: 0, description_filled: 0, ambiguous_or_low_confidence: 0, errors: 0 };
-
-async function queryWikidata(batch) {
-  const values = batch.map((ticker) => JSON.stringify(ticker)).join(' ');
-  const query = `
-SELECT ?ticker ?item ?itemLabel ?itemDescription ?ceoLabel ?inception ?hqLabel ?website ?logo WHERE {
-  VALUES ?ticker { ${values} }
-  ?item wdt:P249 ?ticker .
-  OPTIONAL { ?item wdt:P169 ?ceo . }
-  OPTIONAL { ?item wdt:P571 ?inception . }
-  OPTIONAL { ?item wdt:P159 ?hq . }
-  OPTIONAL { ?item wdt:P856 ?website . }
-  OPTIONAL { ?item wdt:P154 ?logo . }
-  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-  OPTIONAL { ?item schema:description ?itemDescription . FILTER(LANG(?itemDescription) = "en") }
-}`;
-  const url = new URL('https://query.wikidata.org/sparql');
-  url.searchParams.set('query', query);
-  url.searchParams.set('format', 'json');
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'application/sparql-results+json',
-      'User-Agent': 'USMarketAI/1.0 (stock metadata enrichment; https://usmarketai.com)'
-    }
-  });
-  if (!response.ok) throw new Error(`Wikidata HTTP ${response.status}: ${(await response.text()).slice(0, 250)}`);
-  return (await response.json()).results?.bindings ?? [];
+function claimValue(entity, property) {
+  const claim = entity?.claims?.[property]?.find((item) => item.rank === 'preferred') ?? entity?.claims?.[property]?.[0];
+  const value = claim?.mainsnak?.datavalue?.value;
+  if (!value) return null;
+  if (typeof value === 'object' && value.id) return value.id;
+  if (typeof value === 'object' && value.time) return value.time;
+  if (typeof value === 'object' && value.text) return value.text;
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
 }
-
-for (let offset = 0; offset < tickers.length; offset += 20) {
-  const batch = tickers.slice(offset, offset + 20);
-  let bindings;
+async function getEntity(entityId) {
+  const data = await fetchJson(`https://www.wikidata.org/wiki/Special:EntityData/${encodeURIComponent(entityId)}.json`);
+  return data.entities?.[entityId] ?? null;
+}
+async function getLabel(entityId) {
   try {
-    bindings = await queryWikidata(batch);
-  } catch (error) {
-    counts.errors += 1;
-    console.warn(`[wikidata] Batch ${offset + 1}-${Math.min(offset + batch.length, tickers.length)} failed: ${error.message}`);
-    await sleep(5000);
-    continue;
-  }
-  const candidates = new Map();
-  for (const row of bindings) {
-    const ticker = clean(row.ticker?.value)?.toUpperCase();
-    if (!ticker || !byTicker.has(ticker)) continue;
-    const entity = {
-      uri: row.item?.value,
-      name: clean(row.itemLabel?.value),
-      description: clean(row.itemDescription?.value),
-      ceo: clean(row.ceoLabel?.value),
-      inception: clean(row.inception?.value),
-      headquarters: clean(row.hqLabel?.value),
-      website: clean(row.website?.value),
-      logo: clean(row.logo?.value),
-    };
-    if (!candidates.has(ticker)) candidates.set(ticker, []);
-    const list = candidates.get(ticker);
-    const old = list.find((item) => item.uri === entity.uri);
-    if (!old) list.push(entity);
-    else for (const [key, value] of Object.entries(entity)) if (!old[key] && value) old[key] = value;
-  }
+    const data = await fetchJson(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${encodeURIComponent(entityId)}&props=labels&languages=en&format=json`);
+    return clean(data.entities?.[entityId]?.labels?.en?.value);
+  } catch { return null; }
+}
+async function processStock(stock) {
+  const name = clean(stock.company_name);
+  if (!name) { counts.unmatched++; return; }
+  try {
+    // Search by company name instead of ticker-property matching, which covers very few listed companies.
+    const params = new URLSearchParams({
+      action: 'query', list: 'search', srsearch: name, srnamespace: '0',
+      srlimit: '5', format: 'json', origin: '*'
+    });
+    const wiki = await fetchJson(`https://en.wikipedia.org/w/api.php?${params}`);
+    const pages = wiki.query?.search ?? [];
+    let wikiSummary = null;
+    let bestPage = null;
+    let bestScore = 0;
+    for (const page of pages) {
+      const score = similarity(name, page.title);
+      if (score > bestScore) { bestScore = score; bestPage = page; }
+    }
+    if (bestPage && bestScore >= 0.55) {
+      counts.wikipedia_pages_found++;
+      const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(bestPage.title.replace(/ /g, '_'))}`;
+      try { wikiSummary = await fetchJson(summaryUrl); } catch {}
+    }
 
-  for (const ticker of batch) {
-    const stockRows = byTicker.get(ticker) ?? [];
-    const entities = candidates.get(ticker) ?? [];
-    if (!entities.length) continue;
-    for (const stock of stockRows) {
-      const ranked = entities.map((entity) => ({ entity, score: similarity(stock.company_name, entity.name) })).sort((a, b) => b.score - a.score);
-      const best = ranked[0];
-      const second = ranked[1];
-      // Conservative matching: avoid writing a ticker collision into the wrong company.
-      if (!best || best.score < 0.45 || (second && best.score - second.score < 0.15)) {
-        counts.ambiguous_or_low_confidence += 1;
-        continue;
-      }
-      const e = best.entity;
-      counts.wikidata_entities_matched += 1;
-      const year = yearOf(e.inception);
-      const values = {
-        ceo: e.ceo && !/^unknown$/i.test(e.ceo) ? e.ceo : null,
-        founded_year: year,
-        headquarters: e.headquarters,
-        website_url: e.website,
-        logo_url: e.logo,
-        description: e.description,
-      };
-      const filled = {
-        ceo: !clean(stock.ceo) && values.ceo,
-        founded_year: stock.founded_year == null && values.founded_year,
-        headquarters: !clean(stock.headquarters) && values.headquarters,
-        website_url: !clean(stock.website_url) && values.website_url,
-        logo_url: !clean(stock.logo_url) && values.logo_url,
-        description: !clean(stock.description) && values.description,
-      };
-      if (!Object.values(filled).some(Boolean)) continue;
+    // Search Wikidata by company name; then verify the returned entity label before using its claims.
+    const wdParams = new URLSearchParams({
+      action: 'wbsearchentities', search: name, language: 'en', uselang: 'en',
+      type: 'item', limit: '5', format: 'json'
+    });
+    const search = await fetchJson(`https://www.wikidata.org/w/api.php?${wdParams}`);
+    const entities = (search.search ?? []).map((e) => ({
+      id: e.id, label: clean(e.label), description: clean(e.description),
+      score: similarity(name, e.label)
+    })).sort((a, b) => b.score - a.score);
+    const best = entities[0];
+    let entity = null;
+    if (best && best.score >= 0.55 && (!entities[1] || best.score - entities[1].score >= 0.05)) {
+      entity = await getEntity(best.id);
+      if (entity) counts.wikidata_entities_found++;
+    }
+
+    let ceo = null, foundedYear = null, headquarters = null, website = null, logo = null, description = null;
+    if (entity) {
+      const claims = entity.claims ?? {};
+      const ceoId = claimValue(entity, 'P169');
+      const hqId = claimValue(entity, 'P159');
+      if (ceoId?.startsWith('Q')) ceo = await getLabel(ceoId);
+      if (hqId?.startsWith('Q')) headquarters = await getLabel(hqId);
+      foundedYear = yearOf(claimValue(entity, 'P571'));
+      website = claimValue(entity, 'P856');
+      const logoFile = claimValue(entity, 'P154');
+      if (logoFile) logo = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(logoFile)}`;
+      description = clean(entity.descriptions?.en?.value);
+    }
+    if (!description && wikiSummary?.type === 'standard') description = clean(wikiSummary.extract);
+    if (!logo && wikiSummary?.thumbnail?.source) logo = wikiSummary.thumbnail.source;
+    if (!website && wikiSummary?.content_urls?.desktop?.page) {
+      // Do not treat the Wikipedia page itself as the company's official website.
+      website = null;
+    }
+
+    const values = {
+      ceo: ceo && !/^unknown$/i.test(ceo) ? ceo : null,
+      founded_year: foundedYear,
+      headquarters,
+      website_url: website,
+      logo_url: logo,
+      description
+    };
+    const filled = {
+      ceo: !clean(stock.ceo) && values.ceo,
+      founded_year: stock.founded_year == null && values.founded_year,
+      headquarters: !clean(stock.headquarters) && values.headquarters,
+      website_url: !clean(stock.website_url) && values.website_url,
+      logo_url: !clean(stock.logo_url) && values.logo_url,
+      description: !clean(stock.description) && values.description
+    };
+    if (Object.values(filled).some(Boolean)) {
       await sql.query(`
         UPDATE public.stocks SET
           ceo = COALESCE(NULLIF(BTRIM(ceo), ''), $1),
@@ -149,21 +158,30 @@ for (let offset = 0; offset < tickers.length; offset += 20) {
           updated_at = now()
         WHERE id = $7
       `, [values.ceo, values.founded_year, values.headquarters, values.website_url, values.logo_url, values.description, stock.id]);
-      counts.stocks_updated += 1;
-      if (filled.ceo) counts.ceo_filled += 1;
-      if (filled.founded_year) counts.founded_year_filled += 1;
-      if (filled.headquarters) counts.headquarters_filled += 1;
-      if (filled.website_url) counts.website_filled += 1;
-      if (filled.logo_url) counts.logo_filled += 1;
-      if (filled.description) counts.description_filled += 1;
-    }
+      counts.stocks_updated++;
+      for (const field of ['ceo', 'founded_year', 'headquarters', 'website_url', 'logo_url', 'description']) {
+        if (filled[field]) counts[field === 'website_url' ? 'website_filled' : field === 'logo_url' ? 'logo_filled' : field === 'founded_year' ? 'founded_year_filled' : field === 'headquarters' ? 'headquarters_filled' : field === 'description' ? 'description_filled' : 'ceo_filled']++;
+      }
+    } else if (!entity && !wikiSummary) counts.unmatched++;
+  } catch (error) {
+    counts.errors++;
+    if (counts.errors <= 20) console.warn(`[wikipedia] ${stock.symbol}: ${error.message}`);
   }
-  counts.tickers_queried += batch.length;
-  if ((offset + batch.length) % 100 === 0 || offset + batch.length === tickers.length) {
-    console.log(`[wikidata] queried ${Math.min(offset + batch.length, tickers.length)}/${tickers.length} tickers; updated ${counts.stocks_updated} stocks so far`);
-  }
-  await sleep(1200);
 }
+
+async function worker() {
+  while (true) {
+    const index = cursor++;
+    if (index >= stocks.length) return;
+    await processStock(stocks[index]);
+    completed++;
+    if (completed % 50 === 0 || completed === stocks.length) {
+      console.log(`[wikipedia] processed ${completed}/${stocks.length}; updated ${counts.stocks_updated}; Wikipedia pages ${counts.wikipedia_pages_found}; Wikidata entities ${counts.wikidata_entities_found}`);
+    }
+    await sleep(150);
+  }
+}
+await Promise.all(Array.from({ length: poolSize }, worker));
 
 const audit = await sql.query(`
   SELECT
