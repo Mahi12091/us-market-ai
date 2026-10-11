@@ -51,7 +51,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('earnings').select('*').eq('stock_id', stock.id).order('earnings_date', { ascending: false }).limit(6),
     db.from('earnings_revisions').select('*').eq('stock_id', stock.id).order('revision_date', { ascending: false }).limit(12),
     db.from('news').select('id,title,summary,url,source,published_at,sentiment').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(5),
-    db.from('price_history').select('timestamp,close').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: true }).limit(250),
+    db.from('price_history').select('timestamp,high,low,close').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: false }).limit(250),
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
     db.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(36),
@@ -74,7 +74,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('long_term_predictions').select('*').eq('stock_id', stock.id).eq('model_version', 'long-term-v1.0').order('target_year', { ascending: true }),
   ]);
 
-  const chart: ChartPoint[] = (history ?? []).filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
+  const recentHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  const chart: ChartPoint[] = recentHistory.filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
   const derived52WeekHigh = (history ?? []).map(x => Number(x.high)).filter(Number.isFinite).reduce((m, v) => Math.max(m, v), -Infinity);
   const derived52WeekLow = (history ?? []).map(x => Number(x.low)).filter(Number.isFinite).reduce((m, v) => Math.min(m, v), Infinity);
   const week52High = quote?.week_52_high ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
