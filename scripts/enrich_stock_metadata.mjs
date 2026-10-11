@@ -279,7 +279,7 @@ if (MASSIVE_KEY) {
 const detailCandidates = stocks.filter((stock) => {
   const symbol = String(stock.symbol).toUpperCase();
   const provider = profiles.get(symbol) || {};
-  const required = ['sector', 'industry', 'description', 'website_url', 'logo_url'];
+  const required = ['sector', 'industry', 'description', 'website_url', 'logo_url', 'founded_year'];
   const hasMissing = required.some((field) => !clean(provider[field] ?? stock[field]));
   return hasMissing && !recentlyAttemptedSymbols.has(symbol);
 }).sort((a, b) => {
@@ -342,7 +342,7 @@ if (MASSIVE_KEY && !massiveUnavailable && massivePages > 0 && detailCandidates.l
 }
 
 let updated = 0;
-let fieldsFilled = { exchange: 0, sector: 0, industry: 0, description: 0, website_url: 0, logo_url: 0 };
+let fieldsFilled = { market_cap: 0, description: 0, ceo: 0, founded_year: 0, headquarters: 0, exchange: 0, sector: 0, industry: 0, website_url: 0, logo_url: 0 };
 for (const stock of stocks) {
   const provider = profiles.get(String(stock.symbol).toUpperCase()) || {};
   const industry = provider.industry ?? stock.industry ?? null;
@@ -366,7 +366,7 @@ for (const stock of stocks) {
   const ipoListingDate = provider.ipo_listing_date ?? stock.ipo_listing_date ?? null;
   const investorRelationsUrl = provider.investor_relations_url ?? stock.investor_relations_url ?? null;
 
-  for (const [key, value] of Object.entries({ exchange, sector, industry, description, website_url: website, logo_url: logo })) {
+  for (const [key, value] of Object.entries({ market_cap: marketCap, description, ceo, founded_year: foundedYear, headquarters, exchange, sector, industry, website_url: website, logo_url: logo })) {
     if ((stock[key] == null || String(stock[key]).trim() === '') && value != null && String(value).trim() !== '') fieldsFilled[key] += 1;
   }
   await sql.query(`
@@ -403,7 +403,11 @@ const audit = await sql.query(`
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (exchange IS NULL OR btrim(exchange)='')) AS missing_exchange,
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (sector IS NULL OR btrim(sector)='')) AS missing_sector,
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (industry IS NULL OR btrim(industry)='')) AS missing_industry,
+    COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND market_cap IS NULL) AS missing_market_cap,
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (description IS NULL OR btrim(description)='')) AS missing_description,
+    COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (ceo IS NULL OR btrim(ceo)='')) AS missing_ceo,
+    COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND founded_year IS NULL) AS missing_founded_year,
+    COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (headquarters IS NULL OR btrim(headquarters)='')) AS missing_headquarters,
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (website_url IS NULL OR btrim(website_url)='')) AS missing_website,
     COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND (logo_url IS NULL OR btrim(logo_url)='')) AS missing_logo
   FROM public.stocks
@@ -423,6 +427,6 @@ const result = {
   remaining_missing: audit[0] ?? null,
 };
 console.log(JSON.stringify(result, null, 2));
-if (Number(audit[0]?.missing_exchange ?? 0) > 0 || Number(audit[0]?.missing_sector ?? 0) > 0 || Number(audit[0]?.missing_industry ?? 0) > 0 || Number(audit[0]?.missing_description ?? 0) > 0 || Number(audit[0]?.missing_website ?? 0) > 0 || Number(audit[0]?.missing_logo ?? 0) > 0) {
+if (Number(audit[0]?.missing_market_cap ?? 0) > 0 || Number(audit[0]?.missing_description ?? 0) > 0 || Number(audit[0]?.missing_ceo ?? 0) > 0 || Number(audit[0]?.missing_founded_year ?? 0) > 0 || Number(audit[0]?.missing_headquarters ?? 0) > 0 || Number(audit[0]?.missing_exchange ?? 0) > 0 || Number(audit[0]?.missing_sector ?? 0) > 0 || Number(audit[0]?.missing_industry ?? 0) > 0 || Number(audit[0]?.missing_website ?? 0) > 0 || Number(audit[0]?.missing_logo ?? 0) > 0) {
   console.warn('[metadata] Some fields remain missing because neither configured provider supplied verified values. See remaining_missing above; do not fabricate official company data.');
 }
