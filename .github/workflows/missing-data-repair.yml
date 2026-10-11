@@ -55,6 +55,8 @@ jobs:
           done
       - name: Derive fundamentals from available financial statements
         run: node scripts/calculate_derived_fundamentals.mjs
+      - name: Repair missing Sharpe and Sortino from historical returns
+        run: node scripts/repair_missing_risk_metrics.mjs
       - name: Backfill verified SEC company metadata
         run: node scripts/backfill_stock_profile_from_sec.mjs
       - name: Final missing-field audit
