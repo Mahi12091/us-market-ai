@@ -47,10 +47,12 @@ async function stooqHistory(symbol) {
   const lines = csv.trim().split(/\r?\n/);
   if (lines.length < 2 || !/^Date,Open,High,Low,Close,Volume/i.test(lines[0])) throw new Error('Stooq returned no daily CSV data');
   const history = [];
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - 400);
   for (const line of lines.slice(1)) {
     const [date, open, high, low, close, volume] = line.split(',');
     const c = n(close);
-    if (!date || c == null || c <= 0) continue;
+    if (!date || Date.parse(date) < cutoff.getTime() || c == null || c <= 0) continue;
     history.push({
       stock_id: null, timeframe: '1d', timestamp: new Date(date + 'T04:00:00.000Z').toISOString(),
       open: n(open), high: n(high), low: n(low), close: c,
@@ -112,6 +114,12 @@ for (const stock of missing) {
     const last = history.at(-1);
     const prev = history.length > 1 ? history.at(-2) : null;
     const lastDate = last.timestamp.slice(0, 10);
+    const ageDays = (Date.now() - Date.parse(last.timestamp)) / 86400000;
+    if (ageDays > 14) {
+      skipped += 1;
+      console.warn('[yahoo-backfill] skipped ' + stock.symbol + ' latest bar is stale (' + lastDate + ')');
+      continue;
+    }
     const avgVolume = history.slice(-20).filter((x) => x.volume != null).reduce((sum, x, _, arr) => sum + x.volume / arr.length, 0);
     const high52 = history.slice(-252).reduce((v, x) => x.high == null ? v : Math.max(v, x.high), -Infinity);
     const low52 = history.slice(-252).reduce((v, x) => x.low == null ? v : Math.min(v, x.low), Infinity);
