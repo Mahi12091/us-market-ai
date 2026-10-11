@@ -1,0 +1,47 @@
+name: Company Profile Enrichment
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 9 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/enrich_stock_metadata.mjs'
+      - '.github/workflows/company-profile-enrichment.yml'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  enrich:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      MASSIVE_DETAILS_BATCH_SIZE: '350'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate database access
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${NEON_DATABASE_URL:-}" ]; then
+            echo "NEON_DATABASE_URL is not configured."
+            exit 1
+          fi
+      - name: Enrich verified company metadata
+        run: node scripts/enrich_stock_metadata.mjs
