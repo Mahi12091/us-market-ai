@@ -294,7 +294,7 @@ const detailCandidates = stocks.filter((stock) => {
 
 let detailsAttempted = 0;
 let lastDetailsRequestAt = 0;
-if (MASSIVE_KEY && detailCandidates.length) {
+if (MASSIVE_KEY && !massiveUnavailable && massivePages > 0 && detailCandidates.length) {
   console.log(`[metadata] Fetching detailed Massive profiles for ${detailCandidates.length} stocks (resume-safe batch).`);
   for (const stock of detailCandidates) {
     const symbol = String(stock.symbol).toUpperCase();
