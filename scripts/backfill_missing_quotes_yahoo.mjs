@@ -80,8 +80,8 @@ for (const stock of missing) {
     const avgVolume = history.slice(-20).filter((x) => x.volume != null).reduce((sum, x, _, arr) => sum + x.volume / arr.length, 0);
     const high52 = history.slice(-252).reduce((v, x) => x.high == null ? v : Math.max(v, x.high), -Infinity);
     const low52 = history.slice(-252).reduce((v, x) => x.low == null ? v : Math.min(v, x.low), Infinity);
-    const price = n(result.meta?.regularMarketPrice) ?? last.close;
-    const previousClose = n(result.meta?.chartPreviousClose) ?? prev?.close ?? null;
+    const price = last.close;
+    const previousClose = prev?.close ?? null;
     const change = previousClose != null ? price - previousClose : null;
     const changePercent = previousClose > 0 ? (price / previousClose - 1) * 100 : null;
     const quoteTimestamp = last.timestamp;
