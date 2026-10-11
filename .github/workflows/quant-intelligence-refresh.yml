@@ -19,7 +19,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install --no-audit --no-fund
+      - name: Validate database connection
+        run: test -n "$NEON_DATABASE_URL"
       - name: Refresh stock scores and rankings
-        env:
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: node scripts/generate_stock_scores_v2.mjs
+      - name: Verify today's score coverage
+        run: |
+          node --input-type=module <<'NODE'
+          import { neon } from '@neondatabase/serverless';
+          const sql = neon(process.env.NEON_DATABASE_URL);
+          const rows = await sql`SELECT
+            (SELECT COUNT(*) FROM stocks WHERE is_active=true AND asset_type='stock')::int AS active_stocks,
+            (SELECT COUNT(DISTINCT stock_id) FROM stock_scores WHERE score_date=CURRENT_DATE)::int AS scored_stocks,
+            (SELECT COUNT(DISTINCT stock_id) FROM stock_rankings WHERE ranking_date=CURRENT_DATE)::int AS ranked_stocks`;
+          console.log(JSON.stringify(rows[0]));
+          if (Number(rows[0].scored_stocks) < Number(rows[0].active_stocks) * 0.95) process.exit(1);
+          NODE
