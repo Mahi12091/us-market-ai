@@ -1,0 +1,42 @@
+name: Technical Indicators Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/compute_technical_indicators.mjs'
+      - '.github/workflows/technical-indicators-backfill.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: technical-indicators-backfill
+  cancel-in-progress: false
+
+jobs:
+  technical:
+    name: Technical batch ${{ matrix.batch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        batch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      STOCK_BATCH_INDEX: ${{ matrix.batch }}
+      STOCK_BATCH_SIZE: 500
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Validate database connection
+        run: test -n "$NEON_DATABASE_URL"
+      - name: Recalculate indicators from stored daily price history
+        run: node scripts/compute_technical_indicators.mjs
