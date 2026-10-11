@@ -57,13 +57,13 @@ const batchIndex=Math.max(0,Number(process.env.STOCK_BATCH_INDEX??0));
 const offset=batchIndex*batchSize;
 const rows=await sql.query(`WITH lf AS (SELECT DISTINCT ON (stock_id) stock_id,revenue,revenue_growth,eps_growth,roe,roa,debt_equity,free_cash_flow,fcf_margin,pe_ratio,peg_ratio,report_date FROM fundamentals ORDER BY stock_id,report_date DESC NULLS LAST,updated_at DESC), hc AS (SELECT stock_id,COUNT(*)::int history_count FROM price_history WHERE timeframe='1d' GROUP BY stock_id) SELECT s.id,s.symbol,q.price,t.ema_20,t.ema_50,t.sma_50,t.sma_200,t.rsi,t.macd_histogram,t.momentum,t.volatility,t.support_level,t.resistance_level,lf.revenue,lf.revenue_growth,lf.eps_growth,lf.roe,lf.roa,lf.debt_equity,lf.free_cash_flow,lf.fcf_margin,lf.pe_ratio,lf.peg_ratio,COALESCE(hc.history_count,0) history_count FROM stocks s JOIN latest_quotes q ON q.stock_id=s.id AND q.price>0 JOIN technical_indicators t ON t.stock_id=s.id AND t.timeframe='1d' AND t.calculated_at > now() - interval '2 days' LEFT JOIN lf ON lf.stock_id=s.id LEFT JOIN hc ON hc.stock_id=s.id WHERE s.is_active=true AND s.asset_type='stock' ORDER BY s.id OFFSET $1 LIMIT $2`,[offset,batchSize]);
 let generated=0,skipped=0;
-for(const row of rows.rows){
+for(const row of rows){
   for(const horizon of ['24h','7d','30d','90d']){
     const p=build(row,horizon); if(!p) continue;
     await sql.query(`DELETE FROM predictions WHERE stock_id=$1 AND horizon=$2 AND model_version='quant-v3.0'`,[Number(row.id),horizon]);
     await sql.query(`INSERT INTO predictions (stock_id,model_version,prediction_time,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,signal,feature_summary,model_name,generated_date,feature_version) VALUES ($1,'quant-v3.0',now(),$2,$3,$4,$5,$6,$7,$8,$9::jsonb,'Quantitative Ensemble',current_date,'v3')`,[Number(row.id),horizon,p.current_price,p.predicted_price,p.predicted_change_percent,p.direction,p.confidence,p.signal,JSON.stringify(p.feature_summary)]);
     generated++;
   }
-  if(!rows.rows.length) skipped++;
+  if(!rows.length) skipped++;
 }
-console.log(JSON.stringify({model_version:'quant-v3.0',batch_index:batchIndex,batch_size:batchSize,stocks_processed:rows.rows.length,predictions_generated:generated,stocks_skipped:skipped,horizons:['24h','7d','30d','90d']},null,2));
+console.log(JSON.stringify({model_version:'quant-v3.0',batch_index:batchIndex,batch_size:batchSize,stocks_processed:rows.length,predictions_generated:generated,stocks_skipped:skipped,horizons:['24h','7d','30d','90d']},null,2));
