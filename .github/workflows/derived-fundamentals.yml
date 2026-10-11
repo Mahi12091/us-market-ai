@@ -2,6 +2,11 @@ name: Derived Fundamentals Refresh
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/calculate_derived_fundamentals.mjs'
+      - '.github/workflows/derived-fundamentals.yml'
   schedule:
     - cron: '30 23 * * 1-5'
 
