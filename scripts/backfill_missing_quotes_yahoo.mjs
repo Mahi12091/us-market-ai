@@ -27,7 +27,7 @@ async function yahooHistory(symbol) {
     const close = n(bars.close?.[i]);
     if (!timestamps[i] || close == null || close <= 0) continue;
     history.push({
-      stock_id: null, timeframe: '1d', timestamp: new Date(timestamps[i] * 1000).toISOString(),
+      stock_id: null, timeframe: '1d', timestamp: new Date(new Date(timestamps[i] * 1000).toISOString().slice(0, 10) + 'T04:00:00.000Z').toISOString(),
       open: n(bars.open?.[i]), high: n(bars.high?.[i]), low: n(bars.low?.[i]), close,
       volume: bars.volume?.[i] == null ? null : Math.trunc(Number(bars.volume[i])),
       adjusted_close: n(adjusted[i]), data_source: 'YAHOO_FINANCE_CHART_FREE'
@@ -74,14 +74,19 @@ async function fetchHistory(symbol) {
 }
 
 const missing = await sql`
-  SELECT s.id, s.symbol, s.asset_type
+  SELECT s.id, s.symbol, s.asset_type, q.quote_timestamp,
+    (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d') AS latest_history_ts
   FROM stocks s
   LEFT JOIN latest_quotes q ON q.stock_id = s.id
-  WHERE s.is_active = true AND q.stock_id IS NULL
+  WHERE s.is_active = true AND (
+    q.stock_id IS NULL OR
+    (EXISTS (SELECT 1 FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')
+      AND (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')::date < CURRENT_DATE - 2)
+  )
   ORDER BY s.asset_type, s.symbol
 `;
 if (!missing.length) {
-  console.log('[yahoo-backfill] No stocks are missing latest_quotes rows.');
+  console.log('[yahoo-backfill] No missing quotes or stale daily histories found.');
   process.exit(0);
 }
 
@@ -95,10 +100,11 @@ for (const stock of missing) {
   try {
     const fetched = await fetchHistory(stock.symbol);
     const history = fetched.history.map((bar) => ({ ...bar, stock_id: Number(stock.id), data_source: fetched.source }));
+    const existingTs = stock.latest_history_ts ? Date.parse(stock.latest_history_ts) : -Infinity;
+    const newHistory = history.filter((bar) => Date.parse(bar.timestamp) > existingTs);
 
-
-    for (let i = 0; i < history.length; i += 250) {
-      const chunk = history.slice(i, i + 250);
+    for (let i = 0; i < newHistory.length; i += 250) {
+      const chunk = newHistory.slice(i, i + 250);
       const res = await sql.query(
         'INSERT INTO price_history(stock_id,timeframe,"timestamp",open,high,low,close,volume,adjusted_close,data_source) ' +
         'SELECT x.stock_id,x.timeframe,x.ts,x.open,x.high,x.low,x.close,x.volume,x.adjusted_close,x.data_source ' +
@@ -115,9 +121,13 @@ for (const stock of missing) {
     const prev = history.length > 1 ? history.at(-2) : null;
     const lastDate = last.timestamp.slice(0, 10);
     const ageDays = (Date.now() - Date.parse(last.timestamp)) / 86400000;
-    if (ageDays > 14) {
+    if (ageDays > 4) {
       skipped += 1;
       console.warn('[yahoo-backfill] skipped ' + stock.symbol + ' latest bar is stale (' + lastDate + ')');
+      continue;
+    }
+    if (newHistory.length === 0 && stock.quote_timestamp && Date.parse(stock.quote_timestamp) >= Date.parse(last.timestamp)) {
+      skipped += 1;
       continue;
     }
     const avgVolume = history.slice(-20).filter((x) => x.volume != null).reduce((sum, x, _, arr) => sum + x.volume / arr.length, 0);
@@ -149,7 +159,7 @@ for (const stock of missing) {
     );
     quoteRows += qres.length;
     if (stock.asset_type === 'etf') marketSnapshots.push({ symbol: stock.symbol, price: round(price), change_percent: round(changePercent), timestamp: quoteTimestamp });
-    console.log(JSON.stringify({symbol: stock.symbol, history_bars: history.length, quote_timestamp: quoteTimestamp, source: fetched.source}));
+    console.log(JSON.stringify({symbol: stock.symbol, history_bars_available: history.length, new_bars_upserted: newHistory.length, quote_timestamp: quoteTimestamp, source: fetched.source}));
   } catch (error) {
     const message = String(error?.message || error);
     if (/HTTP 404|no usable daily bars|No chart data returned/i.test(message)) {
