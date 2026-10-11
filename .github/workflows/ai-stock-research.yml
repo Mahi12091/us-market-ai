@@ -44,23 +44,10 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Validate secrets
-        id: validate
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${NEON_DATABASE_URL:-}" || (echo "NEON_DATABASE_URL missing" && exit 1)
-          ready=false
-          case "${AI_PROVIDER:-openai}" in
-            openai) [ -n "${OPENAI_API_KEY:-}" ] && ready=true ;;
-            claude) [ -n "${ANTHROPIC_API_KEY:-}" ] && ready=true ;;
-            deepseek) [ -n "${DEEPSEEK_API_KEY:-}" ] && ready=true ;;
-            *) echo "Unsupported AI_PROVIDER"; exit 1 ;;
-          esac
-          echo "ai_ready=$ready" >> "$GITHUB_OUTPUT"
-          if [ "$ready" = false ]; then echo "No configured AI provider key; rule-based research backfill will provide non-AI research." ; fi
+      - name: Validate database secret
+        run: test -n "${NEON_DATABASE_URL:-}"
       - name: Start Neon REST API
-        if: steps.validate.outputs.ai_ready == 'true'
+        if: ${{ (env.AI_PROVIDER == 'openai' && env.OPENAI_API_KEY != '') || (env.AI_PROVIDER == 'claude' && env.ANTHROPIC_API_KEY != '') || (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') }}
         run: |
           set -euo pipefail
           nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
@@ -71,13 +58,13 @@ jobs:
           cat /tmp/neon-rest.log
           exit 1
       - name: Skip AI research when provider key is missing
-        if: steps.validate.outputs.ai_ready != 'true'
+        if: ${{ !(${ready}) }}
         run: echo 'AI research skipped: configure the selected provider API key to enable AI-generated text. Verified rule-based research is maintained by a separate workflow.'
       - name: Run monthly research
-        if: steps.validate.outputs.ai_ready == 'true' && (github.event_name == 'schedule' || inputs.mode == 'monthly')
+        if: ${{ (${ready}) && (github.event_name == 'schedule' || github.event.inputs.mode == 'monthly') }}
         continue-on-error: true
         run: node scripts/generate_ai_research.mjs monthly
       - name: Run quarterly research
-        if: steps.validate.outputs.ai_ready == 'true' && github.event_name == 'workflow_dispatch' && inputs.mode == 'quarterly'
+        if: ${{ (${ready}) && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'quarterly' }}
         continue-on-error: true
         run: node scripts/generate_ai_research.mjs quarterly
