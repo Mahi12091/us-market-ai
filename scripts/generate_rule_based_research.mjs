@@ -41,7 +41,7 @@ month_prices AS (
     AND "timestamp" >= date_trunc('month', CURRENT_DATE)
   GROUP BY stock_id
 ),
-news AS (
+recent_news AS (
   SELECT stock_id, count(*)::int AS n,
     jsonb_agg(title ORDER BY published_at DESC) FILTER (WHERE title IS NOT NULL) AS titles
   FROM (
@@ -98,7 +98,7 @@ source AS (
   LEFT JOIN fund f ON f.stock_id = a.id
   LEFT JOIN risk r ON r.stock_id = a.id
   LEFT JOIN month_prices mp ON mp.stock_id = a.id
-  LEFT JOIN news n ON n.stock_id = a.id
+  LEFT JOIN recent_news n ON n.stock_id = a.id
   LEFT JOIN upcoming u ON u.stock_id = a.id
 )
 INSERT INTO monthly_stock_research (
@@ -144,7 +144,7 @@ risk AS (
   SELECT DISTINCT ON (stock_id) stock_id, volatility, maximum_drawdown
   FROM risk_metrics ORDER BY stock_id, calculation_date DESC
 ),
-news AS (
+recent_headline AS (
   SELECT stock_id, title FROM (
     SELECT stock_id, title, row_number() OVER (PARTITION BY stock_id ORDER BY published_at DESC NULLS LAST) rn
     FROM news WHERE published_at >= CURRENT_DATE - INTERVAL '30 days'
@@ -182,7 +182,7 @@ source AS (
   JOIN fund f ON f.stock_id = a.id
   LEFT JOIN earn e ON e.stock_id = a.id
   LEFT JOIN risk r ON r.stock_id = a.id
-  LEFT JOIN news n ON n.stock_id = a.id
+  LEFT JOIN recent_headline n ON n.stock_id = a.id
   LEFT JOIN LATERAL (
     SELECT earnings_date FROM earnings x WHERE x.stock_id=a.id AND x.earnings_date>=CURRENT_DATE ORDER BY x.earnings_date ASC LIMIT 1
   ) u ON true
