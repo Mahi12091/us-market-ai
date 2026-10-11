@@ -95,6 +95,54 @@ function bollinger(values, period = 20) {
 function stochastic(rows, period = 14) {
   if (rows.length < period) return null; const window = rows.slice(-period); const high = Math.max(...window.map((row) => row.high)); const low = Math.min(...window.map((row) => row.low)); return high === low ? 50 : ((rows.at(-1).close - low) / (high - low)) * 100;
 }
+function williamsR(rows, period = 14) {
+  if (rows.length < period) return null;
+  const window = rows.slice(-period);
+  const high = Math.max(...window.map((row) => row.high));
+  const low = Math.min(...window.map((row) => row.low));
+  return high === low ? 0 : ((high - rows.at(-1).close) / (high - low)) * -100;
+}
+function cci(rows, period = 20) {
+  if (rows.length < period) return null;
+  const window = rows.slice(-period);
+  const typical = window.map((row) => (row.high + row.low + row.close) / 3);
+  const mean = average(typical);
+  const deviation = average(typical.map((value) => Math.abs(value - mean)));
+  const current = typical.at(-1);
+  return deviation ? (current - mean) / (0.015 * deviation) : 0;
+}
+function mfi(rows, period = 14) {
+  if (rows.length <= period) return null;
+  let positive = 0; let negative = 0;
+  for (let i = rows.length - period; i < rows.length; i += 1) {
+    const current = rows[i]; const previous = rows[i - 1];
+    const tp = (current.high + current.low + current.close) / 3;
+    const prevTp = (previous.high + previous.low + previous.close) / 3;
+    const flow = tp * current.volume;
+    if (tp > prevTp) positive += flow;
+    else if (tp < prevTp) negative += flow;
+  }
+  if (negative === 0) return positive > 0 ? 100 : 50;
+  const ratio = positive / negative;
+  return 100 - (100 / (1 + ratio));
+}
+function roc(values, period = 12) {
+  if (values.length <= period) return null;
+  const previous = values.at(-(period + 1));
+  return previous > 0 ? ((values.at(-1) / previous) - 1) * 100 : null;
+}
+function stochasticSignal(rows, period = 14, signalPeriod = 3) {
+  if (rows.length < period + signalPeriod - 1) return null;
+  const values = [];
+  for (let offset = signalPeriod - 1; offset >= 0; offset -= 1) {
+    const window = rows.slice(-(period + offset), offset ? -offset : undefined);
+    if (window.length < period) return null;
+    const high = Math.max(...window.map((row) => row.high));
+    const low = Math.min(...window.map((row) => row.low));
+    values.push(high === low ? 50 : ((window.at(-1).close - low) / (high - low)) * 100);
+  }
+  return average(values);
+}
 function obv(rows) { if (!rows.length) return null; let value = 0; for (let i = 1; i < rows.length; i += 1) { if (rows[i].close > rows[i - 1].close) value += rows[i].volume; else if (rows[i].close < rows[i - 1].close) value -= rows[i].volume; } return value; }
 function volatility(values, period = 20) {
   if (values.length <= period) return null; const returns = []; for (let i = Math.max(1, values.length - period); i < values.length; i += 1) returns.push((values[i] / values[i - 1]) - 1); const mean = average(returns); return Math.sqrt(average(returns.map((value) => (value - mean) ** 2))) * Math.sqrt(252) * 100;
@@ -113,9 +161,11 @@ for (const stock of stockList) {
   if (clean.length < 20) { skipped += 1; continue; }
   const closes = clean.map((row) => row.close); const macdValues = macd(closes); const bands = bollinger(closes);
   const support = Math.min(...clean.slice(-20).map((row) => row.low)); const resistance = Math.max(...clean.slice(-20).map((row) => row.high));
+  const ema50 = ema(closes, 50); const ema200 = ema(closes, 200);
+  const trend = ema50 == null || ema200 == null ? null : (closes.at(-1) > ema50 && ema50 > ema200 ? 'bullish' : closes.at(-1) < ema50 && ema50 < ema200 ? 'bearish' : 'neutral');
   await db('technical_indicators', {
     method: 'POST', params: { on_conflict: 'stock_id,timeframe' },
-    body: [{ stock_id: stock.id, timeframe: '1d', rsi: rsi(closes), macd: macdValues.macd, macd_signal: macdValues.signal, macd_histogram: macdValues.histogram, sma_20: sma(closes, 20), sma_50: sma(closes, 50), sma_100: sma(closes, 100), sma_200: sma(closes, 200), ema_20: ema(closes, 20), ema_50: ema(closes, 50), atr: atr(clean), adx: adx(clean), bollinger_upper: bands.upper, bollinger_middle: bands.middle, bollinger_lower: bands.lower, stochastic: stochastic(clean), obv: obv(clean), volatility: volatility(closes), momentum: momentum(closes), support_level: support, resistance_level: resistance, calculated_at: new Date().toISOString() }],
+    body: [{ stock_id: stock.id, timeframe: '1d', rsi: rsi(closes), macd: macdValues.macd, macd_signal: macdValues.signal, macd_histogram: macdValues.histogram, sma_20: sma(closes, 20), sma_50: sma(closes, 50), sma_100: sma(closes, 100), sma_200: sma(closes, 200), ema_20: ema(closes, 20), ema_50: ema50, ema_200: ema200, atr: atr(clean), adx: adx(clean), bollinger_upper: bands.upper, bollinger_middle: bands.middle, bollinger_lower: bands.lower, stochastic: stochastic(clean), stochastic_signal: stochasticSignal(clean), williams_r: williamsR(clean), cci: cci(clean), mfi: mfi(clean), roc: roc(closes), obv: obv(clean), volatility: volatility(closes), momentum: momentum(closes), support_level: support, resistance_level: resistance, support_levels: [support], resistance_levels: [resistance], trend, calculated_at: new Date().toISOString() }],
   });
   calculated += 1;
 }
