@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
       SEC_BATCH_SIZE: 500
       SEC_BATCH_CONCURRENCY: 2
     steps:
@@ -59,6 +59,7 @@ jobs:
 
   sec-13f-dataset:
     name: Official SEC 13F dataset
+    needs: sec-insider
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
