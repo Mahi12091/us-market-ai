@@ -23,7 +23,6 @@ jobs:
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
-      SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
       SEC_REQUEST_DELAY_MS: '250'
     steps:
       - name: Checkout repository
