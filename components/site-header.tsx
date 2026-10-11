@@ -16,7 +16,7 @@ export default function SiteHeader() {
   return (
     <header className="site-header">
       <div className="container header-inner">
-        <Link href="/" className="brand" aria-label="US Market AI home"><span>US Market</span> <b>AI</b></Link>
+        <Link href="/" className="brand brand-logo" aria-label="US Market AI home"><img src="/us-market-ai-logo.svg" alt="US Market AI" width="260" height="50" /></Link>
 
         <nav className="desktop-nav" aria-label="Primary navigation">
           {groups.map((group) => (
