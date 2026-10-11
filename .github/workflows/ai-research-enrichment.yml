@@ -17,6 +17,7 @@ jobs:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       NEON_REST_URL: http://127.0.0.1:8787
       NEON_API_KEY: neon-local
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,7 +35,7 @@ jobs:
           cat /tmp/neon-rest.log
           exit 1
       - name: Generate monthly AI research
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        if: ${{ env.OPENAI_API_KEY != '' }}
         env:
           AI_PROVIDER: openai
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -42,7 +43,7 @@ jobs:
           AI_REQUEST_DELAY_MS: 1000
         run: node scripts/generate_ai_research.mjs monthly
       - name: Generate quarterly AI research
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        if: ${{ env.OPENAI_API_KEY != '' }}
         env:
           AI_PROVIDER: openai
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -50,12 +51,12 @@ jobs:
           AI_REQUEST_DELAY_MS: 1000
         run: node scripts/generate_ai_research.mjs quarterly
       - name: Generate premium articles batch
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        if: ${{ env.OPENAI_API_KEY != '' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
           ARTICLE_BATCH_SIZE: 25
         run: node scripts/generate_ai_articles.mjs
       - name: Explain skipped AI generation
-        if: ${{ secrets.OPENAI_API_KEY == '' }}
+        if: ${{ env.OPENAI_API_KEY == '' }}
         run: echo 'AI generation skipped because OPENAI_API_KEY is not configured. Rule-based research backfill runs separately.'
