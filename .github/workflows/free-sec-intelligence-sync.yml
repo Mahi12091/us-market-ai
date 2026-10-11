@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
       SEC_INSIDER_DAYS: 365
       SEC_INSIDER_MAX: 5000
     steps:
@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
