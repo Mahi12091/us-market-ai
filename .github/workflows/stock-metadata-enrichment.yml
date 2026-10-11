@@ -58,7 +58,11 @@ jobs:
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock') AS active_stocks,
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(sector),'') IS NULL) AS missing_sector,
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(industry),'') IS NULL) AS missing_industry,
+            COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND market_cap IS NULL) AS missing_market_cap,
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(description),'') IS NULL) AS missing_description,
+            COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(ceo),'') IS NULL) AS missing_ceo,
+            COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND founded_year IS NULL) AS missing_founded_year,
+            COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(headquarters),'') IS NULL) AS missing_headquarters,
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(website_url),'') IS NULL) AS missing_website,
             COUNT(*) FILTER (WHERE is_active AND asset_type='stock' AND NULLIF(BTRIM(logo_url),'') IS NULL) AS missing_logo
             FROM public.stocks`);
