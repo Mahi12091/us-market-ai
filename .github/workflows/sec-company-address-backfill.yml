@@ -1,0 +1,49 @@
+name: SEC Company Address Backfill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 10 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/enrich_sec_company_addresses.mjs'
+      - '.github/workflows/sec-company-address-backfill.yml'
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  enrich-addresses:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+      SEC_USER_AGENT: 'US Market AI research bot (GitHub: Mahi12091/us-market-ai)'
+      SEC_REQUEST_DELAY_MS: '250'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate SEC and Neon configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in NEON_DATABASE_URL SEC_CONTACT_EMAIL; do
+            if [ -z "${!name:-}" ]; then
+              echo "$name is not configured."
+              exit 1
+            fi
+          done
+      - name: Backfill official headquarters and location
+        run: node scripts/enrich_sec_company_addresses.mjs
