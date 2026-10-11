@@ -68,7 +68,7 @@ for (const stock of missing) {
         'FROM jsonb_to_recordset($1::jsonb) AS x(stock_id bigint,timeframe text,ts timestamptz,open numeric,high numeric,low numeric,close numeric,volume bigint,adjusted_close numeric,data_source text) ' +
         'ON CONFLICT(stock_id,timeframe,"timestamp") DO UPDATE SET ' +
         'open=COALESCE(EXCLUDED.open,price_history.open),high=COALESCE(EXCLUDED.high,price_history.high),low=COALESCE(EXCLUDED.low,price_history.low), ' +
-        'close=EXCLUDED.close,volume=COALESCE(EXCLUDED.volume,price_history.volume),adjusted_close=COALESCE(EXCLUDED.adjusted_close,price_history.adjusted_close),data_source=EXCLUDED.data_source',
+        'close=EXCLUDED.close,volume=COALESCE(EXCLUDED.volume,price_history.volume),adjusted_close=COALESCE(EXCLUDED.adjusted_close,price_history.adjusted_close),data_source=EXCLUDED.data_source RETURNING stock_id',
         [JSON.stringify(chunk.map((x) => ({...x, ts: x.timestamp, timestamp: undefined})))]
       );
       historyRows += res.length;
@@ -101,7 +101,7 @@ for (const stock of missing) {
       'SELECT stock_id,price,open,high,low,previous_close,change,change_percent,volume,market_status,quote_timestamp,data_source,average_volume,dollar_volume,week_52_high,week_52_low,NOW() ' +
       'FROM jsonb_to_recordset($1::jsonb) AS x(stock_id bigint,price numeric,open numeric,high numeric,low numeric,previous_close numeric,change numeric,change_percent numeric,volume bigint,market_status text,quote_timestamp timestamptz,data_source text,average_volume bigint,dollar_volume numeric,week_52_high numeric,week_52_low numeric) ' +
       'ON CONFLICT(stock_id) DO UPDATE SET price=EXCLUDED.price,open=EXCLUDED.open,high=EXCLUDED.high,low=EXCLUDED.low,previous_close=EXCLUDED.previous_close,"change"=EXCLUDED."change",change_percent=EXCLUDED.change_percent,volume=EXCLUDED.volume,market_status=EXCLUDED.market_status,quote_timestamp=EXCLUDED.quote_timestamp,data_source=EXCLUDED.data_source,average_volume=EXCLUDED.average_volume,dollar_volume=EXCLUDED.dollar_volume,week_52_high=EXCLUDED.week_52_high,week_52_low=EXCLUDED.week_52_low,updated_at=NOW() ' +
-      'WHERE latest_quotes.quote_timestamp IS NULL OR EXCLUDED.quote_timestamp > latest_quotes.quote_timestamp',
+      'WHERE latest_quotes.quote_timestamp IS NULL OR EXCLUDED.quote_timestamp > latest_quotes.quote_timestamp RETURNING stock_id',
       [JSON.stringify([quote])]
     );
     quoteRows += qres.length;
