@@ -1,0 +1,126 @@
+name: Master Missing Data Recovery
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/master-missing-data-recovery.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: us-market-ai-master-data-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
+      THREESPREAD_API_KEY: ${{ secrets.THREESPREAD_API_KEY }}
+      THREESPREAD_API_KEY2: ${{ secrets.THREESPREAD_API_KEY2 }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+      ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
+      SEC_CONTACT_EMAIL: ${{ secrets.SEC_CONTACT_EMAIL }}
+      SEC_INSIDER_DAYS: '365'
+      SEC_INSIDER_MAX: '2500'
+      FREE_NEWS_STOCKS_PER_RUN: '500'
+      SYNC_3SPREAD_METRICS_RATIOS: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate Neon connection
+        run: |
+          if [ -z "${NEON_DATABASE_URL:-}" ]; then
+            echo "NEON_DATABASE_URL is not configured."
+            exit 1
+          fi
+      - name: Start Neon REST adapter
+        run: |
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then
+              echo "Neon REST adapter ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/neon-rest.log
+          exit 1
+      - name: Audit before recovery
+        run: node scripts/audit_stock_database.mjs
+      - name: Backfill missing quote
+        continue-on-error: true
+        run: node scripts/backfill_missing_quotes_yahoo.mjs
+      - name: Recalculate technical indicators
+        continue-on-error: true
+        run: |
+          for batch in $(seq 0 10); do
+            STOCK_BATCH_INDEX="$batch" STOCK_BATCH_SIZE=500 node scripts/compute_technical_indicators.mjs || echo "Technical batch $batch failed; continuing."
+          done
+      - name: Repair Sharpe and Sortino metrics
+        continue-on-error: true
+        run: node scripts/repair_missing_risk_metrics.mjs
+      - name: Derive available financial metrics
+        continue-on-error: true
+        run: node scripts/calculate_derived_fundamentals.mjs
+      - name: Backfill SEC company metadata
+        continue-on-error: true
+        run: node scripts/backfill_stock_profile_from_sec.mjs
+      - name: Backfill SEC company addresses
+        continue-on-error: true
+        run: node scripts/backfill_sec_company_addresses.mjs
+      - name: Backfill SEC XBRL financial statements
+        continue-on-error: true
+        run: node scripts/backfill_sec_financial_statements.mjs
+      - name: Sync SEC filings
+        if: env.SEC_CONTACT_EMAIL != ''
+        continue-on-error: true
+        run: node scripts/sync_sec_free_bulk_v3.mjs
+      - name: Sync insider transactions
+        continue-on-error: true
+        run: node scripts/sync_sec_insider_free_v2.mjs
+      - name: Sync institutional ownership
+        continue-on-error: true
+        run: node scripts/sync_sec_13f_dataset.mjs
+      - name: Sync earnings
+        if: env.FMP_API_KEY != ''
+        continue-on-error: true
+        run: node scripts/sync_earnings.mjs
+      - name: Sync dividends
+        if: env.FMP_API_KEY != ''
+        continue-on-error: true
+        run: node scripts/sync_dividends.mjs
+      - name: Sync missing fundamentals from 3Spread
+        if: env.THREESPREAD_API_KEY2 != ''
+        continue-on-error: true
+        env:
+          SYNC_STOCK_LIMIT: '250'
+          SYNC_START_OFFSET: '0'
+        run: node scripts/sync_fundamentals_3spread_v2.mjs
+      - name: Sync news from free RSS
+        continue-on-error: true
+        run: node scripts/sync_news_free_rss.mjs
+      - name: Generate missing short-term predictions
+        continue-on-error: true
+        run: node scripts/generate_predictions_v3.mjs
+      - name: Generate long-term predictions
+        continue-on-error: true
+        run: node scripts/generate_long_term_predictions_v1.mjs
+      - name: Final read-only audit
+        if: always()
+        run: node scripts/audit_stock_database.mjs
