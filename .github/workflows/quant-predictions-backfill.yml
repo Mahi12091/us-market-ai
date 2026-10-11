@@ -1,0 +1,42 @@
+name: Quant Predictions Backfill
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/generate_predictions_v3.mjs'
+      - '.github/workflows/quant-predictions-backfill.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quant-predictions-backfill
+  cancel-in-progress: true
+
+jobs:
+  predictions:
+    name: Prediction batch ${{ matrix.batch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        batch: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      STOCK_BATCH_INDEX: ${{ matrix.batch }}
+      STOCK_BATCH_SIZE: 500
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Validate database connection
+        run: test -n "$NEON_DATABASE_URL"
+      - name: Generate quant-v3 predictions from stored data
+        run: node scripts/generate_predictions_v3.mjs
