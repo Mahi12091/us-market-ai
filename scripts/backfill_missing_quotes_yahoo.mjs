@@ -6,6 +6,71 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const n = (value) => value == null || !Number.isFinite(Number(value)) ? null : Number(value);
 const round = (value, places = 6) => value == null ? null : Number(Number(value).toFixed(places));
 
+async function yahooHistory(symbol) {
+  const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
+    encodeURIComponent(symbol) + '?range=1y&interval=1d&events=div%2Csplits';
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; USMarketAI/1.0; +https://usmarketai.com)',
+      'Accept': 'application/json'
+    }
+  });
+  if (!response.ok) throw new Error('Yahoo chart HTTP ' + response.status);
+  const payload = await response.json();
+  const result = payload?.chart?.result?.[0];
+  if (!result || payload?.chart?.error) throw new Error(payload?.chart?.error?.description || 'No chart data returned');
+  const timestamps = result.timestamp || [];
+  const bars = result.indicators?.quote?.[0] || {};
+  const adjusted = result.indicators?.adjclose?.[0]?.adjclose || [];
+  const history = [];
+  for (let i = 0; i < timestamps.length; i += 1) {
+    const close = n(bars.close?.[i]);
+    if (!timestamps[i] || close == null || close <= 0) continue;
+    history.push({
+      stock_id: null, timeframe: '1d', timestamp: new Date(timestamps[i] * 1000).toISOString(),
+      open: n(bars.open?.[i]), high: n(bars.high?.[i]), low: n(bars.low?.[i]), close,
+      volume: bars.volume?.[i] == null ? null : Math.trunc(Number(bars.volume[i])),
+      adjusted_close: n(adjusted[i]), data_source: fetched.source
+    });
+  }
+  if (!history.length) throw new Error('Yahoo returned no usable daily bars');
+  return history;
+}
+
+async function stooqHistory(symbol) {
+  const url = 'https://stooq.com/q/d/l/?s=' + encodeURIComponent(symbol.toLowerCase() + '.us') + '&i=d';
+  const response = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; USMarketAI/1.0; +https://usmarketai.com)', 'Accept': 'text/csv,*/*' }
+  });
+  if (!response.ok) throw new Error('Stooq CSV HTTP ' + response.status);
+  const csv = await response.text();
+  const lines = csv.trim().split(/\r?\n/);
+  if (lines.length < 2 || !/^Date,Open,High,Low,Close,Volume/i.test(lines[0])) throw new Error('Stooq returned no daily CSV data');
+  const history = [];
+  for (const line of lines.slice(1)) {
+    const [date, open, high, low, close, volume] = line.split(',');
+    const c = n(close);
+    if (!date || c == null || c <= 0) continue;
+    history.push({
+      stock_id: null, timeframe: '1d', timestamp: new Date(date + 'T04:00:00.000Z').toISOString(),
+      open: n(open), high: n(high), low: n(low), close: c,
+      volume: volume ? Math.trunc(Number(volume)) : null, adjusted_close: null, data_source: 'STOOQ_FREE'
+    });
+  }
+  if (!history.length) throw new Error('Stooq returned no usable daily bars');
+  return history;
+}
+
+async function fetchHistory(symbol) {
+  try { return { history: await yahooHistory(symbol), source: fetched.source }; }
+  catch (yahooError) {
+    try { return { history: await stooqHistory(symbol), source: 'STOOQ_FREE' }; }
+    catch (stooqError) {
+      throw new Error(String(yahooError?.message || yahooError) + '; ' + String(stooqError?.message || stooqError));
+    }
+  }
+}
+
 const missing = await sql`
   SELECT s.id, s.symbol, s.asset_type
   FROM stocks s
@@ -26,40 +91,9 @@ const marketSnapshots = [];
 
 for (const stock of missing) {
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
-      encodeURIComponent(stock.symbol) + '?range=1y&interval=1d&events=div%2Csplits';
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; USMarketAI/1.0; +https://usmarketai.com)',
-        'Accept': 'application/json'
-      }
-    });
-    if (!response.ok) throw new Error('Yahoo chart HTTP ' + response.status);
-    const payload = await response.json();
-    const result = payload?.chart?.result?.[0];
-    if (!result || payload?.chart?.error) throw new Error(payload?.chart?.error?.description || 'No chart data returned');
+    const fetched = await fetchHistory(stock.symbol);
+    const history = fetched.history.map((bar) => ({ ...bar, stock_id: Number(stock.id), data_source: fetched.source }));
 
-    const timestamps = result.timestamp || [];
-    const bars = result.indicators?.quote?.[0] || {};
-    const adjusted = result.indicators?.adjclose?.[0]?.adjclose || [];
-    const history = [];
-    for (let i = 0; i < timestamps.length; i += 1) {
-      const close = n(bars.close?.[i]);
-      if (!timestamps[i] || close == null || close <= 0) continue;
-      history.push({
-        stock_id: Number(stock.id),
-        timeframe: '1d',
-        timestamp: new Date(timestamps[i] * 1000).toISOString(),
-        open: n(bars.open?.[i]),
-        high: n(bars.high?.[i]),
-        low: n(bars.low?.[i]),
-        close,
-        volume: bars.volume?.[i] == null ? null : Math.trunc(Number(bars.volume[i])),
-        adjusted_close: n(adjusted[i]),
-        data_source: 'YAHOO_FINANCE_CHART_FREE'
-      });
-    }
-    if (!history.length) throw new Error('Yahoo returned no usable daily bars');
 
     for (let i = 0; i < history.length; i += 250) {
       const chunk = history.slice(i, i + 250);
@@ -107,7 +141,7 @@ for (const stock of missing) {
     );
     quoteRows += qres.length;
     if (stock.asset_type === 'etf') marketSnapshots.push({ symbol: stock.symbol, price: round(price), change_percent: round(changePercent), timestamp: quoteTimestamp });
-    console.log(JSON.stringify({symbol: stock.symbol, history_bars: history.length, quote_timestamp: quoteTimestamp, source: 'YAHOO_FINANCE_CHART_FREE'}));
+    console.log(JSON.stringify({symbol: stock.symbol, history_bars: history.length, quote_timestamp: quoteTimestamp, source: fetched.source}));
   } catch (error) {
     const message = String(error?.message || error);
     if (/HTTP 404|no usable daily bars|No chart data returned/i.test(message)) {
