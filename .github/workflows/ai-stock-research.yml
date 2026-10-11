@@ -35,36 +35,39 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       AI_REQUEST_DELAY_MS: '750'
+      RESEARCH_MODE: ${{ github.event.inputs.mode || 'monthly' }}
     steps:
       - uses: actions/checkout@v7
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Validate database secret
-        run: test -n "${NEON_DATABASE_URL:-}"
-      - name: Start Neon REST API
-        if: ${{ (env.AI_PROVIDER == 'openai' && env.OPENAI_API_KEY != '') || (env.AI_PROVIDER == 'claude' && env.ANTHROPIC_API_KEY != '') || (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '') }}
+      - name: Run AI research if provider credentials are configured
+        shell: bash
         run: |
           set -euo pipefail
+          test -n "${NEON_DATABASE_URL:-}" || { echo "NEON_DATABASE_URL missing"; exit 1; }
+          case "${AI_PROVIDER:-openai}" in
+            openai) AI_KEY="${OPENAI_API_KEY:-}" ;;
+            claude) AI_KEY="${ANTHROPIC_API_KEY:-}" ;;
+            deepseek) AI_KEY="${DEEPSEEK_API_KEY:-}" ;;
+            *) echo "Unsupported AI_PROVIDER: $AI_PROVIDER"; exit 1 ;;
+          esac
+          if [ -z "$AI_KEY" ]; then
+            echo "AI research skipped: no API key is configured. Rule-based research is populated by the separate no-cost backfill."
+            exit 0
+          fi
           nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          ready=false
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/rest/v1/stocks?limit=1 >/dev/null 2>&1; then echo "[neon-rest] API ready"; exit 0; fi
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then ready=true; break; fi
             sleep 1
           done
-          cat /tmp/neon-rest.log
-          exit 1
-      - name: Skip AI research when provider key is missing
-        if: ${{ !((env.AI_PROVIDER == 'openai' && env.OPENAI_API_KEY != '') || (env.AI_PROVIDER == 'claude' && env.ANTHROPIC_API_KEY != '') || (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '')) }}
-        run: echo 'AI research skipped: configure the selected provider API key to enable AI-generated text. Verified rule-based research is maintained by a separate workflow.'
-      - name: Run monthly research
-        if: ${{ ((env.AI_PROVIDER == 'openai' && env.OPENAI_API_KEY != '') || (env.AI_PROVIDER == 'claude' && env.ANTHROPIC_API_KEY != '') || (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '')) && (github.event_name == 'schedule' || github.event.inputs.mode == 'monthly') }}
-        continue-on-error: true
-        run: node scripts/generate_ai_research.mjs monthly
-      - name: Run quarterly research
-        if: ${{ ((env.AI_PROVIDER == 'openai' && env.OPENAI_API_KEY != '') || (env.AI_PROVIDER == 'claude' && env.ANTHROPIC_API_KEY != '') || (env.AI_PROVIDER == 'deepseek' && env.DEEPSEEK_API_KEY != '')) && github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'quarterly' }}
-        continue-on-error: true
-        run: node scripts/generate_ai_research.mjs quarterly
+          if [ "$ready" != true ]; then cat /tmp/neon-rest.log; exit 1; fi
+          if [ "$RESEARCH_MODE" = "quarterly" ] && [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/generate_ai_research.mjs quarterly
+          else
+            node scripts/generate_ai_research.mjs monthly
+          fi
