@@ -1,11 +1,6 @@
 name: SEC Insider Ownership Backfill
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/sec-insider-backfill.yml'
-      - 'scripts/sync_sec_insider_free_v2.mjs'
   workflow_dispatch:
   schedule:
     - cron: '15 6 * * 1'
@@ -25,9 +20,9 @@ jobs:
     timeout-minutes: 360
     env:
       NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SEC_USER_AGENT: 'USMarketAI/1.0 contact: support@usmarketai.com'
       SEC_INSIDER_DAYS: 365
-      SEC_INSIDER_MAX: 20000
+      SEC_INSIDER_MAX: 2500
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
