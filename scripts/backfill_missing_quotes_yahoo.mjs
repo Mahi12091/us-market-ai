@@ -21,6 +21,7 @@ if (!missing.length) {
 let quoteRows = 0;
 let historyRows = 0;
 let failed = 0;
+let skipped = 0;
 const marketSnapshots = [];
 
 for (const stock of missing) {
@@ -108,8 +109,14 @@ for (const stock of missing) {
     if (stock.asset_type === 'etf') marketSnapshots.push({ symbol: stock.symbol, price: round(price), change_percent: round(changePercent), timestamp: quoteTimestamp });
     console.log(JSON.stringify({symbol: stock.symbol, history_bars: history.length, quote_timestamp: quoteTimestamp, source: 'YAHOO_FINANCE_CHART_FREE'}));
   } catch (error) {
-    failed += 1;
-    console.error('[yahoo-backfill] ' + stock.symbol + ': ' + String(error?.message || error).slice(0, 250));
+    const message = String(error?.message || error);
+    if (/HTTP 404|no usable daily bars|No chart data returned/i.test(message)) {
+      skipped += 1;
+      console.warn('[yahoo-backfill] skipped ' + stock.symbol + ' (no usable Yahoo history): ' + message.slice(0, 180));
+    } else {
+      failed += 1;
+      console.error('[yahoo-backfill] ' + stock.symbol + ': ' + message.slice(0, 250));
+    }
   }
   await sleep(700);
 }
@@ -128,5 +135,5 @@ if (marketSnapshots.length) {
   snapshotsInserted = Number(result[0]?.count || 0);
 }
 
-console.log(JSON.stringify({missing_at_start: missing.length, quote_rows_written: quoteRows, history_rows_upserted: historyRows, market_snapshots_inserted: snapshotsInserted, failed}, null, 2));
-if (failed > 0 && quoteRows === 0) process.exitCode = 1;
+console.log(JSON.stringify({missing_at_start: missing.length, quote_rows_written: quoteRows, history_rows_upserted: historyRows, market_snapshots_inserted: snapshotsInserted, skipped, failed}, null, 2));
+if (failed > 0) process.exitCode = 1;
