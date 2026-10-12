@@ -29,7 +29,7 @@ function Section({id,eyebrow,title,children}:{id:string;eyebrow:string;title:str
 function Grid({items}:{items:Array<[string,any]>}){return <div className="research-metric-grid">{items.filter(([,v])=>v!==null&&v!==undefined&&v!=='—').map(([k,v])=><div className="research-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>}
 function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="research-table-wrap"><table className="research-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
 function Empty({children}:{children:React.ReactNode}){return <div className="research-empty">{children}</div>}
-function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
+function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){const plain=typeof children==='string'?children.trim().toLowerCase():'';if(!children||plain==='ai text pending'||plain==='pending'||plain==='n/a')return null;return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
 function JsonText({value}:{value:any}){return <span>{typeof value==='string'?value:textValue(value)}</span>}
 
 export default function StockSeoContent({stock,quote,tech,predictions,fundamentals,financialMetrics,earnings,earningsRevisions,news,results,article,aiResearch,performance,risks,valuations,longTerm,peerMetrics}:Props){
@@ -103,6 +103,14 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     <Section id="overview" eyebrow="01 · QUICK OVERVIEW" title={`${company} Stock Price Forecast: Quick Overview`}>
       <AIBlock title="AI-generated stock overview">{research.company_overview??research.fundamental_analysis??'AI text pending'}</AIBlock>
       <Grid items={[[`Stock Price`,money(quote?.price)],[`Market Cap`,compactMoney(quote?.market_cap??stock.market_cap)],[`P/E`,num(pe)],[`Forward P/E`,num(fundamentals?.forward_pe)],[`EPS`,num(fundamentals?.eps)],[`Revenue Growth`,pct(revenueGrowth)],[`EPS Growth`,pct(fundamentals?.eps_growth)],[`ROE`,pct(fundamentals?.roe)],[`ROIC`,pct(fundamentals?.roic)],[`Dividend Yield`,pct(fundamentals?.dividend_yield)],[`52-Week High`,money(quote?.week_52_high)],[`52-Week Low`,money(quote?.week_52_low)]]}/>
+    </Section>
+
+    <Section id="forecast-methodology" eyebrow="16 · FORECAST METHOD" title={`${company} Stock Price Forecast Methodology`}>
+      <h3>Short-Term Quantitative Model</h3>
+      {predictions?.length?<Table headers={['Horizon','Current Price','Predicted Price','Change','Direction','Confidence','Uncertainty','Signal']} rows={predictions.map(p=>[String(p.horizon).toUpperCase(),money(p.current_price),money(p.predicted_price),pct(p.predicted_change_percent),p.direction??'—',num(p.confidence),num(p.uncertainty),p.signal??'—'])}/>:<Empty>Short-term prediction data is not available yet.</Empty>}
+      <h3 id="long-term-forecast">Stock Forecast 2026–2050: Long-Term Scenarios</h3>
+      {longTerm?.length?<Table headers={['Year','Bear','Base','Bull','CAGR','Confidence','Uncertainty']} rows={forecastRows}/>:<Empty>Long-term prediction data is not available yet.</Empty>}
+      <AIBlock title="How the model works">Market data → technical features → fundamentals → model → prediction → evaluation. AI text pending for the detailed explanation.</AIBlock>
     </Section>
 
     <Section id="company-overview" eyebrow="02 · COMPANY" title={`${company} Company Overview`}>
@@ -204,37 +212,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
       <h3>Stochastic, Momentum &amp; Trend Indicators</h3><AIBlock title="Trend indicators">{research.technical_analysis??'AI text pending'}</AIBlock>
     </Section>
 
-    <Section id="forecast-methodology" eyebrow="16 · FORECAST METHOD" title={`${company} Stock Price Forecast Methodology`}>
-      <h3>Short-Term Quantitative Model</h3>
-      {predictions?.length?<Table headers={['Horizon','Current Price','Predicted Price','Change','Direction','Confidence','Uncertainty','Signal']} rows={predictions.map(p=>[String(p.horizon).toUpperCase(),money(p.current_price),money(p.predicted_price),pct(p.predicted_change_percent),p.direction??'—',num(p.confidence),num(p.uncertainty),p.signal??'—'])}/>:<Empty>Short-term prediction data is not available yet.</Empty>}
-      <h3>Long-Term Forecast Model</h3>
-      {longTerm?.length?<Table headers={['Year','Bear','Base','Bull','CAGR','Confidence','Uncertainty']} rows={forecastRows}/>:<Empty>Long-term prediction data is not available yet.</Empty>}
-      <AIBlock title="How the model works">Market data → technical features → fundamentals → model → prediction → evaluation. AI text pending for the detailed explanation.</AIBlock>
-    </Section>
 
-    {longYears.map(year=>{
-      const row:any=longMap.get(year);
-      return <Section key={String(year)} id={`forecast-${year}`} eyebrow={`${year} · MODEL SCENARIO`} title={`${company} Stock Price Forecast ${year}`}>
-        {row ? <>
-          <Table headers={['Scenario','Forecast']} rows={[
-            ['Bear', money(row.bear_price)],
-            ['Base', money(row.base_price)],
-            ['Bull', money(row.bull_price)]
-          ]}/>
-          <Grid items={[
-            ['Expected CAGR', String(pct(row.expected_cagr))],
-            ['Forecast Confidence', String(num(row.confidence))],
-            ['Uncertainty', String(num(row.uncertainty))]
-          ]}/>
-          <AIBlock title={`Why the model produces the ${year} range`}>{textValue(row.assumptions??row.feature_summary) || 'AI text pending'}</AIBlock>
-        </> : <Empty>{String(year)} long-term forecast is not available yet.</Empty>}
-      </Section>
-    })}
-
-    <Section id="forecast-summary" eyebrow="23 · FORECAST SUMMARY" title={`${company} Stock Price Forecast 2026–2050`}>
-      {longTerm?.length?<Table headers={['Year','Bear','Base','Bull','Expected CAGR']} rows={forecastRows.map(r=>[r[0],r[1],r[2],r[3],r[4]])}/>:<Empty>Long-term forecast summary is not available yet.</Empty>}
-      <AIBlock title="Long-term scenario interpretation">AI text pending. Long-term values are model-based scenarios, not guaranteed future prices.</AIBlock>
-    </Section>
 
     <Section id="news" eyebrow="24 · NEWS" title={`${company} Recent News & Developments`}>
       {(news??[]).length?<Table headers={['Date','Source','Headline','Sentiment']} rows={(news??[]).map(n=>[date(n.published_at),n.source??'—',n.title??'—',n.sentiment??'—'])}/>:<Empty>No recent ticker-linked news is available.</Empty>}
