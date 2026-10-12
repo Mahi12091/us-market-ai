@@ -88,7 +88,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const marketCap = finite(quote?.market_cap) ?? finite(fundamentals?.market_cap) ?? finite(stock.market_cap);
   const technicalTrend = tech?.trend ?? (() => {
     const price = finite(quote?.price), sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200), rsi = finite(tech?.rsi), hist = finite(tech?.macd_histogram);
-    if ([price,sma20,sma50,sma200,rsi,hist].some(v => v === null)) return 'Not available yet';
+    if (price === null || sma20 === null || sma50 === null || sma200 === null || rsi === null || hist === null) return 'Not available yet';
     const above = Number(price>sma20) + Number(price>sma50) + Number(price>sma200);
     if (above >= 2 && rsi >= 50 && hist >= 0) return 'Bullish';
     if (above <= 1 && rsi < 50 && hist < 0) return 'Bearish';
