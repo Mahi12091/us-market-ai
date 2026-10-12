@@ -6,3 +6,61 @@
 
 /* Official uploaded logo: responsive header and footer sizing */
 .brand-logo{display:inline-flex;align-items:center;flex-shrink:0;line-height:0;letter-spacing:normal}.brand-logo img{display:block;width:clamp(176px,21vw,260px);height:auto;max-height:48px;object-fit:contain}.footer-brand{margin-bottom:12px}.footer-brand img{width:250px;max-height:none}@media(max-width:900px){.brand-logo img{width:clamp(160px,25vw,210px);max-height:42px}}@media(max-width:520px){.header-inner{height:62px;gap:10px}.brand-logo img{width:clamp(148px,43vw,185px);max-height:36px}.header-actions{margin-left:auto}.search-link{width:38px;justify-content:center;padding:0}.search-link span{display:none}.mobile-menu{display:inline-flex;align-items:center;justify-content:center}.desktop-nav{display:none}}
+
+
+/* Stock detail responsive and data-quality hardening */
+.stock-page{width:100%;max-width:100%;min-width:0;overflow-x:clip;box-sizing:border-box}
+.stock-page *{box-sizing:border-box;min-width:0}
+.stock-page .stock-breadcrumb,
+.stock-page .stock-hero,
+.stock-page .stock-quick-snapshot,
+.stock-page>.container>.research-section[aria-label="Quick Research Snapshot"],
+.stock-page .stock-actions,
+.stock-page .stock-grid-top,
+.stock-page .research-flow,
+.stock-page .data-room-section,
+.stock-page .section,
+.stock-page .disclaimer-section,
+.stock-page .author-section{width:calc(100% - 32px);max-width:900px}
+.stock-page .research-flow>.research-section{width:100%;max-width:100%}
+.stock-page .research-flow .research-table-wrap,
+.stock-page .data-room-section .seo-data-table,
+.stock-page .research-flow .seo-data-table{max-width:100%;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.stock-page .research-flow table,
+.stock-page .seo-data-table table{max-width:100%}
+.stock-page .research-flow .research-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.stock-page .stock-grid-top>*{min-width:0}
+.stock-page .stock-actions{overflow-x:auto;overscroll-behavior-x:contain}
+.stock-page .research-flow .research-reading-strip:empty,
+.stock-page .research-flow .research-explain:empty{display:none}
+@media(max-width:600px){
+ .stock-page{padding-top:8px;padding-bottom:36px}
+ .stock-page .stock-breadcrumb,
+ .stock-page .stock-hero,
+ .stock-page .stock-quick-snapshot,
+ .stock-page>.container>.research-section[aria-label="Quick Research Snapshot"],
+ .stock-page .stock-actions,
+ .stock-page .stock-grid-top,
+ .stock-page .research-flow,
+ .stock-page .data-room-section,
+ .stock-page .section,
+ .stock-page .disclaimer-section,
+ .stock-page .author-section{width:calc(100% - 20px);max-width:100%}
+ .stock-page .stock-hero{padding-top:14px;gap:12px}
+ .stock-page .stock-title-block{gap:10px}
+ .stock-page .stock-title-block h1{font-size:clamp(25px,7vw,36px);overflow-wrap:anywhere;letter-spacing:-.8px}
+ .stock-page .quote-price{font-size:29px}
+ .stock-page .stock-quick-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stock-page .stock-quick-snapshot>div{padding:9px 8px}
+ .stock-page .stock-actions{top:60px;gap:6px;padding:8px 0}
+ .stock-page .stock-actions .button{flex:0 0 auto;padding:8px 10px}
+ .stock-page .stock-grid-top{grid-template-columns:minmax(0,1fr);gap:12px}
+ .stock-page .stock-grid-top .panel{padding:14px}
+ .stock-page .research-flow>.research-section{padding:26px 0;scroll-margin-top:118px}
+ .stock-page .research-flow .research-section-head h2{font-size:clamp(22px,6vw,29px);overflow-wrap:anywhere}
+ .stock-page .research-flow .research-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stock-page .research-flow .research-metric{padding:10px 9px;overflow-wrap:anywhere}
+ .stock-page .research-flow .research-table{font-size:11px}
+ .stock-page .research-flow .research-table th,.stock-page .research-flow .research-table td{padding:8px}
+ .stock-page .data-room-section .seo-card{padding:14px}
+}
