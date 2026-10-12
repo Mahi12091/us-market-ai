@@ -64,3 +64,49 @@
  .stock-page .research-flow .research-table th,.stock-page .research-flow .research-table td{padding:8px}
  .stock-page .data-room-section .seo-card{padding:14px}
 }
+
+
+/* Stock detail layout polish: keep every section inside the same responsive column. */
+.stock-page>.container{width:100%;max-width:100%;padding-inline:0}
+.stock-page .stock-breadcrumb,
+.stock-page .stock-hero,
+.stock-page .stock-quick-snapshot,
+.stock-page>.container>.research-section[aria-label="Quick Research Snapshot"],
+.stock-page .stock-actions,
+.stock-page .stock-grid-top,
+.stock-page .research-flow,
+.stock-page .data-room-section,
+.stock-page .section,
+.stock-page .disclaimer-section,
+.stock-page .author-section{margin-left:auto;margin-right:auto}
+.stock-page .research-flow>.research-section{overflow-wrap:anywhere}
+.stock-page .research-flow .research-table-wrap{width:100%;max-width:100%}
+.stock-page .research-flow .research-table{min-width:max-content}
+.stock-page .research-flow .research-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.stock-page .stock-grid-top .chart-panel,
+.stock-page .stock-grid-top .prediction-card{width:100%;min-width:0}
+.stock-page .stock-page-content,
+.stock-page .panel,
+.stock-page .research-section,
+.stock-page .seo-card{min-width:0;max-width:100%}
+.stock-page .research-flow .research-metric strong,
+.stock-page .research-flow .research-metric span{overflow-wrap:anywhere}
+@media(max-width:600px){
+ .stock-page>.container{padding-inline:0}
+ .stock-page .stock-breadcrumb,
+ .stock-page .stock-hero,
+ .stock-page .stock-quick-snapshot,
+ .stock-page>.container>.research-section[aria-label="Quick Research Snapshot"],
+ .stock-page .stock-actions,
+ .stock-page .stock-grid-top,
+ .stock-page .research-flow,
+ .stock-page .data-room-section,
+ .stock-page .section,
+ .stock-page .disclaimer-section,
+ .stock-page .author-section{width:calc(100% - 20px);max-width:100%}
+ .stock-page .research-flow>.research-section{padding-block:24px}
+ .stock-page .research-flow .research-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stock-page .research-flow .research-table-wrap{margin-inline:0}
+ .stock-page .stock-title-block{min-width:0}
+ .stock-page .stock-title-block>div:last-child{min-width:0}
+}
