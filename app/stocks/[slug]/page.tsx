@@ -78,8 +78,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const chart: ChartPoint[] = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime())).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: finite(x.close)! }));
   const derived52WeekHigh = orderedHistory.map(x => finite(x.high)).filter((v): v is number => v !== null).reduce((m, v) => Math.max(m, v), -Infinity);
   const derived52WeekLow = orderedHistory.map(x => finite(x.low)).filter((v): v is number => v !== null).reduce((m, v) => Math.min(m, v), Infinity);
-  const week52High = quote?.week_52_high ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
-  const week52Low = quote?.week_52_low ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
+  const week52High = finite(quote?.week_52_high) ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
+  const week52Low = finite(quote?.week_52_low) ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
   const dailyChange = finite(quote?.change_percent);
   const livePredictions = [...(predictions ?? [])].filter(p => finite(p.predicted_price) !== null && Number.isFinite(new Date(p.prediction_time).getTime())).sort((a, b) => (horizonOrder[String(a.horizon).toLowerCase()] ?? 99) - (horizonOrder[String(b.horizon).toLowerCase()] ?? 99));
   const latestPrediction = livePredictions[0];
