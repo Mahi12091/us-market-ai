@@ -31,7 +31,7 @@ function Section({id,eyebrow,title,children}:{id:string;eyebrow:string;title:str
 function Grid({items}:{items:Array<[string,any]>}){return <div className="research-metric-grid">{items.filter(([,v])=>v!==null&&v!==undefined&&v!=='—').map(([k,v])=><div className="research-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>}
 function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="research-table-wrap"><table className="research-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
 function Empty({children}:{children:React.ReactNode}){return <div className="research-empty">{children}</div>}
-function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){const plain=typeof children==='string'?children.trim().toLowerCase():'';if(!children||plain==='ai text pending'||plain==='pending'||plain==='n/a'||plain.includes('ai text pending')||plain==='not available yet')return null;return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
+function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){const plain=typeof children==='string'?children.trim().toLowerCase():'';if(!children||plain==='ai text pending'||plain==='pending'||plain==='n/a'||plain.includes('ai text pending')||plain==='not available yet'||plain==='—')return null;return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
 function JsonText({value}:{value:any}){const text=typeof value==='string'?value:textValue(value);return text.trim().toLowerCase().includes('pending')||text.trim().toLowerCase()==='n/a'?null:<span>{text}</span>}
 
 export default function StockSeoContent({stock,quote,tech,predictions,fundamentals,financialMetrics,earnings,earningsRevisions,news,results,article,aiResearch,performance,risks,valuations,longTerm,peerMetrics}:Props){
@@ -81,7 +81,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
   ];
   const perfRows:[string,React.ReactNode][]=performance?[['1D',pct(performance.period_1d)],['5D',pct(performance.period_5d)],['1M',pct(performance.period_1m)],['3M',pct(performance.period_3m)],['6M',pct(performance.period_6m)],['YTD',pct(performance.period_ytd)],['1Y',pct(performance.period_1y)],['3Y',pct(performance.period_3y)],['5Y',pct(performance.period_5y)],['10Y',pct(performance.period_10y)],['Max',pct(performance.period_max)]]:[];
   const longYears=[2026,2027,2030,2035,2040,2050];
-  const forecastRows=longYears.map(y=>{const r=longMap.get(y);return [y,money(r?.bear_price),money(r?.base_price),money(r?.bull_price),pct(r?.expected_cagr),num(r?.confidence),num(r?.uncertainty)]});
+  const forecastRows=longYears.map(y=>{const r=longMap.get(y);return [y,money(r?.bear_price),money(r?.base_price),money(r?.bull_price),pct(r?.expected_cagr),num(r?.confidence),num(r?.uncertainty)]}).filter(row=>row.slice(1).some(v=>v!=='—'));
   const faqRows=[
     [`What Is the Current ${company} (${symbol}) Stock Price?`,money(quote?.price)],
     [`What Is the ${company} (${symbol}) Stock Forecast for 2026?`,longMap.get(2026)?`Bear ${money(longMap.get(2026)?.bear_price)} · Base ${money(longMap.get(2026)?.base_price)} · Bull ${money(longMap.get(2026)?.bull_price)}`:'Not available yet.'],
@@ -109,7 +109,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
 
     <Section id="forecast-methodology" eyebrow="SHORT & LONG-TERM FORECAST" title={`${company} Stock Price Forecast Methodology`}>
       <h3>Short-Term Quantitative Model</h3>
-      {predictions?.length?<Table headers={['Horizon','Current Price','Predicted Price','Change','Direction','Confidence','Uncertainty','Signal']} rows={predictions.map(p=>[String(p.horizon).toUpperCase(),money(p.current_price),money(p.predicted_price),pct(p.predicted_change_percent),p.direction??'—',num(p.confidence),num(p.uncertainty),p.signal??'—'])}/>:<Empty>Short-term prediction data is not available yet.</Empty>}
+      {predictions?.length?<Table headers={['Horizon','Current Price','Predicted Price','Change','Direction','Confidence','Uncertainty','Signal']} rows={predictions.map(p=>[String(p.horizon).toUpperCase(),money(finite(quote?.price)??p.current_price),money(p.predicted_price),pct(p.predicted_change_percent),p.direction??'—',num(p.confidence),num(p.uncertainty),p.signal??'—'])}/>:<Empty>Short-term prediction data is not available yet.</Empty>}
       <h3 id="long-term-forecast">Stock Forecast 2026–2050: Long-Term Scenarios</h3>
       {longTerm?.length?<Table headers={['Year','Bear','Base','Bull','CAGR','Confidence','Uncertainty']} rows={forecastRows}/>:<Empty>Long-term prediction data is not available yet.</Empty>}
       <AIBlock title="How the model works">Market data → technical features → fundamentals → model → prediction → evaluation. AI text pending for the detailed explanation.</AIBlock>
@@ -228,7 +228,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Section>
 
     <Section id="faqs" eyebrow="FAQ" title={`${company} (${symbol}) Stock Forecast FAQs`}>
-      {faqRows.map(([q,a])=><div className="faq-template-row" key={String(q)}><h3>{q}</h3><p>{a}</p></div>)}
+      {faqRows.filter(([,a])=>{const v=typeof a==='string'?a.trim().toLowerCase():'';return v!==''&&v!=='ai text pending'&&v!=='pending'&&v!=='not available yet'&&!v.includes('ai text pending')&&v!=='—';}).map(([q,a])=><div className="faq-template-row" key={String(q)}><h3>{q}</h3><p>{a}</p></div>)}
     </Section>
 
     <Section id="final-analysis" eyebrow="FINAL ANALYSIS" title={`${company} Final Analysis`}>
