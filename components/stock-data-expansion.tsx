@@ -8,6 +8,7 @@ const pct=(v:any)=>{const n=finite(v);return n===null?'—':`${n>=0?'+':''}${n.t
 const renderValue=(v:any):React.ReactNode=>{
  if(v==null)return '—';
  if(typeof v==='number'&&!Number.isFinite(v))return '—';
+ if(typeof v==='number'&&!Number.isFinite(v))return '—';
  if(React.isValidElement(v))return v;
  if(v instanceof Date)return Number.isNaN(v.getTime())?'—':v.toLocaleDateString('en-US');
  if(typeof v==='object'){try{return JSON.stringify(v)}catch{return String(v)}}
