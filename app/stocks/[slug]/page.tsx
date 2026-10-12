@@ -50,7 +50,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('financial_metrics').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(12),
     db.from('earnings').select('*').eq('stock_id', stock.id).order('earnings_date', { ascending: false }).limit(6),
     db.from('earnings_revisions').select('*').eq('stock_id', stock.id).order('revision_date', { ascending: false }).limit(12),
-    db.from('news').select('id,title,summary,url,source,published_at,sentiment,symbol,company_name').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(5),
+    db.from('news').select('id,title,summary,url,source,published_at,sentiment').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(12),
     db.from('price_history').select('timestamp,close,high,low').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: false }).limit(250),
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
@@ -101,7 +101,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const companyTokens = String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((token: string) => token.length >= 4 && !['incorporated','corporation','company','limited','holdings','class','common','stock','group'].includes(token));
   const stockNews = (news ?? []).filter((item: any) => {
     const text = `${item.symbol ?? ''} ${item.company_name ?? ''} ${item.title ?? ''} ${item.summary ?? ''}`.toLowerCase();
-    const hasTicker = new RegExp(`(^|[^a-z0-9])${String(stock.symbol).toLowerCase().replace(/[.*+?^${}()|[\\]\\]/g, '\\\\const safeModifiedDate = modifiedDate && Number.isFinite(new Date(modifiedDate).getTime()) ? new Date(modifiedDate).toISOString() : undefined;')}([^a-z0-9]|$)`).test(text);
+    const tokens = text.split(/[^a-z0-9]+/).filter(Boolean); const hasTicker = tokens.includes(String(stock.symbol).toLowerCase());
     return hasTicker || companyTokens.some((token: string) => text.includes(token));
   });
 
