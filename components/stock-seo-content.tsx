@@ -6,6 +6,8 @@ type Props = {
 };
 
 const finite=(v:any):number|null=>{if(v===null||v===undefined||v===''||typeof v==='boolean')return null;const n=Number(v);return Number.isFinite(n)?n:null;};
+const hasText=(v:any)=>typeof v==='string'?Boolean(v.trim())&&!/^(ai text pending|pending|n\/a|not available yet|—)$/i.test(v.trim()):v!==null&&v!==undefined&&(typeof v!=='number'||Number.isFinite(v));
+const usableRows=(rows:any[][])=>rows.filter(row=>row.slice(1).some(v=>v!==null&&v!==undefined&&v!=='—'&&v!==''));
 const money=(v:any)=>{const n=finite(v);return n===null?'—':`${n.toLocaleString('en-US',{maximumFractionDigits:2})}`;};
 const compactMoney=(v:any)=>{const n=finite(v);return n===null?'—':`${n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;};
 const num=(v:any)=>{const n=finite(v);return n===null?'—':n.toLocaleString('en-US',{maximumFractionDigits:2});};
@@ -26,10 +28,12 @@ const renderValue=(v:any):React.ReactNode=>{
   return v;
 };
 function Section({id,eyebrow,title,children}:{id:string;eyebrow:string;title:string;children:React.ReactNode}){
-  return <section className="research-section" id={id}><div className="research-section-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{children}</section>;
+  const visible=React.Children.toArray(children).filter(Boolean);
+  if(!visible.length)return null;
+  return <section className="research-section" id={id}><div className="research-section-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2></div></div>{visible}</section>;
 }
-function Grid({items}:{items:Array<[string,any]>}){return <div className="research-metric-grid">{items.filter(([,v])=>v!==null&&v!==undefined&&v!=='—').map(([k,v])=><div className="research-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>}
-function Table({headers,rows}:{headers:string[];rows:any[][]}){return <div className="research-table-wrap"><table className="research-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
+function Grid({items}:{items:Array<[string,any]>}){const visible=items.filter(([,v])=>v!==null&&v!==undefined&&v!=='—'&&v!=='');return visible.length?<div className="research-metric-grid">{visible.map(([k,v])=><div className="research-metric" key={k}><span>{k}</span><strong>{renderValue(v)}</strong></div>)}</div>:null}
+function Table({headers,rows}:{headers:string[];rows:any[][]}){const clean=rows.filter(r=>r.some(v=>v!==null&&v!==undefined&&v!==''&&v!=='—'));if(!clean.length)return null;return <div className="research-table-wrap"><table className="research-table"><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{clean.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{renderValue(v)}</td>)}</tr>)}</tbody></table></div>}
 function Empty({children}:{children:React.ReactNode}){return <div className="research-empty">{children}</div>}
 function AIBlock({title,children='AI text pending'}:{title:string;children?:React.ReactNode}){const plain=typeof children==='string'?children.trim().toLowerCase():'';if(!children||plain==='ai text pending'||plain==='pending'||plain==='n/a'||plain.includes('ai text pending')||plain==='not available yet'||plain==='—')return null;return <div className="research-explain"><b>{title}</b><span>{children}</span></div>}
 function JsonText({value}:{value:any}){const text=typeof value==='string'?value:textValue(value);return text.trim().toLowerCase().includes('pending')||text.trim().toLowerCase()==='n/a'?null:<span>{text}</span>}
@@ -79,6 +83,7 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     ['Current Ratio',num(risks?.current_ratio)],['Quick Ratio',num(risks?.quick_ratio)],['Interest Coverage',num(risks?.interest_coverage)],
     ['Altman Z-Score',num(risks?.altman_z_score)],['Short Interest',num(risks?.short_interest)],['Short % Float',pct(risks?.short_percent_float)],['Liquidity Risk',risks?.liquidity_risk]
   ];
+  const visibleRisksRows=risksRows.filter(([,v])=>v!==null&&v!==undefined&&v!=='—'&&v!=='');
   const perfRows:[string,React.ReactNode][]=performance?[['1D',pct(performance.period_1d)],['5D',pct(performance.period_5d)],['1M',pct(performance.period_1m)],['3M',pct(performance.period_3m)],['6M',pct(performance.period_6m)],['YTD',pct(performance.period_ytd)],['1Y',pct(performance.period_1y)],['3Y',pct(performance.period_3y)],['5Y',pct(performance.period_5y)],['10Y',pct(performance.period_10y)],['Max',pct(performance.period_max)]]:[];
   const longYears=[2026,2027,2030,2035,2040,2050];
   const forecastRows=longYears.map(y=>{const r=longMap.get(y);return [y,money(r?.bear_price),money(r?.base_price),money(r?.bull_price),pct(r?.expected_cagr),num(r?.confidence),num(r?.uncertainty)]}).filter(row=>row.slice(1).some(v=>v!=='—'));
@@ -116,14 +121,14 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Section>
 
     <Section id="company-overview" eyebrow="COMPANY" title={`${company} Company Overview`}>
-      <h3>What Does {company} Do?</h3><AIBlock title="Company explanation">{research.company_overview??stock.description??'AI text pending'}</AIBlock>
+      {hasText(research.company_overview??stock.description)?<><h3>What Does {company} Do?</h3><AIBlock title="Company explanation">{research.company_overview??stock.description}</AIBlock></>:null}
       {(stock.founded_year||stock.ipo_listing_date||stock.company_status||stock.ceo||stock.management)?<><h3>{company} History</h3><Grid items={[[`Founded`,stock.founded_year],[`IPO Listing Date`,stock.ipo_listing_date?date(stock.ipo_listing_date):null],[`Company Status`,stock.company_status],[`CEO`,stock.ceo]]}/>{management?<AIBlock title="Management">{textValue(management)}</AIBlock>:null}</>:null}
       {management?<><h3>Management</h3><AIBlock title="Management information">{textValue(management)}</AIBlock></>:null}
       {(stock.employees||stock.headquarters||stock.city||stock.state||stock.country)?<><h3>Employees &amp; Headquarters</h3><Grid items={[[`Employees`,stock.employees!=null?num(stock.employees):null],[`Headquarters`,stock.headquarters],[`City`,stock.city],[`State`,stock.state],[`Country`,stock.country]]}/></>:null}
     </Section>
 
     <Section id="business-model" eyebrow="BUSINESS MODEL" title={`${company} Business Model & Competitive Position`}>
-      <h3>How Does {company} Make Money?</h3><AIBlock title="Revenue model">{research.fundamental_analysis??research.company_overview??'AI text pending'}</AIBlock>
+      {hasText(research.fundamental_analysis??research.company_overview)?<><h3>How Does {company} Make Money?</h3><AIBlock title="Revenue model">{research.fundamental_analysis??research.company_overview}</AIBlock></>:null}
       {products?<><h3>Products &amp; Services</h3><AIBlock title="Products and services"><JsonText value={products}/></AIBlock></>:null}
       {businessSegments?<><h3>Business Segment Analysis</h3><Table headers={['Segment','Available Data']} rows={Object.entries(businessSegments as any).map(([k,v])=>[k,textValue(v)])}/></>:null}
       {research.market_position_analysis||peerMetrics?.length?<><h3>Competitive Position</h3><AIBlock title="Competitive position">{research.market_position_analysis??'AI text pending'}</AIBlock></>:null}
@@ -131,9 +136,9 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
 
     <Section id="industry" eyebrow="INDUSTRY" title={`${company} Industry Analysis`}>
       <h3>Sector &amp; Industry</h3><Grid items={[[`Sector`,stock.sector],[`Industry`,stock.industry],[`Sub-Industry`,stock.sub_industry]]}/>
-      <h3>Industry Trends</h3><AIBlock title="Industry-specific trends">{research.market_position_analysis??'AI text pending'}</AIBlock>
-      <h3>Industry Tailwinds</h3><AIBlock title="Relevant tailwinds">{research.catalysts??'AI text pending'}</AIBlock>
-      <h3>Industry Headwinds</h3><AIBlock title="Relevant headwinds">{research.risk_analysis??research.risks??'AI text pending'}</AIBlock>
+      {hasText(research.market_position_analysis)?<><h3>Industry Trends</h3><AIBlock title="Industry-specific trends">{research.market_position_analysis}</AIBlock></>:null}
+      {hasText(research.catalysts)?<><h3>Industry Tailwinds</h3><AIBlock title="Relevant tailwinds">{research.catalysts}</AIBlock></>:null}
+      {hasText(research.risk_analysis??research.risks)?<><h3>Industry Headwinds</h3><AIBlock title="Relevant headwinds">{research.risk_analysis??research.risks}</AIBlock></>:null}
     </Section>
 
     <Section id="financial-analysis" eyebrow="FINANCIAL ANALYSIS" title={`${company} Financial Analysis`}>
@@ -145,14 +150,14 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
 
     <Section id="profitability" eyebrow="PROFITABILITY" title={`${company} Profitability Analysis`}>
       <Table headers={['Metric','Current','3Y/5Y Trend']} rows={[
-        ['Gross Margin',pct(fundamentals?.gross_margin),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['Operating Margin',pct(fundamentals?.operating_margin),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['EBITDA Margin',pct(fundamentals?.ebitda_margin),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['Net Margin',pct(fundamentals?.net_margin),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['ROE',pct(fundamentals?.roe),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['ROIC',pct(fundamentals?.roic),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['ROA',pct(fundamentals?.roa),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—'],
-        ['ROCE',pct(fundamentals?.roce),financialMetrics?.[0]?pct(financialMetrics[0].five_year_cagr):'—']
+        ['Gross Margin',pct(fundamentals?.gross_margin),'—'],
+        ['Operating Margin',pct(fundamentals?.operating_margin),'—'],
+        ['EBITDA Margin',pct(fundamentals?.ebitda_margin),'—'],
+        ['Net Margin',pct(fundamentals?.net_margin),'—'],
+        ['ROE',pct(fundamentals?.roe),'—'],
+        ['ROIC',pct(fundamentals?.roic),'—'],
+        ['ROA',pct(fundamentals?.roa),'—'],
+        ['ROCE',pct(fundamentals?.roce),'—']
       ]}/>
       <AIBlock title="Profitability interpretation">{research.fundamental_analysis??'AI text pending'}</AIBlock>
     </Section>
@@ -174,14 +179,13 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Section>
 
     <Section id="valuation" eyebrow="VALUATION" title={`${company} Valuation Analysis`}>
-      <h3>Current Valuation</h3><Grid items={valuationRows}/>
+      {valuationRows.some(([,v])=>v!=='—')?<><h3>Current Valuation</h3><Grid items={valuationRows}/></>:null}
       {peerMetrics?.length?<><h3>Valuation vs Peers</h3><Table headers={['Metric','Company','Peer Median','Percentile']} rows={peerMetrics.filter(p=>['P/E','PE','pe','Price/Sales','Price/Book','EV/EBITDA'].includes(String(p.metric_name))).map(p=>[p.metric_name,num(p.company_value),num(p.peer_median),num(p.percentile)])}/><AIBlock title="Peer valuation interpretation">{research.valuation_analysis??'AI text pending'}</AIBlock></>:null}
       {hasHistoricalValuation?<><h3>Historical Valuation</h3><Grid items={[[`Valuation Date`,date(valuations.valuation_date)],[`Price`,money(valuations.price)],[`P/E`,num(valuations.pe)],[`Forward P/E`,num(valuations.forward_pe)],[`PEG`,num(valuations.peg)]]}/><AIBlock title="Historical valuation context">{research.valuation_analysis??'AI text pending'}</AIBlock></>:null}
     </Section>
 
     <Section id="ownership" eyebrow="OWNERSHIP" title={`${company} Institutional Ownership`}>
-      <AIBlock title="Ownership trend">{research.fundamental_analysis??'AI text pending'}</AIBlock>
-      <div className="research-reading-strip">Institutional and insider ownership snapshots are available in the Evidence/Data Room when populated.</div>
+      {<div className="research-reading-strip">Open the Evidence/Data Room below for institutional holders, insider transactions and ownership snapshots when available.</div>}
     </Section>
 
     {hasDividend?<Section id="dividend" eyebrow="DIVIDEND" title={`${company} Dividend Analysis`}>
@@ -190,55 +194,40 @@ export default function StockSeoContent({stock,quote,tech,predictions,fundamenta
     </Section>:null}
 
     <Section id="peers" eyebrow="PEERS" title={`${company} vs Competitors`}>
-      {peerMetrics?.length?<Table headers={['Metric','Company','Peer Median','Peer Average','Min','Max','Percentile']} rows={peerMetrics.map(p=>[p.metric_name??'—',num(p.company_value),num(p.peer_median),num(p.peer_average),num(p.peer_min),num(p.peer_max),num(p.percentile)])}/>:<Empty>Peer comparison data is not populated yet.</Empty>}
+      {peerMetrics?.length?<Table headers={['Metric','Company','Peer Median','Peer Average','Min','Max','Percentile']} rows={peerMetrics.filter(p=>p.is_valid!==false&&[p.company_value,p.peer_median,p.peer_average,p.peer_min,p.peer_max,p.percentile].some(v=>finite(v)!==null)).map(p=>[p.metric_name??'—',num(p.company_value),num(p.peer_median),num(p.peer_average),num(p.peer_min),num(p.peer_max),num(p.percentile)])}/>:<Empty>Peer comparison data is not populated yet.</Empty>}
       <AIBlock title="Company-specific peer comparison">{research.market_position_analysis??'AI text pending'}</AIBlock>
     </Section>
 
     <Section id="growth" eyebrow="GROWTH" title={`${company} Growth Drivers & Future Outlook`}>
-      <h3>Revenue Growth Drivers</h3><AIBlock title="Revenue growth">{research.growth_analysis??'AI text pending'}</AIBlock>
-      <h3>Earnings Growth Drivers</h3><AIBlock title="Earnings growth">{research.growth_analysis??'AI text pending'}</AIBlock>
-      <h3>Capital Investment</h3><AIBlock title="Capital investment">{research.growth_analysis??'AI text pending'}</AIBlock>
-      <h3>Expansion &amp; New Opportunities</h3><AIBlock title="Expansion">{research.growth_analysis??'AI text pending'}</AIBlock>
+      {hasText(research.growth_analysis)?<><h3>Growth Drivers &amp; Outlook</h3><AIBlock title="Growth drivers">{research.growth_analysis}</AIBlock></>:null}
       {latestEarnings?.guidance?<><h3>Management Guidance</h3><AIBlock title="Guidance">{textValue(latestEarnings.guidance)}</AIBlock></>:null}
       <h3>Recent Catalysts</h3><AIBlock title="Catalysts">{research.catalysts??'AI text pending'}</AIBlock>
     </Section>
 
     <Section id="technical" eyebrow="TECHNICAL" title={`${company} Technical Analysis`}>
       <Table headers={['Indicator','Value']} rows={technicalRows}/>
-      <h3>RSI Analysis</h3><AIBlock title="RSI interpretation">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>MACD &amp; Momentum Analysis</h3><AIBlock title="MACD and momentum">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>20, 50, 100 &amp; 200 Day Moving Averages</h3><AIBlock title="Moving averages">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>EMA &amp; Trend Analysis</h3><AIBlock title="EMA and trend">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>Support and Resistance Levels</h3><AIBlock title="Support and resistance">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>Bollinger Bands, ATR, ADX &amp; Volatility</h3><AIBlock title="Volatility indicators">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <h3>Stochastic, Momentum &amp; Trend Indicators</h3><AIBlock title="Trend indicators">{research.technical_analysis??'AI text pending'}</AIBlock>
+      {hasText(research.technical_analysis)?<><h3>Technical Interpretation</h3><AIBlock title="Technical interpretation">{research.technical_analysis}</AIBlock></>:null}
     </Section>
 
 
 
     <Section id="news" eyebrow="NEWS" title={`${company} Recent News & Developments`}>
       {(news??[]).length?<Table headers={['Date','Source','Headline','Sentiment']} rows={(news??[]).map(n=>[date(n.published_at),n.source??'—',n.title??'—',n.sentiment??'—'])}/>:<Empty>No recent ticker-linked news is available.</Empty>}
-      <AIBlock title="What changed recently?">{research.news_summary??research.what_changed_recently??'AI text pending'}</AIBlock>
+      {hasText(research.news_summary??research.what_changed_recently)?<AIBlock title="What changed recently?">{research.news_summary??research.what_changed_recently}</AIBlock>:null}
     </Section>
 
     <Section id="risks" eyebrow="RISKS" title={`${company} Stock Forecast: Risks`}>
-      {risksRows.length?<Grid items={risksRows}/>:<Empty>Risk metrics are not populated yet.</Empty>}
-      <h3>Business, Financial, Valuation, Market &amp; Event Risks</h3>
-      <AIBlock title="Company-specific risk analysis">{research.risk_analysis??research.risks??'AI text pending'}</AIBlock>
+      {visibleRisksRows.length?<Grid items={visibleRisksRows}/>:<Empty>Risk metrics are not populated yet.</Empty>}
+      {hasText(research.risk_analysis??research.risks)?<><h3>Business, Financial, Valuation, Market &amp; Event Risks</h3><AIBlock title="Company-specific risk analysis">{research.risk_analysis??research.risks}</AIBlock></>:null}
     </Section>
 
     <Section id="faqs" eyebrow="FAQ" title={`${company} (${symbol}) Stock Forecast FAQs`}>
       {faqRows.filter(([,a])=>{const v=typeof a==='string'?a.trim().toLowerCase():'';return v!==''&&v!=='ai text pending'&&v!=='pending'&&v!=='not available yet'&&!v.includes('ai text pending')&&v!=='—';}).map(([q,a])=><div className="faq-template-row" key={String(q)}><h3>{q}</h3><p>{a}</p></div>)}
     </Section>
 
-    <Section id="final-analysis" eyebrow="FINAL ANALYSIS" title={`${company} Final Analysis`}>
-      <AIBlock title="Financial Picture">{research.fundamental_analysis??'AI text pending'}</AIBlock>
-      <AIBlock title="Valuation Picture">{research.valuation_analysis??'AI text pending'}</AIBlock>
-      <AIBlock title="Growth Picture">{research.growth_analysis??'AI text pending'}</AIBlock>
-      <AIBlock title="Technical Picture">{research.technical_analysis??'AI text pending'}</AIBlock>
-      <AIBlock title="Forecast Range">AI text pending</AIBlock>
-      <AIBlock title="Key Risks">{research.risk_analysis??research.risks??'AI text pending'}</AIBlock>
-    </Section>
+    {(hasText(research.fundamental_analysis)||hasText(research.valuation_analysis)||hasText(research.growth_analysis)||hasText(research.technical_analysis)||hasText(research.risk_analysis??research.risks))?<Section id="final-analysis" eyebrow="FINAL ANALYSIS" title={`${company} Final Analysis`}>
+      <AIBlock title="Financial Picture">{research.fundamental_analysis}</AIBlock><AIBlock title="Valuation Picture">{research.valuation_analysis}</AIBlock><AIBlock title="Growth Picture">{research.growth_analysis}</AIBlock><AIBlock title="Technical Picture">{research.technical_analysis}</AIBlock><AIBlock title="Key Risks">{research.risk_analysis??research.risks}</AIBlock>
+    </Section>:null}
 
     <Section id="disclaimer" eyebrow="DISCLAIMER" title="Disclaimer">
       <p className="seo-prose">US Market AI separates observed market data, reported financial information and quantitative model outputs. Missing values are not estimated. Forecasts are model estimates or scenarios, not guarantees or personalized financial advice. AI-generated interpretation is based on the supplied research data and should not be treated as a substitute for independent research.</p>

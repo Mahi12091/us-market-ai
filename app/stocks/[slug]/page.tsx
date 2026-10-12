@@ -7,8 +7,9 @@ import StockDataExpansion from '@/components/stock-data-expansion';
 
 export const revalidate = 300;
 
-const money = (v: unknown, digits = 2) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-const pct = (v: unknown) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
+const finite = (v: unknown): number | null => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+const money = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : `$${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`; };
+const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; };
 const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d': 4 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -49,7 +50,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('financial_metrics').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(12),
     db.from('earnings').select('*').eq('stock_id', stock.id).order('earnings_date', { ascending: false }).limit(6),
     db.from('earnings_revisions').select('*').eq('stock_id', stock.id).order('revision_date', { ascending: false }).limit(12),
-    db.from('news').select('id,title,summary,url,source,published_at,sentiment').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(5),
+    db.from('news').select('id,title,summary,url,source,published_at,sentiment').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(12),
     db.from('price_history').select('timestamp,close,high,low').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: false }).limit(250),
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
@@ -74,20 +75,20 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   ]);
 
   const orderedHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  const chart: ChartPoint[] = orderedHistory.filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
-  const derived52WeekHigh = orderedHistory.map(x => Number(x.high)).filter(Number.isFinite).reduce((m, v) => Math.max(m, v), -Infinity);
-  const derived52WeekLow = orderedHistory.map(x => Number(x.low)).filter(Number.isFinite).reduce((m, v) => Math.min(m, v), Infinity);
-  const week52High = quote?.week_52_high ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
-  const week52Low = quote?.week_52_low ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
-  const dailyChange = quote?.change_percent;
-  const livePredictions = [...(predictions ?? [])].sort((a, b) => (horizonOrder[String(a.horizon)] ?? 99) - (horizonOrder[String(b.horizon)] ?? 99));
+  const chart: ChartPoint[] = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime())).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: finite(x.close)! }));
+  const derived52WeekHigh = orderedHistory.map(x => finite(x.high)).filter((v): v is number => v !== null).reduce((m, v) => Math.max(m, v), -Infinity);
+  const derived52WeekLow = orderedHistory.map(x => finite(x.low)).filter((v): v is number => v !== null).reduce((m, v) => Math.min(m, v), Infinity);
+  const week52High = finite(quote?.week_52_high) ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
+  const week52Low = finite(quote?.week_52_low) ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
+  const dailyChange = finite(quote?.change_percent);
+  const livePredictions = [...(predictions ?? [])].filter(p => finite(p.predicted_price) !== null && Number.isFinite(new Date(p.prediction_time).getTime())).sort((a, b) => (horizonOrder[String(a.horizon).toLowerCase()] ?? 99) - (horizonOrder[String(b.horizon).toLowerCase()] ?? 99));
   const latestPrediction = livePredictions[0];
   const direction = latestPrediction?.direction ?? 'Not available yet';
   const securityType = stock.company_name?.toLowerCase().includes('preferred stock') ? 'Preferred Stock' : (stock.asset_type ?? 'Equity');
-  const marketCap = quote?.market_cap ?? fundamentals?.market_cap ?? stock.market_cap;
+  const marketCap = finite(quote?.market_cap) ?? finite(fundamentals?.market_cap) ?? finite(stock.market_cap);
   const technicalTrend = tech?.trend ?? (() => {
-    const price = Number(quote?.price), sma20 = Number(tech?.sma_20), sma50 = Number(tech?.sma_50), sma200 = Number(tech?.sma_200), rsi = Number(tech?.rsi), hist = Number(tech?.macd_histogram);
-    if (![price,sma20,sma50,sma200,rsi,hist].every(Number.isFinite)) return 'Not available yet';
+    const price = finite(quote?.price), sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200), rsi = finite(tech?.rsi), hist = finite(tech?.macd_histogram);
+    if (price === null || sma20 === null || sma50 === null || sma200 === null || rsi === null || hist === null) return 'Not available yet';
     const above = Number(price>sma20) + Number(price>sma50) + Number(price>sma200);
     if (above >= 2 && rsi >= 50 && hist >= 0) return 'Bullish';
     if (above <= 1 && rsi < 50 && hist < 0) return 'Bearish';
@@ -96,6 +97,13 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
   const pageUrl = siteUrl ? `${siteUrl}/stocks/${stock.slug}` : `/stocks/${stock.slug}`;
   const modifiedDate = article?.updated_at ?? quote?.quote_timestamp ?? tech?.calculated_at ?? undefined;
+  const safeModifiedDate = modifiedDate && Number.isFinite(new Date(modifiedDate).getTime()) ? new Date(modifiedDate).toISOString() : undefined;
+  const companyTokens = String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((token: string) => token.length >= 4 && !['incorporated','corporation','company','limited','holdings','class','common','stock','group'].includes(token));
+  const stockNews = (news ?? []).filter((item: any) => {
+    const text = `${item.symbol ?? ''} ${item.company_name ?? ''} ${item.title ?? ''} ${item.summary ?? ''}`.toLowerCase();
+    const tokens = text.split(/[^a-z0-9]+/).filter(Boolean); const hasTicker = tokens.includes(String(stock.symbol).toLowerCase());
+    return hasTicker || companyTokens.some((token: string) => text.includes(token));
+  });
 
   const breadcrumbJsonLd = {
     '@type': 'BreadcrumbList', itemListElement: [
@@ -109,11 +117,11 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     '@type': 'Dataset', name: `${stock.company_name} (${stock.symbol}) stock market research data`, alternateName: `${stock.symbol} stock data`,
     description: `Market research dataset for ${stock.company_name} (${stock.symbol}), including price history, technical indicators, financial statements, fundamentals, earnings, dividends, ownership data and quantitative model outputs when available.`,
     url: pageUrl, spatialCoverage: 'United States', isAccessibleForFree: true,
-    creator: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, dateModified: modifiedDate ? new Date(modifiedDate).toISOString() : undefined,
+    creator: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, dateModified: safeModifiedDate,
   };
   const articleJsonLd = article?.content ? {
     '@type': 'Article', headline: article.title || `${stock.company_name} (${stock.symbol}) Stock Analysis`, description: article.summary || `Research update for ${stock.company_name} (${stock.symbol}).`,
-    dateModified: article.updated_at ? new Date(article.updated_at).toISOString() : undefined, author: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, mainEntityOfPage: pageUrl,
+    dateModified: article.updated_at && Number.isFinite(new Date(article.updated_at).getTime()) ? new Date(article.updated_at).toISOString() : undefined, author: { '@type': 'Organization', name: 'US Market AI', url: siteUrl || '/' }, mainEntityOfPage: pageUrl,
   } : null;
   const graphJsonLd = { '@context': 'https://schema.org', '@graph': [datasetJsonLd, breadcrumbJsonLd, ...(articleJsonLd ? [articleJsonLd] : [])] };
 
@@ -136,9 +144,9 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       <section className="stock-actions" aria-label="Stock research sections"><a className="button primary" href="#price">Price</a><a className="button" href="#analysis">AI Research</a><a className="button" href="#financial-analysis">Financials</a><a className="button" href="#technical">Technical</a><a className="button" href="#forecast-methodology">Forecast</a><a className="button" href="#long-term-forecast">2026–2050</a><a className="button" href="#risks">Risks</a><a className="button" href="#data-room">Evidence</a><a className="button" href="#faqs">FAQs</a></section>
       <section className="stock-grid-top">
         <div className="panel chart-panel"><div className="panel-head"><div><h2>Price performance</h2><p className="muted">Daily closing price · {chart.length || 0} sessions</p></div></div>{chart.length ? <PriceChart data={chart}/> : <div className="empty-state">Historical price data is not available yet.</div>}</div>
-        <div className="panel prediction-card" id="analysis"><div className="panel-head"><div><div className="eyebrow">QUANTITATIVE MODEL · V3</div><h2>Live model outlook</h2></div><span className={`signal ${direction}`}>{direction}</span></div><p className="muted">Quantitative estimates from the current v3 ensemble. Confidence is a model-quality score, not a probability of being correct.</p><div className="prediction-list">{livePredictions.length ? livePredictions.map(p => <div className="prediction-row" key={p.id}><div><b>{String(p.horizon).toUpperCase()}</b><small>{p.signal ?? 'Quantitative forecast'}{p.confidence != null ? ` · confidence ${Number(p.confidence).toFixed(0)}` : ''}</small></div><div className="prediction-right"><strong>{money(p.predicted_price)}</strong><span className={Number(p.predicted_change_percent) >= 0 ? 'positive' : 'negative'}>{pct(p.predicted_change_percent)}</span></div></div>) : <div className="empty-state">Fresh quantitative forecasts will appear after the model runs.</div>}</div></div>
+        <div className="panel prediction-card" id="analysis"><div className="panel-head"><div><div className="eyebrow">QUANTITATIVE MODEL · V3</div><h2>Live model outlook</h2></div><span className={`signal ${direction}`}>{direction}</span></div><p className="muted">Quantitative estimates from the current v3 ensemble. Confidence is a model-quality score, not a probability of being correct.</p><div className="prediction-list">{livePredictions.length ? livePredictions.map(p => <div className="prediction-row" key={p.id}><div><b>{String(p.horizon).toUpperCase()}</b><small>{p.signal ?? 'Quantitative forecast'}{finite(p.current_price) !== null ? ` · model base ${money(p.current_price)}` : ''}{finite(p.confidence) !== null ? ` · confidence ${finite(p.confidence)!.toFixed(0)}` : ''}</small></div><div className="prediction-right"><strong>{money(p.predicted_price)}</strong><span className={finite(p.predicted_change_percent) !== null && finite(p.predicted_change_percent)! >= 0 ? 'positive' : 'negative'}>{pct(p.predicted_change_percent)}</span></div></div>) : <div className="empty-state">Fresh quantitative forecasts will appear after the model runs.</div>}</div></div>
       </section>
-      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={livePredictions} fundamentals={fundamentals} financialMetrics={financialMetrics ?? []} earnings={earnings ?? []} earningsRevisions={earningsRevisions ?? []} news={news ?? []} results={results ?? []} article={article} aiResearch={aiResearch ?? []} performance={performance} risks={risks} valuations={valuations} longTerm={longTerm ?? []} peerMetrics={peerMetrics ?? []} threeSpreadMetrics={threeSpreadMetrics ?? []} threeSpreadRatios={threeSpreadRatios ?? []} />
+      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={livePredictions} fundamentals={fundamentals} financialMetrics={financialMetrics ?? []} earnings={earnings ?? []} earningsRevisions={earningsRevisions ?? []} news={stockNews} results={results ?? []} article={article} aiResearch={aiResearch ?? []} performance={performance} risks={risks} valuations={valuations} longTerm={longTerm ?? []} peerMetrics={peerMetrics ?? []} threeSpreadMetrics={threeSpreadMetrics ?? []} threeSpreadRatios={threeSpreadRatios ?? []} />
       <StockDataExpansion fundamentals={fundamentals} financialStatements={financialStatements ?? []} dividends={dividends ?? []} ownership={ownership ?? []} institutionalHolders={institutionalHolders ?? []} insiderTransactions={insiderTransactions ?? []} monthlyResearch={monthlyResearch ?? []} quarterlyResearch={quarterlyResearch ?? []} secFilings={secFilings ?? []} identifiers={identifiers ?? []} provenance={provenance ?? []} quality={quality} threeSpreadMetrics={threeSpreadMetrics ?? []} threeSpreadRatios={threeSpreadRatios ?? []} />
       {related?.length ? <section className="section" id="related-stocks"><div className="panel"><div className="eyebrow">RELATED RESEARCH</div><h2>More {stock.sector ?? 'Market'} Stocks</h2><p className="seo-prose">Explore other active US-listed companies in the same sector. Market-cap ordering is used only to make the directory easier to browse; it is not an investment ranking.</p><div className="stock-directory">{related.map((item: any) => <a className="directory-card" href={`/stocks/${item.slug}`} key={item.id}><div className="directory-top"><div className="ticker-badge">{item.symbol}</div><span className="research-badge">RESEARCH</span></div><div className="directory-symbol">{item.symbol}</div><div className="directory-name">{item.company_name}</div><div className="directory-meta"><span>{item.sector ?? 'US Equity'}</span>{item.market_cap != null && <span>Market cap {money(item.market_cap, 0)}</span>}</div><div className="directory-arrow">→</div></a>)}</div></div></section> : null}
       <section className="section disclaimer-section" id="disclaimer"><div className="panel"><div className="eyebrow">RESEARCH NOTE</div><h2>How to Read This Stock Research</h2><p className="seo-prose">US Market AI separates observed market data, reported financial information and quantitative model outputs. Missing values are not estimated. Forecasts are model estimates, not guarantees or personalized financial advice. For filings and corporate actions, readers should verify the company's investor-relations materials and applicable regulatory filings.</p><a className="button" href="/disclaimer">Read full disclaimer →</a></div></section>
