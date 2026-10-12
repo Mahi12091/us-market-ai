@@ -76,20 +76,20 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   ]);
 
   const orderedHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  const chart: ChartPoint[] = orderedHistory.filter(x => x.close != null).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: Number(x.close) }));
-  const derived52WeekHigh = orderedHistory.map(x => Number(x.high)).filter(Number.isFinite).reduce((m, v) => Math.max(m, v), -Infinity);
-  const derived52WeekLow = orderedHistory.map(x => Number(x.low)).filter(Number.isFinite).reduce((m, v) => Math.min(m, v), Infinity);
-  const week52High = quote?.week_52_high ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
-  const week52Low = quote?.week_52_low ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
+  const chart: ChartPoint[] = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime())).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: finite(x.close)! }));
+  const derived52WeekHigh = orderedHistory.map(x => finite(x.high)).filter((v): v is number => v !== null).reduce((m, v) => Math.max(m, v), -Infinity);
+  const derived52WeekLow = orderedHistory.map(x => finite(x.low)).filter((v): v is number => v !== null).reduce((m, v) => Math.min(m, v), Infinity);
+  const week52High = finite(quote?.week_52_high) ?? (Number.isFinite(derived52WeekHigh) ? derived52WeekHigh : null);
+  const week52Low = finite(quote?.week_52_low) ?? (Number.isFinite(derived52WeekLow) ? derived52WeekLow : null);
   const dailyChange = quote?.change_percent;
-  const livePredictions = [...(predictions ?? [])].sort((a, b) => (horizonOrder[String(a.horizon)] ?? 99) - (horizonOrder[String(b.horizon)] ?? 99));
+  const livePredictions = [...(predictions ?? [])].filter(p => finite(p.predicted_price) !== null && Number.isFinite(new Date(p.prediction_time).getTime())).sort((a, b) => (horizonOrder[String(a.horizon).toLowerCase()] ?? 99) - (horizonOrder[String(b.horizon).toLowerCase()] ?? 99));
   const latestPrediction = livePredictions[0];
   const direction = latestPrediction?.direction ?? 'Not available yet';
   const securityType = stock.company_name?.toLowerCase().includes('preferred stock') ? 'Preferred Stock' : (stock.asset_type ?? 'Equity');
   const marketCap = quote?.market_cap ?? fundamentals?.market_cap ?? stock.market_cap;
   const technicalTrend = tech?.trend ?? (() => {
-    const price = Number(quote?.price), sma20 = Number(tech?.sma_20), sma50 = Number(tech?.sma_50), sma200 = Number(tech?.sma_200), rsi = Number(tech?.rsi), hist = Number(tech?.macd_histogram);
-    if (![price,sma20,sma50,sma200,rsi,hist].every(Number.isFinite)) return 'Not available yet';
+    const price = finite(quote?.price), sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200), rsi = finite(tech?.rsi), hist = finite(tech?.macd_histogram);
+    if (price === null || sma20 === null || sma50 === null || sma200 === null || rsi === null || hist === null) return 'Not available yet';
     const above = Number(price>sma20) + Number(price>sma50) + Number(price>sma200);
     if (above >= 2 && rsi >= 50 && hist >= 0) return 'Bullish';
     if (above <= 1 && rsi < 50 && hist < 0) return 'Bearish';
@@ -213,6 +213,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           <section className="sd-card" id="financials">
             <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements</h2><p>Recent normalized financial statement records.</p></div></div>
             {table(['Period','Statement','Revenue','Net income','Total assets','Free cash flow'], (financialStatements ?? []).slice(0, 12).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), compactMoney(row.revenue), compactMoney(row.net_income), compactMoney(row.total_assets), compactMoney(row.free_cash_flow)]))}
+            <h3 className="sd-subheading">Financial metric history</h3>{table(['Period','Revenue growth','Gross margin','Operating margin','Net margin','ROE','ROIC'], (financialMetrics ?? []).slice(0, 8).map((m: any) => [dateLabel(m.period_end), pct(m.revenue_growth), pct(m.gross_margin), pct(m.operating_margin), pct(m.net_margin), pct(m.roe), pct(m.roic)]))}
             <h3 className="sd-subheading">Earnings history</h3>
             {table(['Report date','Fiscal period','EPS actual','EPS estimate','Revenue actual','Revenue estimate'], (earnings ?? []).map((e: any) => [dateLabel(e.earnings_date), e.fiscal_period ?? '—', money(e.eps_actual), money(e.eps_estimate), compactMoney(e.revenue_actual), compactMoney(e.revenue_estimate)]))}
             {(earningsRevisions ?? []).length > 0 && <><h3 className="sd-subheading">Analyst estimate revisions</h3>{table(['Revision date','Period','EPS estimate','Revenue estimate','Analyst count'], (earningsRevisions ?? []).slice(0, 8).map((e: any) => [dateLabel(e.revision_date), e.fiscal_period ?? e.period ?? '—', money(e.eps_estimate), compactMoney(e.revenue_estimate), number(e.analyst_count, 0)]))}</>}
@@ -244,6 +245,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
             <details className="sd-details"><summary>Institutional holders and ownership</summary>{table(['Period','Holder','Shares','Value','Ownership'], (institutionalHolders ?? []).slice(0, 12).map((h: any) => [dateLabel(h.period_end), h.holder_name ?? h.institution_name ?? '—', number(h.shares, 0), compactMoney(h.market_value ?? h.value), pct(h.ownership_percent)]))}{table(['Period','Shares outstanding','Institutional ownership','Insider ownership'], (ownership ?? []).slice(0, 8).map((o: any) => [dateLabel(o.period_end), number(o.shares_outstanding, 0), pct(o.institutional_ownership), pct(o.insider_ownership)]))}</details>
             <details className="sd-details"><summary>Insider transactions</summary>{table(['Date','Insider','Title','Transaction','Shares','Price'], (insiderTransactions ?? []).slice(0, 12).map((t: any) => [dateLabel(t.transaction_date), t.insider_name ?? '—', t.insider_title ?? '—', t.transaction_type ?? '—', number(t.shares, 0), money(t.price)]))}</details>
             <details className="sd-details"><summary>SEC filings</summary>{table(['Filed','Form','Description','Accession'], (secFilings ?? []).slice(0, 12).map((f: any) => [dateLabel(f.filing_date), f.form_type ?? f.form ?? '—', f.description ?? f.title ?? '—', f.accession_number ?? '—']))}</details>
+            <details className="sd-details"><summary>Published AI research</summary>{table(['Updated','Title','Summary'], (aiResearch ?? []).map((r: any) => [dateLabel(r.updated_at), r.title ?? r.research_type ?? 'Research note', r.summary ?? r.content ?? r.analysis ?? '—']))}{article?.summary && <p className="sd-detail-copy">Latest published article: {article.summary}</p>}</details>
             <details className="sd-details"><summary>Quarterly and monthly research</summary>{table(['Period','Research summary'], (quarterlyResearch ?? []).map((r: any) => [dateLabel(r.period_end), r.summary ?? r.research_summary ?? r.content ?? '—']))}{table(['Month','Research summary'], (monthlyResearch ?? []).map((r: any) => [dateLabel(r.research_month), r.summary ?? r.research_summary ?? r.content ?? '—']))}</details>
             <details className="sd-details"><summary>Third-party metrics and ratios</summary>{table(['Period','Metric','Value','Source'], (threeSpreadMetrics ?? []).slice(0, 15).map((m: any) => [dateLabel(m.period_end), m.metric_name ?? m.metric_key ?? '—', number(m.value), m.data_source ?? '3Spread']))}{table(['Period','Ratio','Value','Source'], (threeSpreadRatios ?? []).slice(0, 15).map((m: any) => [dateLabel(m.period_end), m.ratio_name ?? m.ratio_key ?? '—', number(m.value), m.data_source ?? '3Spread']))}</details>
             <details className="sd-details"><summary>Data quality and provenance</summary><p className="sd-detail-copy">This page does not fill gaps with sample data. Values shown above come from the connected market-data and research tables.</p>{table(['Check date','Status','Completeness','Issues'], quality ? [[dateLabel(quality.check_date), quality.status ?? '—', pct(quality.completeness_score), number(quality.issue_count, 0)]] : [])}{table(['Retrieved','Dataset','Provider','Status'], (provenance ?? []).slice(0, 12).map((p: any) => [dateLabel(p.retrieved_at), p.dataset_name ?? p.table_name ?? '—', p.provider ?? p.source ?? '—', p.status ?? '—']))}</details>
