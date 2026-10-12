@@ -1,11 +1,13 @@
 import React from 'react';
 
 type Props={fundamentals:any;financialStatements:any[];dividends:any[];ownership:any[];institutionalHolders:any[];insiderTransactions:any[];monthlyResearch:any[];quarterlyResearch:any[];secFilings:any[];identifiers:any[];provenance:any[];quality:any;threeSpreadMetrics:any[];threeSpreadRatios:any[]};
-const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
-const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFractionDigits:3});
-const pct=(v:any)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+const finite=(v:any):number|null=>{if(v===null||v===undefined||v===''||typeof v==='boolean')return null;const n=Number(v);return Number.isFinite(n)?n:null;};
+const money=(v:any)=>{const n=finite(v);return n===null?'—':`${n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;};
+const num=(v:any)=>{const n=finite(v);return n===null?'—':n.toLocaleString('en-US',{maximumFractionDigits:3});};
+const pct=(v:any)=>{const n=finite(v);return n===null?'—':`${n>=0?'+':''}${n.toFixed(2)}%`;};
 const renderValue=(v:any):React.ReactNode=>{
  if(v==null)return '—';
+ if(typeof v==='number'&&!Number.isFinite(v))return '—';
  if(React.isValidElement(v))return v;
  if(v instanceof Date)return Number.isNaN(v.getTime())?'—':v.toLocaleDateString('en-US');
  if(typeof v==='object'){try{return JSON.stringify(v)}catch{return String(v)}}
