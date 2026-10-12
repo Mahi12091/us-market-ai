@@ -2,13 +2,15 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createDatabaseClient } from '@/lib/neon';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
-import StockSeoContent from '@/components/stock-seo-content';
-import StockDataExpansion from '@/components/stock-data-expansion';
 
 export const revalidate = 300;
 
-const money = (v: unknown, digits = 2) => v == null ? '—' : `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
-const pct = (v: unknown) => v == null ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
+const finite = (v: unknown): number | null => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+const money = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`; };
+const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; };
+const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
+const number = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: digits }); };
+const dateLabel = (v: unknown) => { if (!v) return '—'; const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
 const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d': 4 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -117,32 +119,152 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   } : null;
   const graphJsonLd = { '@context': 'https://schema.org', '@graph': [datasetJsonLd, breadcrumbJsonLd, ...(articleJsonLd ? [articleJsonLd] : [])] };
 
-  return <div className="stock-page">
+  const cleanHistory = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime()));
+  const quoteTimestamp = quote?.quote_timestamp && Number.isFinite(new Date(quote.quote_timestamp).getTime()) ? new Date(quote.quote_timestamp) : null;
+  const valuationPe = finite(valuations?.pe) ?? finite(fundamentals?.pe_ratio);
+  const valuationForwardPe = finite(valuations?.forward_pe) ?? finite(fundamentals?.forward_pe);
+  const valuationPs = finite(fundamentals?.price_sales);
+  const valuationPb = finite(fundamentals?.price_book);
+  const rsi = finite(tech?.rsi);
+  const sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200);
+  const visibleNews = (news ?? []).filter((n: any) => n.title || n.summary).slice(0, 8);
+  const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
+  const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
+  const table = (headers: string[], rows: any[][]) => {
+    const clean = rows.filter(row => row.some(value => value !== null && value !== undefined && value !== '' && value !== '—'));
+    if (!clean.length) return <div className="sd-empty">No verified records available for this section yet.</div>;
+    return <div className="sd-table-scroll"><table className="sd-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{clean.map((row, i) => <tr key={i}>{row.map((value, j) => <td key={j}>{value == null || value === '' ? '—' : String(value)}</td>)}</tr>)}</tbody></table></div>;
+  };
+  const metricCards = [
+    ['Market cap', compactMoney(marketCap)], ['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)],
+    ['52-week high', money(week52High)], ['52-week low', money(week52Low)], ['Average volume', quote?.volume == null ? '—' : Number(quote.volume).toLocaleString('en-US')],
+  ].filter(([, value]) => value !== '—');
+  const financialCards = [
+    ['Revenue', compactMoney(fundamentals?.revenue)], ['Revenue growth', pct(fundamentals?.revenue_growth)],
+    ['Gross margin', pct(fundamentals?.gross_margin)], ['Operating margin', pct(fundamentals?.operating_margin)],
+    ['Net margin', pct(fundamentals?.net_margin)], ['EPS', money(fundamentals?.eps)],
+    ['Debt / equity', number(fundamentals?.debt_equity)], ['Free cash flow', compactMoney(fundamentals?.free_cash_flow)],
+    ['Return on equity', pct(fundamentals?.roe)], ['Return on invested capital', pct(fundamentals?.roic)],
+  ].filter(([, value]) => value !== '—');
+  const technicalCards = [
+    ['RSI (14)', number(rsi)], ['SMA 20', money(sma20)], ['SMA 50', money(sma50)], ['SMA 200', money(sma200)],
+    ['MACD histogram', number(tech?.macd_histogram)], ['ATR', number(tech?.atr)], ['ADX', number(tech?.adx)], ['Trend', technicalTrend],
+  ].filter(([, value]) => value !== '—' && value !== 'Not available yet');
+  const faq = [
+    [`What is ${stock.symbol} stock's current price?`, `The latest stored quote for ${stock.symbol} is ${money(quote?.price)}. Quote freshness is shown beside the price.`],
+    [`What is the outlook for ${stock.symbol}?`, livePredictions.length ? `The current quantitative model labels the near-term outlook “${direction}”. Forecasts are estimates, not guarantees.` : 'A current short-term model forecast is not available in the database yet.'],
+    [`Does ${stock.symbol} pay a dividend?`, (dividends ?? []).length ? 'Dividend records are available in the dividend history section below.' : 'No dividend records are currently stored for this stock. This does not by itself prove the company pays no dividend.'],
+  ];
+  return <main className="stock-page-v2">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }} />
-    <div className="container">
-      <nav className="stock-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>/</span><a href="/stocks">US Stocks</a>{stock.sector && <><span>/</span><span>{stock.sector}</span></>}<span>/</span><b>{stock.symbol}</b></nav>
-      <section className="stock-hero">
-        <div className="stock-title-block"><div className="stock-logo">{stock.symbol.slice(0, 1)}</div><div><div className="eyebrow">{stock.exchange ?? 'US MARKET'} · {stock.sector ?? 'EQUITY'}</div><h1>{stock.company_name} ({stock.symbol}) Stock Analysis, Price Forecast &amp; Financials</h1><div className="stock-symbol">{stock.symbol} · {stock.industry ?? securityType}</div></div></div>
-        <div className="quote-block"><div className="quote-price">{money(quote?.price)}</div><div className={Number(dailyChange) >= 0 ? 'positive quote-change' : 'negative quote-change'}>{quote?.change != null ? `${Number(quote.change) >= 0 ? '+' : ''}${money(quote.change)} · ${pct(dailyChange)}` : 'Quote unavailable'}</div><small className="muted">{quote?.quote_timestamp ? `Updated ${new Date(quote.quote_timestamp).toLocaleString('en-US')}` : 'Waiting for market feed'}</small></div>
+    <div className="sd-shell">
+      <nav className="sd-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>›</span><a href="/stocks">US Stocks</a>{stock.sector && <><span>›</span><a href={`/stocks?sector=${encodeURIComponent(stock.sector)}`}>{stock.sector}</a></>}<span>›</span><b>{stock.symbol}</b></nav>
+      <header className="sd-hero">
+        <div className="sd-identity">
+          <div className="sd-monogram" aria-hidden="true">{String(stock.symbol).slice(0, 1)}</div>
+          <div className="sd-company">
+            <div className="sd-kicker">{stock.exchange ?? 'US EQUITY'} <span>•</span> {stock.sector ?? securityType}</div>
+            <h1>{stock.company_name} <span>({stock.symbol})</span></h1>
+            <p>{stock.industry ?? stock.sector ?? securityType}{stock.headquarters ? ` · ${stock.headquarters}` : ''}</p>
+            <div className="sd-badges"><span>{stock.exchange ?? 'US Market'}</span><span>{securityType}</span>{stock.is_active && <span className="sd-badge-live">Active listing</span>}</div>
+          </div>
+        </div>
+        <div className="sd-price-block">
+          <div className="sd-price">{money(quote?.price)}</div>
+          <div className={finite(quote?.change) !== null && finite(quote?.change)! >= 0 ? 'sd-positive' : 'sd-negative'}>{finite(quote?.change) !== null ? `${finite(quote?.change)! >= 0 ? '+' : ''}${money(quote?.change)}` : 'Change unavailable'} <span>({pct(dailyChange)})</span></div>
+          <small>{quoteTimestamp ? `Quote updated ${quoteTimestamp.toLocaleString('en-US')}` : 'Latest quote timestamp unavailable'}</small>
+        </div>
+      </header>
+
+      <nav className="sd-jumpnav" aria-label="On this page">
+        <a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#forecast">Forecast</a><a href="#fundamentals">Fundamentals</a><a href="#technicals">Technicals</a><a href="#financials">Financials</a><a href="#news">News</a><a href="#research-data">Research data</a>
+      </nav>
+
+      <section className="sd-market-strip" id="overview" aria-label="Market snapshot">
+        <div><span>Previous close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Open</span><strong>{money(quote?.open)}</strong></div><div><span>Day range</span><strong>{quote?.low != null && quote?.high != null ? `${money(quote.low)} – ${money(quote.high)}` : '—'}</strong></div><div><span>52-week range</span><strong>{week52Low != null && week52High != null ? `${money(week52Low)} – ${money(week52High)}` : '—'}</strong></div><div><span>Volume</span><strong>{quote?.volume == null ? '—' : Number(quote.volume).toLocaleString('en-US')}</strong></div><div><span>Market cap</span><strong>{compactMoney(marketCap)}</strong></div>
       </section>
-      <section className="stock-quick-snapshot" aria-label="Stock snapshot">
-        <div><span>Current Price</span><strong>{money(quote?.price)}</strong></div><div><span>Daily Change</span><strong>{pct(quote?.change_percent)}</strong></div><div><span>Exchange</span><strong>{stock.exchange ?? 'Not available yet'}</strong></div><div><span>Asset Type</span><strong>{securityType}</strong></div><div><span>Last Updated</span><strong>{quote?.quote_timestamp ? new Date(quote.quote_timestamp).toLocaleString('en-US') : 'Not available yet'}</strong></div><div><span>Open</span><strong>{money(quote?.open)}</strong></div>
-        <div><span>Day High</span><strong>{money(quote?.high)}</strong></div><div><span>Day Low</span><strong>{money(quote?.low)}</strong></div><div><span>Previous Close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Volume</span><strong>{quote?.volume != null ? Number(quote.volume).toLocaleString('en-US') : 'Not available yet'}</strong></div><div><span>Market Cap</span><strong>{money(marketCap)}</strong></div><div><span>52-Week High</span><strong>{money(week52High)}</strong></div><div><span>52-Week Low</span><strong>{money(week52Low)}</strong></div><div><span>Sector</span><strong>{stock.sector ?? 'Not available yet'}</strong></div><div><span>Industry</span><strong>{stock.industry ?? 'Not available yet'}</strong></div>
+
+      <section className="sd-layout-main">
+        <div className="sd-primary-column">
+          <section className="sd-card sd-chart-card" id="chart">
+            <div className="sd-section-heading"><div><span className="sd-kicker">PRICE HISTORY</span><h2>Price performance</h2><p>Daily closing prices from the stored market history.</p></div><span className="sd-count">{cleanHistory.length} sessions</span></div>
+            {chart.length ? <PriceChart data={chart}/> : <div className="sd-empty sd-chart-empty">Historical price data is not available for this ticker yet.</div>}
+          </section>
+
+          <section className="sd-card" id="forecast">
+            <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Model outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
+            {table(['Horizon','Model target','Expected change','Signal','Confidence score'], shortForecastRows)}
+            {longForecastRows.length > 0 && <><h3 className="sd-subheading">Long-term model scenarios</h3><p className="sd-muted">Only years with stored model outputs are shown. Long-range scenarios carry substantial uncertainty.</p>{table(['Target year','Model target','Model return','Model version'], longForecastRows)}</>}
+            {longForecastRows.length === 0 && <p className="sd-footnote">Long-term forecast records are not available yet; no values are fabricated or extrapolated on this page.</p>}
+          </section>
+
+          <section className="sd-card" id="fundamentals">
+            <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Business and financial health</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
+            {stock.description && <p className="sd-description">{stock.description}</p>}
+            {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
+            {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>}
+          </section>
+
+          <section className="sd-card" id="technicals">
+            <div className="sd-section-heading"><div><span className="sd-kicker">TECHNICALS</span><h2>Technical indicators</h2><p>Latest stored daily indicator snapshot; unavailable indicators are omitted.</p></div><span className="sd-count">{tech?.calculated_at ? dateLabel(tech.calculated_at) : 'No timestamp'}</span></div>
+            {technicalCards.length ? <div className="sd-metric-grid">{technicalCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Technical indicator data is not available yet.</div>}
+          </section>
+
+          <section className="sd-card" id="financials">
+            <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements</h2><p>Recent normalized financial statement records.</p></div></div>
+            {table(['Period','Statement','Revenue','Net income','Total assets','Free cash flow'], (financialStatements ?? []).slice(0, 12).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), compactMoney(row.revenue), compactMoney(row.net_income), compactMoney(row.total_assets), compactMoney(row.free_cash_flow)]))}
+            <h3 className="sd-subheading">Earnings history</h3>
+            {table(['Report date','Fiscal period','EPS actual','EPS estimate','Revenue actual','Revenue estimate'], (earnings ?? []).map((e: any) => [dateLabel(e.earnings_date), e.fiscal_period ?? '—', money(e.eps_actual), money(e.eps_estimate), compactMoney(e.revenue_actual), compactMoney(e.revenue_estimate)]))}
+            {(earningsRevisions ?? []).length > 0 && <><h3 className="sd-subheading">Analyst estimate revisions</h3>{table(['Revision date','Period','EPS estimate','Revenue estimate','Analyst count'], (earningsRevisions ?? []).slice(0, 8).map((e: any) => [dateLabel(e.revision_date), e.fiscal_period ?? e.period ?? '—', money(e.eps_estimate), compactMoney(e.revenue_estimate), number(e.analyst_count, 0)]))}</>}
+          </section>
+
+          <section className="sd-card" id="valuation">
+            <div className="sd-section-heading"><div><span className="sd-kicker">VALUATION</span><h2>Valuation snapshot</h2><p>Multiples shown only when the database has a usable value.</p></div></div>
+            {(() => { const vals = [['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)], ['Price / sales', number(valuationPs)], ['Price / book', number(valuationPb)], ['PEG ratio', number(fundamentals?.peg_ratio)], ['Enterprise value', compactMoney(fundamentals?.enterprise_value)]] .filter(([, value]) => value !== '—'); return vals.length ? <div className="sd-metric-grid">{vals.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Valuation multiples are not available yet.</div>; })()}
+            {(peerMetrics ?? []).length > 0 && <><h3 className="sd-subheading">Peer context</h3>{table(['Metric','Company','Peer median','Peer average','Percentile'], (peerMetrics ?? []).slice(0, 12).map((p: any) => [p.metric_name ?? '—', number(p.company_value), number(p.peer_median), number(p.peer_average), p.percentile == null ? '—' : `${number(p.percentile)}%`]))}</>}
+          </section>
+
+          <section className="sd-card" id="news">
+            <div className="sd-section-heading"><div><span className="sd-kicker">LATEST DEVELOPMENTS</span><h2>News and company updates</h2><p>Stories linked to this stock in the current database.</p></div></div>
+            {visibleNews.length ? <div className="sd-news-list">{visibleNews.map((item: any) => <article className="sd-news-item" key={item.id}><div className="sd-news-meta"><span>{item.source ?? 'News source'}</span><span>{dateLabel(item.published_at)}</span></div><h3>{item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</h3>{item.summary && <p>{item.summary}</p>}{item.sentiment && <span className="sd-news-sentiment">{item.sentiment}</span>}</article>)}</div> : <div className="sd-empty">No ticker-linked news records are available yet.</div>}
+          </section>
+
+          <section className="sd-card" id="dividends">
+            <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend history</h2><p>Stored dividend events, where available.</p></div></div>
+            {table(['Ex-date','Payment date','Dividend / share','Frequency','Currency'], (dividends ?? []).slice(0, 10).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', d.currency ?? 'USD']))}
+          </section>
+
+          <section className="sd-card" id="risk">
+            <div className="sd-section-heading"><div><span className="sd-kicker">RISK CONTEXT</span><h2>Risk and performance profile</h2><p>Computed risk/performance records; not a recommendation.</p></div></div>
+            {(() => { const riskItems = [['Volatility', pct(risks?.volatility)], ['Beta', number(risks?.beta)], ['Maximum drawdown', pct(risks?.max_drawdown)], ['Sharpe ratio', number(risks?.sharpe_ratio)], ['Sortino ratio', number(risks?.sortino_ratio)], ['Liquidity risk', risks?.liquidity_risk], ['1-month return', pct(performance?.return_1m)], ['3-month return', pct(performance?.return_3m)], ['1-year return', pct(performance?.return_1y)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
+          </section>
+
+          <section className="sd-card" id="research-data">
+            <div className="sd-section-heading"><div><span className="sd-kicker">RESEARCH EVIDENCE</span><h2>Source data and research records</h2><p>Expandable evidence tables keep the main page focused while preserving detailed data.</p></div></div>
+            <details className="sd-details"><summary>Institutional holders and ownership</summary>{table(['Period','Holder','Shares','Value','Ownership'], (institutionalHolders ?? []).slice(0, 12).map((h: any) => [dateLabel(h.period_end), h.holder_name ?? h.institution_name ?? '—', number(h.shares, 0), compactMoney(h.market_value ?? h.value), pct(h.ownership_percent)]))}{table(['Period','Shares outstanding','Institutional ownership','Insider ownership'], (ownership ?? []).slice(0, 8).map((o: any) => [dateLabel(o.period_end), number(o.shares_outstanding, 0), pct(o.institutional_ownership), pct(o.insider_ownership)]))}</details>
+            <details className="sd-details"><summary>Insider transactions</summary>{table(['Date','Insider','Title','Transaction','Shares','Price'], (insiderTransactions ?? []).slice(0, 12).map((t: any) => [dateLabel(t.transaction_date), t.insider_name ?? '—', t.insider_title ?? '—', t.transaction_type ?? '—', number(t.shares, 0), money(t.price)]))}</details>
+            <details className="sd-details"><summary>SEC filings</summary>{table(['Filed','Form','Description','Accession'], (secFilings ?? []).slice(0, 12).map((f: any) => [dateLabel(f.filing_date), f.form_type ?? f.form ?? '—', f.description ?? f.title ?? '—', f.accession_number ?? '—']))}</details>
+            <details className="sd-details"><summary>Quarterly and monthly research</summary>{table(['Period','Research summary'], (quarterlyResearch ?? []).map((r: any) => [dateLabel(r.period_end), r.summary ?? r.research_summary ?? r.content ?? '—']))}{table(['Month','Research summary'], (monthlyResearch ?? []).map((r: any) => [dateLabel(r.research_month), r.summary ?? r.research_summary ?? r.content ?? '—']))}</details>
+            <details className="sd-details"><summary>Third-party metrics and ratios</summary>{table(['Period','Metric','Value','Source'], (threeSpreadMetrics ?? []).slice(0, 15).map((m: any) => [dateLabel(m.period_end), m.metric_name ?? m.metric_key ?? '—', number(m.value), m.data_source ?? '3Spread']))}{table(['Period','Ratio','Value','Source'], (threeSpreadRatios ?? []).slice(0, 15).map((m: any) => [dateLabel(m.period_end), m.ratio_name ?? m.ratio_key ?? '—', number(m.value), m.data_source ?? '3Spread']))}</details>
+            <details className="sd-details"><summary>Data quality and provenance</summary><p className="sd-detail-copy">This page does not fill gaps with sample data. Values shown above come from the connected market-data and research tables.</p>{table(['Check date','Status','Completeness','Issues'], quality ? [[dateLabel(quality.check_date), quality.status ?? '—', pct(quality.completeness_score), number(quality.issue_count, 0)]] : [])}{table(['Retrieved','Dataset','Provider','Status'], (provenance ?? []).slice(0, 12).map((p: any) => [dateLabel(p.retrieved_at), p.dataset_name ?? p.table_name ?? '—', p.provider ?? p.source ?? '—', p.status ?? '—']))}</details>
+            <details className="sd-details"><summary>Identifiers and model evaluation</summary>{table(['Identifier','Value','Source'], (identifiers ?? []).map((i: any) => [i.identifier_type ?? i.type ?? '—', i.identifier_value ?? i.value ?? '—', i.source ?? '—']))}{table(['Evaluated','Horizon','Predicted','Actual','Error','Hit'], (results ?? []).map((p: any) => [dateLabel(p.evaluated_at), p.horizon ?? '—', money(p.predicted_price), money(p.actual_price), pct(p.percentage_error), p.hit == null ? '—' : p.hit ? 'Yes' : 'No']))}</details>
+          </section>
+
+          <section className="sd-card" id="faq">
+            <div className="sd-section-heading"><div><span className="sd-kicker">QUICK ANSWERS</span><h2>Frequently asked questions</h2></div></div>
+            {faq.map(([question, answer]) => <details className="sd-faq" key={question}><summary>{question}</summary><p>{answer}</p></details>)}
+          </section>
+        </div>
+
+        <aside className="sd-sidebar">
+          <section className="sd-card sd-sidebar-card"><span className="sd-kicker">AT A GLANCE</span><h2>Research snapshot</h2><div className="sd-signal-row"><span>Quant model</span><strong>{direction}</strong></div><div className="sd-signal-row"><span>Technical trend</span><strong>{technicalTrend}</strong></div><div className="sd-signal-row"><span>Financial data</span><strong>{fundamentals ? 'Available' : 'Not populated'}</strong></div><div className="sd-signal-row"><span>Latest earnings</span><strong>{earnings?.[0] ? dateLabel(earnings[0].earnings_date) : '—'}</strong></div><div className="sd-signal-row"><span>Long-term scenarios</span><strong>{longForecastRows.length ? `${longForecastRows.length} years` : 'Unavailable'}</strong></div></section>
+          <section className="sd-card sd-sidebar-card"><span className="sd-kicker">COMPANY PROFILE</span><h2>About {stock.symbol}</h2><p>{stock.description || 'A detailed company description has not been provided in the current stock profile.'}</p><dl className="sd-profile-list">{[['Sector',stock.sector],['Industry',stock.industry],['Headquarters',stock.headquarters],['Employees',stock.employees == null ? null : Number(stock.employees).toLocaleString('en-US')],['Founded',stock.founded_year],['CEO',stock.ceo]].filter(([,v]) => v !== null && v !== undefined && v !== '').map(([label,value]) => <div key={String(label)}><dt>{label}</dt><dd>{String(value)}</dd></div>)}</dl></section>
+          <section className="sd-card sd-sidebar-card sd-disclaimer"><span className="sd-kicker">IMPORTANT</span><h2>Use forecasts carefully</h2><p>Market prices can change quickly. Quantitative estimates and historical metrics are informational only, may be incomplete, and are not guarantees of future performance or personalized financial advice.</p><a href="/disclaimer">Read full disclaimer ↗</a></section>
+        </aside>
       </section>
-      <section className="research-section" aria-label="Quick Research Snapshot">
-        <div className="research-section-head"><h2>Quick Research Snapshot</h2></div>
-        <div className="research-metric-grid"><div className="research-metric"><span>Market Outlook</span><strong>{direction}</strong></div><div className="research-metric"><span>Technical Trend</span><strong>{technicalTrend}</strong></div><div className="research-metric"><span>Financial Health</span><strong>{fundamentals ? 'Data available' : 'Not available yet'}</strong></div><div className="research-metric"><span>Valuation Context</span><strong>{fundamentals?.pe_ratio != null || valuations?.pe != null ? 'Data available' : 'Not available yet'}</strong></div><div className="research-metric"><span>Model Outlook</span><strong>{latestPrediction?.direction ?? 'Not available yet'}</strong></div><div className="research-metric"><span>Risk Context</span><strong>{risks?.liquidity_risk ?? 'Not available yet'}</strong></div></div>
-      </section>
-      <section className="stock-actions" aria-label="Stock research sections"><a className="button primary" href="#price">Price</a><a className="button" href="#analysis">AI Research</a><a className="button" href="#financial-analysis">Financials</a><a className="button" href="#technical">Technical</a><a className="button" href="#forecast-methodology">Forecast</a><a className="button" href="#long-term-forecast">2026–2050</a><a className="button" href="#risks">Risks</a><a className="button" href="#data-room">Evidence</a><a className="button" href="#faqs">FAQs</a></section>
-      <section className="stock-grid-top">
-        <div className="panel chart-panel"><div className="panel-head"><div><h2>Price performance</h2><p className="muted">Daily closing price · {chart.length || 0} sessions</p></div></div>{chart.length ? <PriceChart data={chart}/> : <div className="empty-state">Historical price data is not available yet.</div>}</div>
-        <div className="panel prediction-card" id="analysis"><div className="panel-head"><div><div className="eyebrow">QUANTITATIVE MODEL · V3</div><h2>Live model outlook</h2></div><span className={`signal ${direction}`}>{direction}</span></div><p className="muted">Quantitative estimates from the current v3 ensemble. Confidence is a model-quality score, not a probability of being correct.</p><div className="prediction-list">{livePredictions.length ? livePredictions.map(p => <div className="prediction-row" key={p.id}><div><b>{String(p.horizon).toUpperCase()}</b><small>{p.signal ?? 'Quantitative forecast'}{p.confidence != null ? ` · confidence ${Number(p.confidence).toFixed(0)}` : ''}</small></div><div className="prediction-right"><strong>{money(p.predicted_price)}</strong><span className={Number(p.predicted_change_percent) >= 0 ? 'positive' : 'negative'}>{pct(p.predicted_change_percent)}</span></div></div>) : <div className="empty-state">Fresh quantitative forecasts will appear after the model runs.</div>}</div></div>
-      </section>
-      <StockSeoContent stock={stock} quote={quote} tech={tech} predictions={livePredictions} fundamentals={fundamentals} financialMetrics={financialMetrics ?? []} earnings={earnings ?? []} earningsRevisions={earningsRevisions ?? []} news={news ?? []} results={results ?? []} article={article} aiResearch={aiResearch ?? []} performance={performance} risks={risks} valuations={valuations} longTerm={longTerm ?? []} peerMetrics={peerMetrics ?? []} threeSpreadMetrics={threeSpreadMetrics ?? []} threeSpreadRatios={threeSpreadRatios ?? []} />
-      <StockDataExpansion fundamentals={fundamentals} financialStatements={financialStatements ?? []} dividends={dividends ?? []} ownership={ownership ?? []} institutionalHolders={institutionalHolders ?? []} insiderTransactions={insiderTransactions ?? []} monthlyResearch={monthlyResearch ?? []} quarterlyResearch={quarterlyResearch ?? []} secFilings={secFilings ?? []} identifiers={identifiers ?? []} provenance={provenance ?? []} quality={quality} threeSpreadMetrics={threeSpreadMetrics ?? []} threeSpreadRatios={threeSpreadRatios ?? []} />
-      {related?.length ? <section className="section" id="related-stocks"><div className="panel"><div className="eyebrow">RELATED RESEARCH</div><h2>More {stock.sector ?? 'Market'} Stocks</h2><p className="seo-prose">Explore other active US-listed companies in the same sector. Market-cap ordering is used only to make the directory easier to browse; it is not an investment ranking.</p><div className="stock-directory">{related.map((item: any) => <a className="directory-card" href={`/stocks/${item.slug}`} key={item.id}><div className="directory-top"><div className="ticker-badge">{item.symbol}</div><span className="research-badge">RESEARCH</span></div><div className="directory-symbol">{item.symbol}</div><div className="directory-name">{item.company_name}</div><div className="directory-meta"><span>{item.sector ?? 'US Equity'}</span>{item.market_cap != null && <span>Market cap {money(item.market_cap, 0)}</span>}</div><div className="directory-arrow">→</div></a>)}</div></div></section> : null}
-      <section className="section disclaimer-section" id="disclaimer"><div className="panel"><div className="eyebrow">RESEARCH NOTE</div><h2>How to Read This Stock Research</h2><p className="seo-prose">US Market AI separates observed market data, reported financial information and quantitative model outputs. Missing values are not estimated. Forecasts are model estimates, not guarantees or personalized financial advice. For filings and corporate actions, readers should verify the company's investor-relations materials and applicable regulatory filings.</p><a className="button" href="/disclaimer">Read full disclaimer →</a></div></section>
-      <section className="section author-section" id="research-author"><div className="panel author-card"><div className="author-avatar">US</div><div><div className="eyebrow">RESEARCH AUTHOR</div><h2>US Market AI Research Desk</h2><p>Research and editorial team responsible for presenting market data, quantitative model outputs, methodology and stock research pages.</p><div className="author-meta"><span>Data-driven research</span><span>Quantitative methodology</span><span>Updated {modifiedDate ? new Date(modifiedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'with available data'}</span></div></div><a className="button" href="/research-author">About the research desk →</a></div></section>
+
+      {related?.length ? <section className="sd-related"><div className="sd-section-heading"><div><span className="sd-kicker">KEEP EXPLORING</span><h2>Related {stock.sector ?? 'market'} stocks</h2><p>Other active stocks in this sector. This is a directory, not a performance ranking.</p></div><a href="/stocks">Browse all stocks ↗</a></div><div className="sd-related-grid">{related.map((item: any) => <a className="sd-related-card" href={`/stocks/${item.slug}`} key={item.id}><span>{item.symbol}</span><strong>{item.company_name}</strong><small>{item.sector ?? 'US equity'}</small><b>{compactMoney(item.market_cap)} market cap</b></a>)}</div></section> : null}
+      <footer className="sd-footer-note"><span>US MARKET AI · STOCK RESEARCH</span><p>Data availability varies by company and provider. Missing values are omitted rather than estimated. Forecasts are model outputs and should be independently evaluated.</p><small>Research updated {modifiedDate ? dateLabel(modifiedDate) : 'when data is available'} · <a href="/research-author">Research methodology</a> · <a href="/disclaimer">Disclaimer</a></small></footer>
     </div>
-  </div>;
+  </main>;
 }
