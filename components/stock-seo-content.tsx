@@ -5,10 +5,11 @@ type Props = {
   earnings:any[]|null; earningsRevisions:any[]; news:any[]|null; results:any[]|null; article?:any; aiResearch:any[]; performance:any; risks:any; valuations:any; longTerm:any[]; peerMetrics:any[];
 };
 
-const money=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{maximumFractionDigits:2})}`;
-const compactMoney=(v:any)=>v==null?'—':`$${Number(v).toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;
-const num=(v:any)=>v==null?'—':Number(v).toLocaleString('en-US',{maximumFractionDigits:2});
-const pct=(v:any)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(2)}%`;
+const finite=(v:any):number|null=>{if(v===null||v===undefined||v===''||typeof v==='boolean')return null;const n=Number(v);return Number.isFinite(n)?n:null;};
+const money=(v:any)=>{const n=finite(v);return n===null?'—':`${n.toLocaleString('en-US',{maximumFractionDigits:2})}`;};
+const compactMoney=(v:any)=>{const n=finite(v);return n===null?'—':`${n.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:2})}`;};
+const num=(v:any)=>{const n=finite(v);return n===null?'—':n.toLocaleString('en-US',{maximumFractionDigits:2});};
+const pct=(v:any)=>{const n=finite(v);return n===null?'—':`${n>=0?'+':''}${n.toFixed(2)}%`;};
 const date=(v:any)=>v==null?'—':new Date(v).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});
 const textValue=(v:any):string=>{
   if(v==null)return '—';
@@ -18,6 +19,7 @@ const textValue=(v:any):string=>{
 };
 const renderValue=(v:any):React.ReactNode=>{
   if(v==null)return '—';
+  if(typeof v==='number'&&!Number.isFinite(v))return '—';
   if(isValidElement(v))return v;
   if(v instanceof Date)return Number.isNaN(v.getTime())?'—':date(v);
   if(typeof v==='object'){try{return JSON.stringify(v)}catch{return String(v)}}
