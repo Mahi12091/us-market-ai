@@ -50,7 +50,9 @@ export default async function MarketsPage() {
     db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('asset_type','stock').limit(5000),
   ]);
   // Never log a connection string or credentials; only report configuration state and query errors.
-  if (!process.env.NEON_DATABASE_URL) console.error('[markets] NEON_DATABASE_URL is missing in this deployment environment.');
+  if (!(process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL)) {
+    console.error('[markets] No supported database URL environment variable is configured.');
+  }
   if (proxyLookupError) console.error('[markets] Benchmark stock lookup failed:', proxyLookupError.message);
   if (stockLookupError) console.error('[markets] Stock universe lookup failed:', stockLookupError.message);
   const proxyStocks = (rawProxyStocks ?? []) as ProxyRow[];
