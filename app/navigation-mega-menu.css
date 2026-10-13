@@ -60,3 +60,16 @@
  .site-header .mega-heading-actions{gap:4px}
  .site-header .mega-close{flex:0 0 30px}
 }
+
+
+/* Mobile menu readability fix: make every destination a full-width row. */
+@media(max-width:800px){
+ .site-header .mobile-nav .mobile-section{display:block;min-width:0;padding:17px 0}
+ .site-header .mobile-nav .mobile-section>p{max-width:100%;margin:7px 0 12px;overflow-wrap:anywhere}
+ .site-header .mobile-nav .mobile-view-all{display:flex;width:100%;box-sizing:border-box;margin:10px 0 12px;padding:13px 13px}
+ .site-header .mobile-nav .mobile-link-group{display:block;width:100%;box-sizing:border-box;padding:10px 0 4px}
+ .site-header .mobile-nav .mobile-link-group>small{display:block;padding:7px 10px 5px}
+ .site-header .mobile-nav .mobile-link-group>a{display:flex!important;width:100%;box-sizing:border-box;align-items:center;justify-content:space-between;gap:14px;padding:12px 10px;margin:0;border-radius:8px;font-size:14px;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+ .site-header .mobile-nav .mobile-link-group>a span{flex:0 0 auto;margin:0;color:#1769e0;font-size:16px}
+ .site-header .mobile-nav .mobile-link-group>a:hover,.site-header .mobile-nav .mobile-link-group>a:focus-visible{background:#f3f7fc;color:#145fc7;outline:none}
+}
