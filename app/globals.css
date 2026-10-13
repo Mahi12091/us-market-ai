@@ -222,3 +222,26 @@
 @media(max-width:1020px){.sd-layout-main{grid-template-columns:minmax(0,1fr) 260px;gap:14px}.sd-hero{padding:23px}.sd-market-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.sd-market-strip>div:nth-child(3n){border-right:0}.sd-market-strip>div:nth-child(n+4){border-top:1px solid #edf1f6}.sd-related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.stock-page-v2{padding-top:10px}.sd-shell{width:calc(100% - 24px)}.sd-breadcrumb{margin-bottom:14px}.sd-hero{display:block;padding:19px 17px;border-radius:17px}.sd-identity{gap:12px}.sd-monogram{width:48px;height:48px;flex-basis:48px;border-radius:14px;font-size:21px}.sd-company h1{font-size:clamp(25px,7vw,34px)}.sd-company p{font-size:12px;line-height:1.55}.sd-price-block{text-align:left;padding:18px 0 0;margin-top:16px;border-top:1px solid #e5ecf5}.sd-price{font-size:34px}.sd-jumpnav{margin:6px 0 10px;top:0}.sd-market-strip{grid-template-columns:repeat(2,minmax(0,1fr));border-radius:13px}.sd-market-strip>div{padding:12px;border-top:1px solid #edf1f6;border-right:1px solid #edf1f6!important}.sd-market-strip>div:nth-child(2n){border-right:0!important}.sd-market-strip>div:nth-child(-n+2){border-top:0}.sd-market-strip strong{font-size:12px}.sd-layout-main{grid-template-columns:minmax(0,1fr)}.sd-primary-column{gap:12px}.sd-sidebar{position:static;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sd-sidebar-card{padding:15px}.sd-sidebar-card h2{font-size:16px}.sd-card{padding:17px;border-radius:14px;scroll-margin-top:72px}.sd-section-heading{gap:8px;margin-bottom:15px}.sd-section-heading h2{font-size:20px}.sd-section-heading p{font-size:12px}.sd-count{font-size:9px}.sd-metric-grid{gap:7px}.sd-metric{padding:12px 10px}.sd-metric strong{font-size:17px}.sd-related{padding:17px;border-radius:14px}.sd-related-grid{gap:8px}.sd-related-card{padding:12px}.sd-related-card strong{font-size:12px}}
 @media(max-width:430px){.sd-shell{width:calc(100% - 18px)}.sd-identity{gap:10px}.sd-monogram{width:42px;height:42px;flex-basis:42px}.sd-company h1{font-size:25px}.sd-badges span{font-size:9px}.sd-section-heading{display:block}.sd-section-heading>.sd-count,.sd-section-heading>.sd-status-positive,.sd-section-heading>.sd-status-negative,.sd-section-heading>.sd-status-neutral{display:inline-block;margin-top:10px}.sd-sidebar{grid-template-columns:minmax(0,1fr)}.sd-related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sd-market-strip>div{padding:10px}.sd-market-strip strong{font-size:11px}}
+
+
+/* Editorial research article styling for individual stock pages only. */
+.stock-page-v2 .sd-editorial{padding:clamp(22px,3vw,38px);border-color:#dce6f3;background:linear-gradient(180deg,#fff 0%,#fcfdff 100%)}
+.stock-page-v2 .sd-editorial .sd-section-heading{padding-bottom:18px;border-bottom:1px solid #e8edf5;margin-bottom:22px}
+.stock-page-v2 .sd-editorial .sd-section-heading h2{max-width:780px;font-size:clamp(24px,2.5vw,32px);line-height:1.22;letter-spacing:-.035em}
+.stock-page-v2 .sd-editorial .sd-section-heading p{max-width:740px;font-size:14px;line-height:1.75}
+.stock-page-v2 .sd-editorial-lede{margin:0 0 24px;padding:18px 20px;border-left:4px solid #1769e0;border-radius:0 12px 12px 0;background:#f1f6ff;color:#203b61;font-size:17px;line-height:1.8;font-weight:550}
+.stock-page-v2 .sd-editorial-body{max-width:790px;margin:0 auto;color:#34465e;font-size:15px;line-height:1.95}
+.stock-page-v2 .sd-editorial-body h3{margin:28px 0 9px;color:#10213b;font-size:21px;line-height:1.35;letter-spacing:-.02em;font-weight:800}
+.stock-page-v2 .sd-editorial-body h3:first-child{margin-top:0}
+.stock-page-v2 .sd-editorial-body p{margin:0 0 17px;overflow-wrap:anywhere}
+.stock-page-v2 .sd-editorial-body p+p{margin-top:4px}
+.stock-page-v2 .sd-editorial-body p.sd-editorial-source-note{margin-top:24px;padding:14px 16px;border:1px solid #e0e9f5;border-radius:10px;background:#f7faff;color:#64758a;font-size:12px;line-height:1.75}
+.stock-page-v2 .sd-editorial-meta{max-width:790px;margin:24px auto 0;padding-top:14px;border-top:1px solid #e8edf5;color:#75849a;font-size:11px;line-height:1.7}
+.stock-page-v2 .sd-editorial-meta a{color:#1769e0;font-weight:750}
+@media(max-width:760px){
+ .stock-page-v2 .sd-editorial{padding:19px 17px}
+ .stock-page-v2 .sd-editorial .sd-section-heading h2{font-size:24px}
+ .stock-page-v2 .sd-editorial-lede{font-size:15px;padding:15px}
+ .stock-page-v2 .sd-editorial-body{font-size:14px;line-height:1.85}
+ .stock-page-v2 .sd-editorial-body h3{font-size:19px;margin-top:23px}
+}
