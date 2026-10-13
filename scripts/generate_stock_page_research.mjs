@@ -162,8 +162,12 @@ for (const stock of stocks) {
     payload.source_data_hash = inputHash;
     const research = await generate(payload);
     const content = JSON.stringify(research);
-    await db('ai_articles', { method: 'DELETE', params: { stock_id: `eq.${stock.id}`, article_type: 'eq.market_analysis' }, prefer: 'return=minimal' });
-    await db('ai_articles', { method: 'POST', body: [{ stock_id: stock.id, article_type: 'market_analysis', title: research.title, slug: `${String(stock.symbol).toLowerCase()}-investment-research`, content, summary: research.summary, model, source_data_hash: inputHash, generated_at: research.generated_at, updated_at: research.generated_at, is_published: true }], prefer: 'return=minimal' });
+    const articleRow = { stock_id: stock.id, article_type: 'market_analysis', title: research.title, slug: `${String(stock.symbol).toLowerCase()}-investment-research`, content, summary: research.summary, model, source_data_hash: inputHash, generated_at: research.generated_at, updated_at: research.generated_at, is_published: true };
+    if (existing?.[0]?.id != null) {
+      await db('ai_articles', { method: 'PATCH', params: { id: `eq.${existing[0].id}` }, body: articleRow, prefer: 'return=minimal' });
+    } else {
+      await db('ai_articles', { method: 'POST', body: [articleRow], prefer: 'return=minimal' });
+    }
     generated++;
     console.log(`OK ${stock.symbol}: ${research.sections.length} sections, ${research.keyword_opportunities.length} keyword opportunities, ${research.faqs.length} FAQs`);
   } catch (error) { failed++; console.error(`FAIL ${stock.symbol}: ${error.message}`); }
