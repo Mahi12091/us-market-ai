@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'Dividend Research',description:'Review available US stock dividend events, yields and payment history.'}; export default function Page(){return <ResearchCategoryPage mode="dividends"/>;}
