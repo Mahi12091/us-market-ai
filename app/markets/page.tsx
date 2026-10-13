@@ -26,10 +26,11 @@ type HistoryRow = { timestamp: string; close: number | null };
 const proxies = [['SPY','S&P 500','Tracks large-cap US equity performance'],['QQQ','Nasdaq 100','Tracks major non-financial Nasdaq companies'],['DIA','Dow Jones','Tracks 30 prominent US blue-chip companies'],['IWM','Russell 2000','Represents smaller US companies']] as const;
 const sectors: { label: string; aliases: string[] }[] = [
   {label:'Technology',aliases:['Technology']},{label:'Financial Services',aliases:['Financial Services','Financials']},
-  {label:'Healthcare',aliases:['Healthcare','Health Care']},{label:'Consumer',aliases:['Consumer','Consumer Discretionary','Consumer Staples']},
-  {label:'Industrials',aliases:['Industrials','Industrial']},{label:'Energy',aliases:['Energy']},
+  {label:'Healthcare',aliases:['Healthcare','Health Care']},{label:'Consumer',aliases:['Consumer','Consumer Staples']},
+  {label:'Consumer Discretionary',aliases:['Consumer Discretionary']},{label:'Industrials',aliases:['Industrials','Industrial']},{label:'Energy',aliases:['Energy']},
   {label:'Communication Services',aliases:['Communication Services','Communication']},{label:'Real Estate',aliases:['Real Estate']},
   {label:'Basic Materials',aliases:['Basic Materials','Materials']},{label:'Utilities',aliases:['Utilities']},
+  {label:'Other / Unclassified',aliases:['Other']},
 ];
 const pct = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
 const money = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `$${Number(v).toLocaleString('en-US',{maximumFractionDigits:2})}`;
