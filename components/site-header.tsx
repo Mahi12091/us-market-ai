@@ -4,10 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 const groups = [
-  { label: 'Markets', items: [['Market Overview', '/markets']] },
-  { label: 'Stocks', items: [['All US Stocks', '/stocks'], ['AI Predictions', '/predictions']] },
+  { label: 'Markets', items: [['Market Overview', '/markets'], ['Sector Analysis', '/sectors']] },
+  { label: 'Stocks', items: [['All US Stocks', '/stocks'], ['Stock Screener', '/screener'], ['Compare Stocks', '/compare'], ['Stock Rankings', '/rankings'], ['ETF Research', '/etfs'], ['IPO Research', '/ipo'], ['AI Predictions', '/predictions']] },
   { label: 'Crypto', items: [['Crypto Overview', '/crypto'], ['Crypto Predictions', '/predictions']] },
-  { label: 'Research', items: [['Market News', '/news'], ['AI Analysis', '/analysis'], ['Predictions', '/predictions']] },
+  { label: 'Research', items: [['Market News', '/news'], ['Earnings', '/earnings'], ['Dividends', '/dividends'], ['AI Analysis', '/analysis'], ['Predictions', '/predictions']] },
 ];
 
 export default function SiteHeader() {
