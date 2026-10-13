@@ -149,8 +149,11 @@ async function main() {
       cik: String(sub.CIK || '').replace(/^0+/, '') || null,
       period_end: period,
       shares_held: shares,
-      // The downloaded SEC quarterly dataset's VALUE column is already in dollar units; multiplying by 1,000 inflates each holding value.
-      market_value: Number.isFinite(val) && val >= 0 ? val : null,
+      // SEC Form 13F reporting changed for reports filed from Jan 2023: recent VALUE figures are dollars,
+      // while older observations are in thousands of dollars. Normalize by the holding period date.
+      market_value: Number.isFinite(val) && val >= 0
+        ? (period >= '2023-01-03' ? val : val * 1000)
+        : null,
       filing_date: filed
     });
     matched++;
