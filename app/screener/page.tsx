@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'US Stock Screener',description:'Screen US stocks using available company, market-cap and valuation data.'}; export default function Page(){return <ResearchCategoryPage mode="screener"/>;}
