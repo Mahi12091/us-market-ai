@@ -510,3 +510,66 @@
     font-size: 34px;
   }
 }
+
+
+/* Final mobile polish for the public-facing market news page */
+.news-page .news-hero-art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 14px;
+}
+.news-page .news-terminal {
+  position: relative;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 auto;
+  box-sizing: border-box;
+  transform: none !important;
+}
+.news-page .news-terminal span,
+.news-page .news-terminal b,
+.news-page .news-terminal i {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.news-page .news-feature-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.news-page .news-feature-card {
+  width: 100%;
+  min-width: 0;
+}
+.news-page .news-feature-grid .news-side-card {
+  display: none !important;
+}
+.news-page .news-research-banner {
+  min-width: 0;
+}
+.news-page .news-research-banner .outline-btn {
+  display: none !important;
+}
+@media (max-width: 760px) {
+  .news-page .news-hero-art {
+    min-height: 170px;
+    padding: 12px;
+  }
+  .news-page .news-terminal {
+    width: min(300px, 100%);
+    padding: 17px;
+  }
+  .news-page .news-terminal b {
+    font-size: 34px;
+    line-height: 1.05;
+  }
+}
