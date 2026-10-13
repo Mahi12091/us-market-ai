@@ -37,7 +37,7 @@ const cleanText = (value: string | null | undefined) => {
   for (let i = 0; i < 2; i++) {
     text = text.replace(/&nbsp;|&#160;/gi, ' ').replace(/&amp;/gi, '&').replace(/&quot;|&#34;/gi, '"').replace(/&#39;|&apos;|&#x27;/gi, "'").replace(/&lt;/gi, '<').replace(/&gt;/gi, '>');
   }
-  return text.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, ' ').replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\\s+/g, ' ').trim();
+  return text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 };
 
 const storySummary = (summary: string | null | undefined, title: string) => {
