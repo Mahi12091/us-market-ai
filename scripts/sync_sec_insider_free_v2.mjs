@@ -102,9 +102,10 @@ async function syncInstitutionalHoldings() {
         const issuer = tag(block, 'nameOfIssuer');
         const stock = nameMap.get(normalize(issuer || ''));
         const shares = num(tag(block, 'sshPrnamt'));
-        const valueThousands = num(tag(block, 'value'));
+        const valueRaw = num(tag(block, 'value'));
         if (!stock || shares == null || !issuer) { unmatched++; continue; }
-        const marketValue = valueThousands == null ? null : valueThousands * 1000;
+        // Current Form 13F XML filings report market value rounded to dollars; this sync only ingests recent filings.
+        const marketValue = valueRaw;
         const query =
           "INSERT INTO public.institutional_holders (stock_id,holder_name,cik,period_end,shares_held,market_value,ownership_percent,shares_change,shares_change_percent,filing_date,data_source,created_at) " +
           "SELECT $1,$2,$3,$4,$5,$6,NULL,NULL,NULL,$7,$8,NOW() WHERE NOT EXISTS (" +
