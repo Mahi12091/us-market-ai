@@ -252,8 +252,21 @@ function buildFundamental(stock, statements, quote) {
 
 const stockLimit = Math.max(1, Number(process.env.SYNC_STOCK_LIMIT || 250));
 const startOffset = Math.max(0, Number(process.env.SYNC_START_OFFSET || 0));
+const requestedStockId = process.env.SYNC_STOCK_ID ? Number(process.env.SYNC_STOCK_ID) : null;
+const requestedStockSymbol = String(process.env.SYNC_STOCK_SYMBOL || '').trim().toUpperCase();
 const stockPage = await dbAll('stocks', { select: 'id,symbol,market_cap', is_active: 'eq.true', order: 'id.asc' }, 5000);
-const stocks = stockPage.slice(startOffset, startOffset + stockLimit);
+let stocks;
+if (requestedStockId != null || requestedStockSymbol) {
+  // The resumable runner invokes this script once per ticker; honor its selector.
+  stocks = stockPage.filter(s =>
+    (requestedStockId == null || Number(s.id) === requestedStockId) &&
+    (!requestedStockSymbol || String(s.symbol || '').toUpperCase() === requestedStockSymbol)
+  );
+  if (!stocks.length) throw new Error(`Requested stock was not found (id=${requestedStockId ?? 'any'}, symbol=${requestedStockSymbol || 'any'}).`);
+  stocks = stocks.slice(0, 1);
+} else {
+  stocks = stockPage.slice(startOffset, startOffset + stockLimit);
+}
 if (!stocks.length) throw new Error('No active stocks found for this batch.');
 const summary=[];
 
