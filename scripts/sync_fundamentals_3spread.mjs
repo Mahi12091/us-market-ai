@@ -441,7 +441,7 @@ for(const [index,stock] of stocks.entries()){
 
     const rawMetricRows=metrics.filter(r=>r?.category&&r?.period_end).map(r=>({
       stock_id:stockId,ticker:symbol,period_end:r.period_end??null,period_of_report:r.period_of_report??null,
-      period_length:num(r.period_length),period_type:r.period_type??'unknown',fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),
+      period_length:num(r.period_length),period_type:(String(r.period_type??'').trim()||'unknown'),fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),
       category:r.category??null,value:num(r.value),currency:r.currency??null,unit:r.unit??null,spine:r.spine??null,
       derived:r.derived??null,is_valid:r.is_valid??null,raw_json:r
     }));
@@ -451,7 +451,7 @@ for(const [index,stock] of stocks.entries()){
     const rawRatioRows=ratios.filter(r=>r?.ratio_name&&r?.period_end).map(r=>({
       stock_id:stockId,ticker:symbol,ratio_category:r.ratio_category??null,ratio_name:r.ratio_name??null,
       value:num(r.value),value_pctile:num(r.value_pctile),missing_inputs:r.missing_inputs??null,period_end:r.period_end??null,
-      period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:r.period_type??'unknown',
+      period_of_report:r.period_of_report??null,period_length:num(r.period_length),period_type:(String(r.period_type??'').trim()||'unknown'),
       fiscal_year:num(r.fiscal_year),fiscal_quarter:num(r.fiscal_quarter),spine:r.spine??null,derived:r.derived??null,
       is_valid:r.is_valid??null,raw_json:r
     }));
