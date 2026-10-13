@@ -154,7 +154,17 @@ for (const stock of stocks) {
       db('data_provenance', { params: { select: '*', stock_id: `eq.${stock.id}`, order: 'retrieved_at.desc', limit: 12 } })
     ]);
     const gsc = relatedGsc(stock);
-    const payload = { stock, quote: quote?.[0] || null, price_history: (history || []).reverse(), technical: technical?.[0] || null, fundamentals: fundamentals || [], financial_metrics: metrics || [], financial_statements: statements || [], earnings: earnings || [], estimate_revisions: revisions || [], company_news: news || [], quantitative_predictions: predictions || [], long_term_scenarios: longTerm || [], dividends: dividends || [], risk_metrics: risks?.[0] || null, performance: performance?.[0] || null, valuation: valuations?.[0] || null, peer_metrics: peers || [], ownership_snapshots: ownership || [], institutional_holders: holders || [], insider_transactions: insiders || [], sec_filings: filings || [], data_provenance: provenance || [], gsc_queries: gsc };
+    const verifiedPeers = (peers || []).filter(row => {
+      const group = String(row.peer_group_key || '').trim().toLowerCase();
+      const finite = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value));
+      return group && !['unknown', 'n/a', 'none', 'unclassified'].includes(group)
+        && ['company_value', 'peer_median', 'peer_average', 'percentile'].every(key => finite(row[key]))
+        && Number(row.percentile) >= 0 && Number(row.percentile) <= 100
+        && Math.abs(Number(row.company_value)) < 1e6
+        && Math.abs(Number(row.peer_median)) < 1e6
+        && Math.abs(Number(row.peer_average)) < 1e6;
+    });
+    const payload = { stock, quote: quote?.[0] || null, price_history: (history || []).reverse(), technical: technical?.[0] || null, fundamentals: fundamentals || [], financial_metrics: metrics || [], financial_statements: statements || [], earnings: earnings || [], estimate_revisions: revisions || [], company_news: news || [], quantitative_predictions: predictions || [], long_term_scenarios: longTerm || [], dividends: dividends || [], risk_metrics: risks?.[0] || null, performance: performance?.[0] || null, valuation: valuations?.[0] || null, peer_metrics: verifiedPeers, ownership_snapshots: ownership || [], institutional_holders: holders || [], insider_transactions: insiders || [], sec_filings: filings || [], data_provenance: provenance || [], gsc_queries: gsc };
     const inputHash = sha(payload);
     const existing = await db('ai_articles', { params: { select: 'id,source_data_hash,content', stock_id: `eq.${stock.id}`, article_type: 'eq.market_analysis', order: 'updated_at.desc', limit: 1 } });
     if (!force && existing?.[0]?.source_data_hash === inputHash && String(existing?.[0]?.content || '').includes('stock-page-research-v1')) { skipped++; console.log(`SKIP ${stock.symbol}: unchanged source data`); continue; }
