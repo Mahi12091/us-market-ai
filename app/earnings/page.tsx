@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'Earnings Research',description:'Explore company earnings dates, reported EPS and estimates where available.'}; export default function Page(){return <ResearchCategoryPage mode="earnings"/>;}
