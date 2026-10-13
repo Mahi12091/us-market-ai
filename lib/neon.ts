@@ -83,13 +83,16 @@ export class NeonQuery<T = Record<string, any>, Single extends boolean = false>
   private buildWhere() {
     let index = 0; const values: unknown[] = []; const parts: string[] = [];
     for (const filter of this.filters) {
-      if (filter.values.length > 1 && filter.sql.includes('$VALUE')) {
-        const replacements = filter.values.map((value) => { values.push(value); return `$${++index}`; });
-        parts.push(filter.sql.replace(/\$VALUE/g, () => replacements.shift() ?? 'NULL')); continue;
-      }
+      // Handle the plural $VALUES token before the singular $VALUE token.
+      // Otherwise "$VALUES" also matches "$VALUE", producing invalid SQL
+      // such as IN ($1S) and causing every .in(...) lookup to fail silently.
       if (filter.sql.includes('$VALUES')) {
-        const placeholders = filter.values.map((value) => { values.push(value); return `$${++index}`; }).join(',');
+        const placeholders = filter.values.map((value) => { values.push(value); return `${++index}`; }).join(',');
         parts.push(filter.sql.replace('$VALUES', placeholders || 'NULL')); continue;
+      }
+      if (filter.values.length > 1 && filter.sql.includes('$VALUE')) {
+        const replacements = filter.values.map((value) => { values.push(value); return `${++index}`; });
+        parts.push(filter.sql.replace(/\$VALUE/g, () => replacements.shift() ?? 'NULL')); continue;
       }
       if (filter.sql.includes('$VALUE')) { values.push(filter.values[0]); parts.push(filter.sql.replace('$VALUE', `$${++index}`)); continue; }
       parts.push(filter.sql);
