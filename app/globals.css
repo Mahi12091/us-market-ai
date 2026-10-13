@@ -262,3 +262,6 @@
 .stock-page-v2 .sd-case-bear strong{color:#ad3541}
 .stock-page-v2 .sd-case-watch strong{color:#205cb0}
 @media(max-width:760px){.stock-page-v2 .sd-thesis-grid,.stock-page-v2 .sd-case-grid{grid-template-columns:minmax(0,1fr)}.stock-page-v2 .sd-thesis-block h3{font-size:17px}}
+
+.stock-page-v2 .sd-metric small{display:block;margin-top:8px;color:#687990;font-size:11px;line-height:1.6}
+.stock-page-v2 .sd-metric strong+small{border-top:1px solid #edf1f6;padding-top:7px}
