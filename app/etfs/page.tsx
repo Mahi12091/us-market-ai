@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'ETF Research',description:'Browse tracked ETFs and market proxies with available market data.'}; export default function Page(){return <ResearchCategoryPage mode="etfs"/>;}
