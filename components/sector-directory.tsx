@@ -138,7 +138,7 @@ export async function SectorDirectory() {
         <Link href="/stocks">Find a company <span aria-hidden="true">→</span></Link>
       </section>
 
-      <div className="sd-data-note"><strong>About the data</strong><p>Sector and industry labels reflect the company metadata currently stored by US Market AI and may differ from classifications used by other data providers. Market capitalization can be delayed, stale or unavailable. This directory is for informational research and is not investment advice.</p></div>
+      <div className="sd-data-note"><strong>Explore with context</strong><p>Browse companies by sector and industry, then open a stock profile for more detail. Market data and company information may vary in coverage and update time.</p></div>
     </main>
   );
 }
