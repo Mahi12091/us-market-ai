@@ -107,7 +107,8 @@ function normalizedPeriodType(r) {
   // lets a nine-month YTD total overwrite the actual three-month quarter.
   if (p.includes('point')) return 'point_in_time';
   if (p.includes('nine_month') || p.includes('nine month')) return 'nine_month';
-  if (p.includes('semi') || p.includes('six_month') || p.includes('six month')) return 'semi_annual';
+  if (p.includes('semi')) return 'semi_annual';
+  if (p.includes('six_month') || p.includes('six month')) return 'six_month';
   return p || 'unknown';
 }
 
