@@ -80,7 +80,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('news').select('id,title,summary,url,source,published_at,sentiment').eq('stock_id', stock.id).order('published_at', { ascending: false }).limit(5),
     db.from('price_history').select('timestamp,close,high,low').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: false }).limit(250),
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
-    db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('sector', stock.sector ?? '').neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
+    db.from('stocks').select('id,symbol,slug,company_name,sector,industry,market_cap').eq('is_active', true).eq(stock.sector && String(stock.sector).toLowerCase() !== 'other' ? 'sector' : 'industry', stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry ?? '')).neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
     db.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(36),
     db.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false }).limit(12),
     db.from('ownership_snapshots').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(8),
@@ -112,6 +112,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const latestPrediction = livePredictions[0];
   const direction = latestPrediction?.direction ?? 'Not available yet';
   const securityType = stock.company_name?.toLowerCase().includes('preferred stock') ? 'Preferred Stock' : (stock.asset_type ?? 'Equity');
+  const displaySector = stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry ?? securityType);
   const marketCap = quote?.market_cap ?? fundamentals?.market_cap ?? stock.market_cap;
   const technicalTrend = tech?.trend ?? (() => {
     const price = finite(quote?.price), sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200), rsi = finite(tech?.rsi), hist = finite(tech?.macd_histogram);
@@ -153,10 +154,10 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const valuationPb = finite(fundamentals?.price_book);
   const rsi = finite(tech?.rsi);
   const sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200);
-  const stockTerms = [String(stock.symbol ?? '').toLowerCase(), ...String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((part: string) => part.length >= 4)].filter(Boolean);
+  const stockTerms = [String(stock.symbol ?? '').toLowerCase(), String(stock.company_name ?? '').toLowerCase(), ...String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((part: string) => part.length >= 4)].filter(Boolean);
   const visibleNews = (news ?? []).filter((n: any) => {
-    const text = `${n.title ?? ''} ${n.summary ?? ''}`.toLowerCase();
-    return text.trim() && stockTerms.some(term => text.includes(term));
+    const title = String(n.title ?? '').toLowerCase();
+    return title.trim() && stockTerms.some(term => title.includes(term));
   }).slice(0, 8);
   const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
   const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
@@ -188,12 +189,12 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   return <main className="stock-page-v2">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }} />
     <div className="sd-shell">
-      <nav className="sd-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>›</span><a href="/stocks">US Stocks</a>{stock.sector && <><span>›</span><a href={`/stocks?sector=${encodeURIComponent(stock.sector)}`}>{stock.sector}</a></>}<span>›</span><b>{stock.symbol}</b></nav>
+      <nav className="sd-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>›</span><a href="/stocks">US Stocks</a>{displaySector && <><span>›</span><a href={stock.sector && String(stock.sector).toLowerCase() !== 'other' ? `/stocks?sector=${encodeURIComponent(stock.sector)}` : `/stocks`}>{displaySector}</a></>}<span>›</span><b>{stock.symbol}</b></nav>
       <header className="sd-hero">
         <div className="sd-identity">
           <div className="sd-monogram" aria-hidden="true">{String(stock.symbol).slice(0, 1)}</div>
           <div className="sd-company">
-            <div className="sd-kicker">{stock.exchange ?? 'US EQUITY'} <span>•</span> {stock.sector ?? securityType}</div>
+            <div className="sd-kicker">{stock.exchange ?? 'US EQUITY'} <span>•</span> {displaySector}</div>
             <h1>{stock.company_name} <span>({stock.symbol})</span></h1>
             <p>{stock.industry ?? stock.sector ?? securityType}{stock.headquarters ? ` · ${stock.headquarters}` : ''}</p>
             <div className="sd-badges"><span>{stock.exchange ?? 'US Market'}</span><span>{securityType}</span>{stock.is_active && <span className="sd-badge-live">Active listing</span>}</div>
