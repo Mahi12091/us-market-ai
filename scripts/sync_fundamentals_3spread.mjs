@@ -98,7 +98,7 @@ function periodType(r){
   if(p.includes('semi')) return 'semi_annual';
   if(p.includes('nine') && p.includes('month')) return 'nine_month';
   if(p.includes('six') && p.includes('month')) return 'six_month';
-  if(p.includes('three') && p.includes('month')) return 'three_month';
+  if(p.includes('three') && p.includes('month')) return 'quarterly';
   if(p.includes('annual')||p==='fy') return 'annual';
   if(p.includes('ttm')||p.includes('trailing')) return 'ttm';
   if(p.includes('point')) return 'point_in_time';
@@ -239,10 +239,26 @@ async function upsertRawBatch(table,rows,conflict,chunkSize=500){
   }
 }
 function buildFundamental(stock, metrics, statements, quote, tl){
-  const sorted=statements.slice().sort((a,b)=>String(b.period_end).localeCompare(String(a.period_end)));
-  const inc=sorted.filter(r=>normalizedStatementType(r.statement_type)==='income_statement' && periodType(r)==='quarterly');
-  const bs=sorted.filter(r=>normalizedStatementType(r.statement_type)==='balance_sheet' && periodType(r)==='point_in_time');
-  const cf=sorted.filter(r=>normalizedStatementType(r.statement_type)==='cash_flow' && periodType(r)==='quarterly');
+  const sorted=statements.slice().sort((a,b)=>
+    String(b.period_end).localeCompare(String(a.period_end)) ||
+    String(b.accepted_time??'').localeCompare(String(a.accepted_time??''))
+  );
+  const uniqueQuarters=(type)=> {
+    const seen=new Set();
+    return sorted.filter(r=>
+      normalizedStatementType(r.statement_type)===type &&
+      periodType(r)==='quarterly' &&
+      r.is_comparative!==true
+    ).filter(r=>{
+      const y=num(r.fiscal_year), q=num(r.fiscal_quarter);
+      const key=y!=null&&q!=null?`${y}-Q${q}`:String(r.period_end??'');
+      if(!key||seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+  };
+  const inc=uniqueQuarters('income_statement');
+  const bs=sorted.filter(r=>normalizedStatementType(r.statement_type)==='balance_sheet' && periodType(r)==='point_in_time' && r.is_comparative!==true);
+  const cf=uniqueQuarters('cash_flow');
   const latestIncome=inc[0]||null, latestBalance=bs[0]||null, latestCf=cf[0]||null;
   if(!latestIncome && !latestBalance && !latestCf) return null;
   const fields=(r)=>r?extractFields(r.statement_json):{};
