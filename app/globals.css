@@ -415,3 +415,20 @@
  .news-page .news-research-banner .outline-btn{margin-left:66px}
 }
 @media(prefers-reduced-motion:reduce){.news-page *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+
+/* Market news: prevent long RSS URLs/headlines from widening the mobile viewport */
+.news-page,.news-page *{min-width:0}
+.news-page{overflow-wrap:anywhere}
+.news-page .feature-copy h2,.news-page .news-feed-card h3,.news-page .news-feed-card p,.news-page .feature-copy p{overflow-wrap:anywhere;word-break:normal}
+.news-page .news-feed-card{overflow:hidden}
+.news-page .news-sector-card p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.news-page .news-sector-card .feed-footer{margin-top:auto}
+@media(max-width:760px){
+ .news-page .news-hero h1{overflow-wrap:normal}
+ .news-page .news-feed-grid{grid-template-columns:minmax(0,1fr)}
+ .news-page .news-feed-card{grid-template-columns:32px minmax(0,1fr);gap:10px}
+ .news-page .news-feed-card h3{font-size:16px}
+ .news-page .feed-footer{align-items:flex-start}
+ .news-page .feed-footer span{max-width:75%}
+}
