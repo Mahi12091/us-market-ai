@@ -51,12 +51,26 @@ export default async function MarketsPage() {
   ]);
   const proxyStocks = (rawProxyStocks ?? []) as ProxyRow[];
   const stocks = (rawStocks ?? []) as StockRow[];
-  const ids = [...new Set([...stocks.map(s => s.id), ...proxyStocks.map(s => s.id)])];
-  const [{ data: rawQuotes }, { data: rawHistory }] = await Promise.all([
-    db.from('latest_quotes').select('stock_id,price,change_percent,volume').limit(6000),
-    (() => { const spy = proxyStocks.find(s => s.symbol === 'SPY'); return spy ? db.from('price_history').select('timestamp,close').eq('stock_id', spy.id).eq('timeframe','1d').order('timestamp',{ascending:false}).limit(180) : Promise.resolve({data: []}); })(),
+  // Fetch quotes by bounded stock-ID batches. A single unfiltered quote query can
+  // be truncated or fail at the data transport layer; the wrapper returns errors
+  // as { data: null, error }, so handle each batch explicitly instead of silently
+  // turning a failed query into an empty dashboard.
+  const ids = [...new Set([...stocks.map(s => String(s.id)), ...proxyStocks.map(s => String(s.id))])];
+  const idBatches: string[][] = [];
+  for (let i = 0; i < ids.length; i += 200) idBatches.push(ids.slice(i, i + 200));
+  const quoteBatchResults = await Promise.all(idBatches.map(async (batch) => {
+    const result = await db.from('latest_quotes').select('stock_id,price,change_percent,volume').in('stock_id', batch);
+    if (result.error) {
+      console.error('[markets] Quote batch query failed:', result.error.message);
+      return [];
+    }
+    return (result.data ?? []) as QuoteRow[];
+  }));
+  const [{ data: rawHistory, error: historyError }] = await Promise.all([
+    (() => { const spy = proxyStocks.find(s => s.symbol === 'SPY'); return spy ? db.from('price_history').select('timestamp,close').eq('stock_id', spy.id).eq('timeframe','1d').order('timestamp',{ascending:false}).limit(180) : Promise.resolve({data: [], error: null}); })(),
   ]);
-  const quotes = (rawQuotes ?? []) as QuoteRow[];
+  if (historyError) console.error('[markets] SPY history query failed:', historyError.message);
+  const quotes = quoteBatchResults.flat();
   const history = ((rawHistory ?? []) as HistoryRow[]).slice().reverse();
   const byId = new Map(quotes.map(q => [String(q.stock_id),q]));
   const proxyMap = new Map(proxyStocks.map(s => [s.symbol,{...s,quote:byId.get(String(s.id))}]));
