@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import path from 'node:path';
 
 const required = ['NEON_REST_URL', 'NEON_API_KEY', 'OPENAI_API_KEY'];
 for (const name of required) if (!process.env[name]) throw new Error(`${name} is not configured.`);
