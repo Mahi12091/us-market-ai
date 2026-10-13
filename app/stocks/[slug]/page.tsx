@@ -161,6 +161,12 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     const title = String(n.title ?? '').toLowerCase();
     return title.trim() && stockTerms.some(term => title.includes(term));
   }).slice(0, 8);
+  const verifiedPeerMetrics = (peerMetrics ?? []).filter((p: any) => {
+    const group = String(p.peer_group_key ?? '').trim().toLowerCase();
+    return group !== '' && !['unknown', 'n/a', 'none', 'unclassified'].includes(group)
+      && finite(p.company_value) !== null && finite(p.peer_median) !== null
+      && finite(p.peer_average) !== null && finite(p.percentile) !== null;
+  });
   const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
   const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
   const cellHasValue = (value: unknown) => value !== null && value !== undefined && String(value).trim() !== '' && String(value).trim() !== '—' && String(value).trim() !== 'null' && String(value).trim() !== 'undefined';
@@ -340,7 +346,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           <section className="sd-card" id="valuation">
             <div className="sd-section-heading"><div><span className="sd-kicker">VALUATION</span><h2>Stock valuation: P/E, forward P/E and multiples</h2><p>Multiples shown only when the database has a usable value.</p></div></div>
             {(() => { const vals = [['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)], ['Price / sales', number(valuationPs)], ['Price / book', number(valuationPb)], ['PEG ratio', number(fundamentals?.peg_ratio)], ['Enterprise value', compactMoney(fundamentals?.enterprise_value)]] .filter(([, value]) => value !== '—'); return vals.length ? <div className="sd-metric-grid">{vals.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Valuation multiples are not available yet.</div>; })()}
-            {(peerMetrics ?? []).length > 0 && <><h3 className="sd-subheading">Peer context</h3>{table(['Metric','Company','Peer median','Peer average','Percentile'], (peerMetrics ?? []).slice(0, 12).map((p: any) => [p.metric_name ?? '—', number(p.company_value), number(p.peer_median), number(p.peer_average), p.percentile == null ? '—' : `${number(p.percentile)}%`]))}</>}
+            {verifiedPeerMetrics.length > 0 ? <><h3 className="sd-subheading">Peer context</h3>{table(['Metric','Company','Peer median','Peer average','Percentile'], verifiedPeerMetrics.slice(0, 12).map((p: any) => [p.metric_name ?? '—', number(p.company_value), number(p.peer_median), number(p.peer_average), `${number(p.percentile)}%`]))}</> : <p className="sd-footnote">Peer comparisons are withheld until a comparable industry group and a reliable peer set are verified.</p>}
           </section>
 
           <section className="sd-card" id="news">
