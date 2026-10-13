@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'Stock Rankings',description:'Explore US stock coverage and available company metrics.'}; export default function Page(){return <ResearchCategoryPage mode="rankings"/>;}
