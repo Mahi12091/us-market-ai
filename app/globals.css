@@ -265,3 +265,7 @@
 
 .stock-page-v2 .sd-metric small{display:block;margin-top:8px;color:#687990;font-size:11px;line-height:1.6}
 .stock-page-v2 .sd-metric strong+small{border-top:1px solid #edf1f6;padding-top:7px}
+
+
+/* Temporary editorial markers showing where stock-specific AI research text should be generated. */
+.stock-page-v2 .sd-ai-placeholder { display: inline-block; margin: 6px 0; padding: 5px 8px; border: 1px dashed #b7791f; border-radius: 6px; background: #fff8e7; color: #805b13; font-size: 0.82rem; font-weight: 600; line-height: 1.5; }
