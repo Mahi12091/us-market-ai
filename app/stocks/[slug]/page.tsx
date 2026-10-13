@@ -191,6 +191,43 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
             {chart.length ? <PriceChart data={chart}/> : <div className="sd-empty sd-chart-empty">Historical price data is not available for this ticker yet.</div>}
           </section>
 
+          <article className="sd-card sd-editorial" id="research-article">
+            <div className="sd-section-heading">
+              <div>
+                <span className="sd-kicker">STOCK RESEARCH · EDITORIAL ANALYSIS</span>
+                <h2>{article?.title || `${stock.company_name} (${stock.symbol}): Investment Research & Business Outlook`}</h2>
+                <p>A research-led explanation of the company, its financial evidence, valuation context and risks—not just a list of market numbers.</p>
+              </div>
+              <span className="sd-count">Research note</span>
+            </div>
+            {article?.summary && <p className="sd-editorial-lede">{article.summary}</p>}
+            {(article?.content || (aiResearch ?? []).some((r: any) => r.content || r.analysis || r.summary)) ? (
+              <div className="sd-editorial-body">
+                {String(article?.content ?? (aiResearch ?? []).find((r: any) => r.content || r.analysis || r.summary)?.content ?? (aiResearch ?? []).find((r: any) => r.analysis)?.analysis ?? (aiResearch ?? []).find((r: any) => r.summary)?.summary ?? '')
+                  .replace(/\r/g, '')
+                  .split(/\n\s*\n/)
+                  .map((paragraph, index) => paragraph.trim())
+                  .filter(Boolean)
+                  .map((paragraph, index) => <p key={index}>{paragraph.replace(/^#{1,6}\s*/, '')}</p>)}
+              </div>
+            ) : (
+              <div className="sd-editorial-body">
+                <h3>What the available evidence tells us</h3>
+                <p>The latest stored quote for {stock.company_name} ({stock.symbol}) is {money(quote?.price)}{quoteTimestamp ? `, timestamped ${quoteTimestamp.toLocaleString('en-US')}` : ''}. A quote is a point-in-time observation; it does not, by itself, explain why the price moved or establish whether the shares are attractive.</p>
+                <h3>Business and financial quality</h3>
+                <p>{stock.description ? stock.description : `The company is classified in ${stock.industry ?? stock.sector ?? 'the available company profile'} in the current stock database.`} {fundamentals ? `Stored fundamentals include ${financialCards.length} usable headline metrics. These should be read across several reporting periods and compared with peers before drawing a conclusion about business quality.` : 'A sufficiently complete fundamentals snapshot is not available in the database yet, so this page avoids making unsupported claims about profitability, growth or balance-sheet strength.'}</p>
+                <h3>Valuation: context matters</h3>
+                <p>{valuationPe !== null ? `The stored trailing P/E ratio is ${number(valuationPe)}. P/E compares a company’s share price with its earnings, but it should be interpreted alongside expected growth, earnings quality, cyclicality and comparable companies.` : 'A usable trailing P/E value is not currently stored. Without a verified valuation metric and a relevant comparison set, this page does not label the stock cheap or expensive.'} {valuationForwardPe !== null ? `The stored forward P/E is ${number(valuationForwardPe)}; forward multiples depend on earnings estimates and can change when those estimates are revised.` : ''}</p>
+                <h3>Price trend and quantitative outlook</h3>
+                <p>{cleanHistory.length ? `The chart is based on ${cleanHistory.length} stored daily price observations. Historical performance describes what happened over that period; it is not a guarantee of future returns.` : 'Historical daily price observations are not currently available, so a trend assessment cannot be supported by the chart.'} {livePredictions.length ? `The current stored quantitative model signal is “${direction}”. Treat model outputs as scenarios with uncertainty, not as certain targets or personalized advice.` : 'No current short-term quantitative forecast is stored for this stock. The page will not invent a target price.'}</p>
+                <h3>Key risks and what to watch next</h3>
+                <p>{risks ? 'Risk records exist for this company; review the risk and performance section below for the available volatility, drawdown and risk-adjusted measures.' : 'A current risk-metrics snapshot is not available. Investors should independently examine business concentration, competition, balance-sheet exposure, market conditions and upcoming company disclosures relevant to this issuer.'} The next useful evidence to review is the company’s next reported financial results, any changes in forward estimates, and primary-source disclosures. These can strengthen or weaken an investment thesis; none should be replaced by a single metric.</p>
+                <p className="sd-editorial-source-note">Editorial integrity: this summary uses fields available in the current database. Missing evidence is called out rather than filled with invented facts. Review the financial tables, source records and methodology below before relying on any conclusion.</p>
+              </div>
+            )}
+            <div className="sd-editorial-meta">US Market AI Research Desk · {modifiedDate ? `Data/research timestamp: ${dateLabel(modifiedDate)}` : 'Research timestamp unavailable'} · <a href="/disclaimer">Methodology & disclaimer</a></div>
+          </article>
+
           <section className="sd-card" id="forecast">
             <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Model outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
             {table(['Horizon','Model target','Expected change','Signal','Confidence score'], shortForecastRows)}
