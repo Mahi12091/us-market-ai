@@ -3,117 +3,116 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-type NavItem = { label: string; href: string; description: string };
-type NavGroup = { label: string; eyebrow: string; description: string; columns: { title: string; items: NavItem[] }[] };
+type MenuLink = { label: string; href: string; detail: string };
+type MenuColumn = { title: string; links: MenuLink[] };
+type MenuGroup = { label: string; intro: string; columns: MenuColumn[] };
 
-const groups: NavGroup[] = [
+const groups: MenuGroup[] = [
   {
     label: 'Markets',
-    eyebrow: 'Market pulse',
-    description: 'Get oriented with the US market and explore stocks by sector and industry.',
+    intro: 'Explore market performance, sectors and industries.',
     columns: [
-      { title: 'Market overview', items: [
-        { label: 'Market Dashboard', href: '/markets', description: 'Market-wide snapshot and trends' },
-        { label: 'Sector Directory', href: '/sectors', description: 'Browse stocks by sector' },
-      ] },
-      { title: 'Explore industries', items: [
-        { label: 'Industry Listings', href: '/sectors', description: 'Start with sectors, then drill into industries' },
-        { label: 'Market News', href: '/news', description: 'Latest market stories and updates' },
-      ] },
+      { title: 'Market Dashboard', links: [
+        { label: 'Market Overview', href: '/markets', detail: 'Broad market snapshot' },
+        { label: 'Market News', href: '/news', detail: 'Latest market headlines' },
+      ]},
+      { title: 'Market Structure', links: [
+        { label: 'Sector Directory', href: '/sectors', detail: 'Explore stocks by sector' },
+        { label: 'Industry Research', href: '/sectors', detail: 'Browse industry groups' },
+      ]},
     ],
   },
   {
     label: 'Stocks',
-    eyebrow: 'Stock tools',
-    description: 'Find companies, compare opportunities, and explore market data.',
+    intro: 'Find, compare and research US-listed companies.',
     columns: [
-      { title: 'Discover', items: [
-        { label: 'All US Stocks', href: '/stocks', description: 'Browse the stock directory' },
-        { label: 'Stock Screener', href: '/screener', description: 'Explore stocks by available metrics' },
-        { label: 'Stock Rankings', href: '/rankings', description: 'Browse ranked stock lists' },
-      ] },
-      { title: 'Compare & track', items: [
-        { label: 'Compare Stocks', href: '/compare', description: 'Review companies side by side' },
-        { label: 'ETF Research', href: '/etfs', description: 'Explore ETF information' },
-        { label: 'IPO Research', href: '/ipo', description: 'Explore IPO-related research' },
-      ] },
-    ],
-  },
-  {
-    label: 'Research',
-    eyebrow: 'Research desk',
-    description: 'Read company research, review events, and explore model-based outlooks.',
-    columns: [
-      { title: 'Company research', items: [
-        { label: 'AI Analysis', href: '/analysis', description: 'Evidence-led stock analysis' },
-        { label: 'Stock Forecasts', href: '/blog', description: 'Forecast and analysis articles' },
-        { label: 'AI Predictions', href: '/predictions', description: 'Explore model-based outlooks' },
-      ] },
-      { title: 'Events & income', items: [
-        { label: 'Earnings', href: '/earnings', description: 'Earnings-related research' },
-        { label: 'Dividends', href: '/dividends', description: 'Dividend data and research' },
-        { label: 'News', href: '/news', description: 'Company and market updates' },
-      ] },
+      { title: 'Discover Stocks', links: [
+        { label: 'All US Stocks', href: '/stocks', detail: 'Browse the stock universe' },
+        { label: 'Stock Screener', href: '/screener', detail: 'Find stocks by metrics' },
+        { label: 'Stock Rankings', href: '/rankings', detail: 'Explore ranked stocks' },
+      ]},
+      { title: 'Compare & Explore', links: [
+        { label: 'Compare Stocks', href: '/compare', detail: 'Review companies side by side' },
+        { label: 'ETF Research', href: '/etfs', detail: 'Explore exchange-traded funds' },
+        { label: 'IPO Research', href: '/ipo', detail: 'New listings and IPO research' },
+      ]},
     ],
   },
   {
     label: 'Crypto',
-    eyebrow: 'Digital assets',
-    description: 'Explore digital-asset market coverage and available model outlooks.',
+    intro: 'Crypto market coverage and model-based outlooks.',
     columns: [
-      { title: 'Crypto research', items: [
-        { label: 'Crypto Overview', href: '/crypto', description: 'Explore crypto market coverage' },
-        { label: 'Crypto Predictions', href: '/predictions', description: 'View available model outlooks' },
-      ] },
+      { title: 'Crypto Markets', links: [
+        { label: 'Crypto Overview', href: '/crypto', detail: 'Market snapshot and assets' },
+        { label: 'Crypto Predictions', href: '/predictions', detail: 'Forecasts and outlooks' },
+      ]},
+    ],
+  },
+  {
+    label: 'Research',
+    intro: 'Evidence-led analysis, company events and forecast research.',
+    columns: [
+      { title: 'Research & Analysis', links: [
+        { label: 'AI Analysis', href: '/analysis', detail: 'Company and market insights' },
+        { label: 'Stock Forecasts', href: '/blog', detail: 'Forecast articles and explainers' },
+        { label: 'Predictions', href: '/predictions', detail: 'Quantitative outlooks' },
+      ]},
+      { title: 'Company Events', links: [
+        { label: 'Earnings', href: '/earnings', detail: 'Earnings research and events' },
+        { label: 'Dividends', href: '/dividends', detail: 'Dividend data and research' },
+        { label: 'News', href: '/news', detail: 'Market and company news' },
+      ]},
     ],
   },
 ];
 
 export default function SiteHeader() {
   const [open, setOpen] = useState<string | null>(null);
-  const [mobileExpanded, setMobileExpanded] = useState<string | null>('Markets');
 
   const closeMenu = () => setOpen(null);
 
   return (
-    <header className="site-header nav-header" onKeyDown={(event) => { if (event.key === 'Escape') closeMenu(); }}>
+    <header className="site-header" onKeyDown={(event) => { if (event.key === 'Escape') closeMenu(); }}>
       <div className="container header-inner">
-        <Link href="/" className="brand brand-logo" aria-label="US Market AI home" onClick={closeMenu}>
-          <img src="/us-market-ai-logo.png" alt="US Market AI" width="260" height="50" />
-        </Link>
+        <Link href="/" className="brand brand-logo" aria-label="US Market AI home" onClick={closeMenu}><img src="/us-market-ai-logo.png" alt="US Market AI" width="260" height="50" /></Link>
 
-        <nav className="desktop-nav nav-mega-root" aria-label="Primary navigation">
+        <nav className="desktop-nav" aria-label="Primary navigation">
           {groups.map((group) => (
-            <div className="nav-group nav-mega-group" key={group.label}
+            <div
+              className={`nav-group${open === group.label ? ' is-open' : ''}`}
+              key={group.label}
               onMouseEnter={() => setOpen(group.label)}
               onMouseLeave={() => setOpen(null)}
-              onFocus={() => setOpen(group.label)}>
-              <button className="nav-button" type="button" aria-expanded={open === group.label}
-                aria-controls={`mega-${group.label.toLowerCase()}`}
-                onClick={() => setOpen(open === group.label ? null : group.label)}>
-                {group.label}<span className="nav-chevron" aria-hidden="true">⌄</span>
+            >
+              <button
+                className="nav-button"
+                type="button"
+                aria-expanded={open === group.label}
+                onClick={() => setOpen(open === group.label ? null : group.label)}
+                onFocus={() => setOpen(group.label)}
+              >
+                {group.label} <span aria-hidden="true">⌄</span>
               </button>
               {open === group.label && (
-                <div className="mega-menu nav-mega-menu" id={`mega-${group.label.toLowerCase()}`}>
-                  <div className="nav-mega-intro">
-                    <span>{group.eyebrow}</span>
-                    <h2>{group.label}</h2>
-                    <p>{group.description}</p>
-                    <Link href={group.columns[0].items[0].href} onClick={closeMenu}>Explore {group.label.toLowerCase()} <span aria-hidden="true">→</span></Link>
+                <div className="mega-menu" role="region" aria-label={`${group.label} menu`}>
+                  <div className="mega-heading">
+                    <div className="mega-title">{group.label}<small>{group.intro}</small></div>
+                    <button className="mega-close" type="button" onClick={closeMenu} aria-label="Close menu">×</button>
                   </div>
-                  <div className="nav-mega-columns">
+                  <div className="mega-columns">
                     {group.columns.map((column) => (
-                      <section className="nav-mega-column" key={column.title}>
+                      <section className="mega-column" key={column.title}>
                         <h3>{column.title}</h3>
-                        {column.items.map((item) => (
-                          <Link href={item.href} key={item.href + item.label} onClick={closeMenu} className="nav-mega-item">
+                        {column.links.map((item) => (
+                          <Link href={item.href} key={item.label} onClick={closeMenu}>
                             <strong>{item.label}</strong>
-                            <span>{item.description}</span>
+                            <span>{item.detail}</span>
                           </Link>
                         ))}
                       </section>
                     ))}
                   </div>
+                  <div className="mega-footer"><span>US Market AI</span><span>Research tools · Market data · Forecasts</span></div>
                 </div>
               )}
             </div>
@@ -121,7 +120,7 @@ export default function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <Link className="search-link nav-search-link" href="/search" aria-label="Search US Market AI" title="Search">
+          <Link className="search-link" href="/search" aria-label="Search US Market AI" title="Search">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
             <span>Search</span>
           </Link>
@@ -130,29 +129,24 @@ export default function SiteHeader() {
       </div>
 
       {open === 'mobile' && (
-        <div className="mobile-nav nav-mobile-panel">
+        <div className="mobile-nav">
           <div className="container">
             <Link className="mobile-search-link" href="/search" onClick={closeMenu}><span aria-hidden="true">⌕</span> Search stocks, companies & news →</Link>
             {groups.map((group) => (
-              <section className="mobile-section nav-mobile-section" key={group.label}>
-                <button type="button" className="nav-mobile-toggle" aria-expanded={mobileExpanded === group.label}
-                  onClick={() => setMobileExpanded(mobileExpanded === group.label ? null : group.label)}>
-                  <span>{group.label}</span><span aria-hidden="true">{mobileExpanded === group.label ? '−' : '+'}</span>
-                </button>
-                {mobileExpanded === group.label && group.columns.map((column) => (
-                  <div className="nav-mobile-column" key={column.title}>
-                    <small>{column.title}</small>
-                    {column.items.map((item) => <Link href={item.href} key={item.href + item.label} onClick={closeMenu}>
-                      <strong>{item.label}</strong><span>{item.description}</span>
-                    </Link>)}
-                  </div>
+              <section className="mobile-section" key={group.label}>
+                <b>{group.label}</b>
+                <p>{group.intro}</p>
+                {group.columns.flatMap((column) => column.links).map((item) => (
+                  <Link href={item.href} key={`${group.label}-${item.label}`} onClick={closeMenu}>{item.label}<span aria-hidden="true">→</span></Link>
                 ))}
               </section>
             ))}
-            <div className="nav-mobile-company">
+            <section className="mobile-section">
+              <b>Company & Help</b>
               <Link href="/about" onClick={closeMenu}>About</Link>
               <Link href="/contact" onClick={closeMenu}>Contact</Link>
-            </div>
+              <Link href="/disclaimer" onClick={closeMenu}>Disclaimer</Link>
+            </section>
           </div>
         </div>
       )}
