@@ -149,7 +149,8 @@ async function main() {
       cik: String(sub.CIK || '').replace(/^0+/, '') || null,
       period_end: period,
       shares_held: shares,
-      market_value: Number.isFinite(val) && val >= 0 ? val * 1000 : null,
+      // The SEC bulk dataset is dollar-denominated; multiplying this field by 1,000 inflates each position.
+      market_value: Number.isFinite(val) && val >= 0 ? val : null,
       filing_date: filed
     });
     matched++;
