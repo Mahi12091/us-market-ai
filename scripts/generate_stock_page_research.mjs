@@ -98,6 +98,7 @@ Requirements:
 - Research ideas should be plausible US investor questions and specific to this company/sector. Do not add irrelevant keywords just to reach the count.
 - FAQs: 8-12 unique questions, each answered with supplied evidence and no unsupported claims. Do not just duplicate keyword phrases.
 - Each section body 2-4 short paragraphs. Make explanations useful: what a metric means, why it matters, what could change the interpretation. Do not repeat the same thesis across sections.
+- If peer_metrics is empty or peer_metrics_withheld_count > 0, explain that verified peer comparisons are unavailable until a comparable peer group is validated; never infer rankings from unknown or withheld groups.
 - If data is insufficient for a section, explain the exact missing evidence rather than writing filler.
 - JSON only. DATA PAYLOAD: ${JSON.stringify(data)}` }
       ]
@@ -164,7 +165,7 @@ for (const stock of stocks) {
         && Math.abs(Number(row.peer_median)) < 1e6
         && Math.abs(Number(row.peer_average)) < 1e6;
     });
-    const payload = { stock, quote: quote?.[0] || null, price_history: (history || []).reverse(), technical: technical?.[0] || null, fundamentals: fundamentals || [], financial_metrics: metrics || [], financial_statements: statements || [], earnings: earnings || [], estimate_revisions: revisions || [], company_news: news || [], quantitative_predictions: predictions || [], long_term_scenarios: longTerm || [], dividends: dividends || [], risk_metrics: risks?.[0] || null, performance: performance?.[0] || null, valuation: valuations?.[0] || null, peer_metrics: verifiedPeers, ownership_snapshots: ownership || [], institutional_holders: holders || [], insider_transactions: insiders || [], sec_filings: filings || [], data_provenance: provenance || [], gsc_queries: gsc };
+    const payload = { stock, quote: quote?.[0] || null, price_history: (history || []).reverse(), technical: technical?.[0] || null, fundamentals: fundamentals || [], financial_metrics: metrics || [], financial_statements: statements || [], earnings: earnings || [], estimate_revisions: revisions || [], company_news: news || [], quantitative_predictions: predictions || [], long_term_scenarios: longTerm || [], dividends: dividends || [], risk_metrics: risks?.[0] || null, performance: performance?.[0] || null, valuation: valuations?.[0] || null, peer_metrics: verifiedPeers, peer_metrics_withheld_count: (peers || []).length - verifiedPeers.length, ownership_snapshots: ownership || [], institutional_holders: holders || [], insider_transactions: insiders || [], sec_filings: filings || [], data_provenance: provenance || [], gsc_queries: gsc };
     const inputHash = sha(payload);
     const existing = await db('ai_articles', { params: { select: 'id,source_data_hash,content', stock_id: `eq.${stock.id}`, article_type: 'eq.market_analysis', order: 'updated_at.desc', limit: 1 } });
     if (!force && existing?.[0]?.source_data_hash === inputHash && String(existing?.[0]?.content || '').includes('stock-page-research-v1')) { skipped++; console.log(`SKIP ${stock.symbol}: unchanged source data`); continue; }
