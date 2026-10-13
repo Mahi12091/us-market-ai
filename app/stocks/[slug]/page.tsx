@@ -9,6 +9,18 @@ const finite = (v: unknown): number | null => { if (v === null || v === undefine
 const money = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`; };
 const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; };
 const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
+// 13F values can be mis-scaled by upstream ingestion. Hide only clearly implausible per-share values; never rewrite stored records here.
+const holderValueForDisplay = (holder: any, currentPrice: unknown) => {
+  const value = finite(holder?.market_value ?? holder?.value);
+  const shares = finite(holder?.shares_held ?? holder?.shares);
+  const price = finite(currentPrice);
+  if (value === null || value <= 0) return '—';
+  if (shares !== null && shares > 0 && price !== null && price > 0) {
+    const impliedPrice = value / shares;
+    if (impliedPrice > price * 100 || impliedPrice < price / 100) return 'Withheld: value fails validation';
+  }
+  return compactMoney(value);
+};
 const number = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: digits }); };
 const dateLabel = (v: unknown) => { if (!v) return '—'; const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
 const metricExplanation = (label: string) => (({
@@ -17,7 +29,7 @@ const metricExplanation = (label: string) => (({
   'Gross margin': 'Share of revenue left after direct costs; higher margins can indicate pricing power.',
   'Operating margin': 'Share of revenue left after operating expenses, before interest and taxes.',
   'Net margin': 'Share of revenue that remains as profit after expenses and taxes.',
-  'EPS': 'Earnings allocated to each share; check whether growth is recurring and diluted.',
+  'EPS': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
   'Debt / equity': 'Debt relative to shareholder equity; definitions may vary by data provider.',
   'Free cash flow': 'Cash remaining after operating needs and capital expenditure; can support investment or shareholder returns.',
   'Return on equity': 'Profit generated relative to book equity; leverage and one-off gains can distort it.',
@@ -189,7 +201,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const financialCards = [
     ['Revenue', compactMoney(fundamentals?.revenue)], ['Revenue growth', pct(fundamentals?.revenue_growth)],
     ['Gross margin', pct(fundamentals?.gross_margin)], ['Operating margin', pct(fundamentals?.operating_margin)],
-    ['Net margin', pct(fundamentals?.net_margin)], ['EPS', money(fundamentals?.eps)],
+    ['Net margin', pct(fundamentals?.net_margin)], ['EPS (reported period)', money(fundamentals?.eps)],
     ['Debt / equity', number(fundamentals?.debt_equity)], ['Free cash flow', compactMoney(fundamentals?.free_cash_flow)],
     ['Return on equity', pct(fundamentals?.roe)], ['Return on invested capital', pct(fundamentals?.roic)],
   ].filter(([, value]) => value !== '—');
@@ -361,12 +373,12 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
           <section className="sd-card" id="risk">
             <div className="sd-section-heading"><div><span className="sd-kicker">RISK CONTEXT</span><h2>Risk and performance profile</h2><p>Computed risk/performance records; not a recommendation.</p></div></div>
-            {(() => { const riskItems = [['Volatility', pct(risks?.volatility)], ['Beta', number(risks?.beta)], ['Maximum drawdown', pct(risks?.maximum_drawdown)], ['Sharpe ratio', number(risks?.sharpe_ratio)], ['Sortino ratio', number(risks?.sortino_ratio)], ['Liquidity risk', risks?.liquidity_risk], ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)], ['1-year return', pct(performance?.period_1y)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
+            {(() => { const riskItems = [['Volatility', pct(risks?.volatility)], ['Beta', number(risks?.beta)], ['Maximum drawdown', finite(risks?.maximum_drawdown) === null ? '—' : `-${Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2)}%`], ['Sharpe ratio', number(risks?.sharpe_ratio)], ['Sortino ratio', number(risks?.sortino_ratio)], ['Liquidity risk', risks?.liquidity_risk], ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)], ['1-year return', pct(performance?.period_1y)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
           </section>
 
           <section className="sd-card" id="research-data">
             <div className="sd-section-heading"><div><span className="sd-kicker">RESEARCH EVIDENCE</span><h2>Source data and research records</h2><p>Expandable evidence tables keep the main page focused while preserving detailed data.</p></div></div>
-            <details className="sd-details"><summary>Institutional holders and ownership</summary>{table(['Period','Holder','Shares','Value','Ownership'], (institutionalHolders ?? []).slice(0, 12).map((h: any) => [dateLabel(h.period_end), h.holder_name ?? h.institution_name ?? '—', number(h.shares_held ?? h.shares, 0), compactMoney(h.market_value ?? h.value), pct(h.ownership_percent)]))}{table(['Period','Shares outstanding','Institutional ownership','Insider ownership'], (ownership ?? []).slice(0, 8).map((o: any) => [dateLabel(o.period_end), number(o.shares_outstanding, 0), pct(o.institutional_ownership_percent), pct(o.insider_ownership_percent)]))}</details>
+            <details className="sd-details"><summary>Institutional holders and ownership</summary>{table(['Period','Holder','Shares','Value','Ownership'], (institutionalHolders ?? []).slice(0, 12).map((h: any) => [dateLabel(h.period_end), h.holder_name ?? h.institution_name ?? '—', number(h.shares_held ?? h.shares, 0), holderValueForDisplay(h, quote?.price), pct(h.ownership_percent)]))}{table(['Period','Shares outstanding','Institutional ownership','Insider ownership'], (ownership ?? []).slice(0, 8).map((o: any) => [dateLabel(o.period_end), number(o.shares_outstanding, 0), pct(o.institutional_ownership_percent), pct(o.insider_ownership_percent)]))}</details>
             <details className="sd-details"><summary>Insider transactions</summary>{table(['Date','Insider','Title','Transaction','Shares','Price'], (insiderTransactions ?? []).slice(0, 12).map((t: any) => [dateLabel(t.transaction_date), t.insider_name ?? '—', t.insider_title ?? '—', t.transaction_type ?? '—', number(t.shares, 0), money(t.price)]))}</details>
             <details className="sd-details"><summary>SEC filings</summary>{table(['Filed','Form','Description','Accession'], (secFilings ?? []).slice(0, 12).map((f: any) => [dateLabel(f.filing_date), f.form_type ?? f.form ?? '—', f.filing_description ?? f.description ?? f.title ?? '—', f.accession_number ?? '—']))}</details>
             <details className="sd-details"><summary>Published AI research</summary>{table(['Updated','Title','Summary'], (aiResearch ?? []).map((r: any) => [dateLabel(r.updated_at), r.title ?? r.research_type ?? 'Research note', r.summary ?? r.content ?? r.analysis ?? '—']))}{article?.summary && <p className="sd-detail-copy">Latest published article: {article.summary}</p>}</details>
@@ -384,7 +396,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
         <aside className="sd-sidebar">
           <section className="sd-card sd-sidebar-card"><span className="sd-kicker">AT A GLANCE</span><h2>Research snapshot</h2><div className="sd-signal-row"><span>Quant model</span><strong>{direction}</strong></div><div className="sd-signal-row"><span>Technical trend</span><strong>{technicalTrend}</strong></div><div className="sd-signal-row"><span>Financial data</span><strong>{fundamentals ? 'Available' : 'Not populated'}</strong></div><div className="sd-signal-row"><span>Latest earnings</span><strong>{earnings?.[0] ? dateLabel(earnings[0].earnings_date) : '—'}</strong></div><div className="sd-signal-row"><span>Long-term scenarios</span><strong>{longForecastRows.length ? `${longForecastRows.length} years` : 'Unavailable'}</strong></div></section>
-          <section className="sd-card sd-sidebar-card"><span className="sd-kicker">COMPANY PROFILE</span><h2>About {stock.symbol}</h2><p>{stock.description || 'A detailed company description has not been provided in the current stock profile.'}</p><dl className="sd-profile-list">{[['Sector',stock.sector],['Industry',stock.industry],['Headquarters',stock.headquarters],['Employees',stock.employees == null ? null : Number(stock.employees).toLocaleString('en-US')],['Founded',stock.founded_year],['CEO',stock.ceo]].filter(([,v]) => v !== null && v !== undefined && v !== '').map(([label,value]) => <div key={String(label)}><dt>{label}</dt><dd>{String(value)}</dd></div>)}</dl></section>
+          <section className="sd-card sd-sidebar-card"><span className="sd-kicker">COMPANY PROFILE</span><h2>About {stock.symbol}</h2><p>{stock.description || 'A detailed company description has not been provided in the current stock profile.'}</p><dl className="sd-profile-list">{[['Sector', stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry || stock.asset_type || 'Not classified yet')],['Industry',stock.industry],['Headquarters',stock.headquarters],['Employees',stock.employees == null ? null : Number(stock.employees).toLocaleString('en-US')],['Founded',stock.founded_year],['CEO',stock.ceo]].filter(([,v]) => v !== null && v !== undefined && v !== '').map(([label,value]) => <div key={String(label)}><dt>{label}</dt><dd>{String(value)}</dd></div>)}</dl></section>
           <section className="sd-card sd-sidebar-card sd-disclaimer"><span className="sd-kicker">IMPORTANT</span><h2>Use forecasts carefully</h2><p>Market prices can change quickly. Quantitative estimates and historical metrics are informational only, may be incomplete, and are not guarantees of future performance or personalized financial advice.</p><a href="/disclaimer">Read full disclaimer ↗</a></section>
         </aside>
       </section>
