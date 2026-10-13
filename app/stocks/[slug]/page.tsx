@@ -11,6 +11,32 @@ const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `
 const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
 const number = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: digits }); };
 const dateLabel = (v: unknown) => { if (!v) return '—'; const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
+const metricExplanation = (label: string) => ({
+  'Revenue': 'Total sales reported for the period; compare growth across several periods.',
+  'Revenue growth': 'How quickly sales are expanding or contracting versus the comparison period.',
+  'Gross margin': 'Share of revenue left after direct costs; higher margins can indicate pricing power.',
+  'Operating margin': 'Share of revenue left after operating expenses, before interest and taxes.',
+  'Net margin': 'Share of revenue that remains as profit after expenses and taxes.',
+  'EPS': 'Earnings allocated to each share; check whether growth is recurring and diluted.',
+  'Debt / equity': 'Debt relative to shareholder equity; definitions may vary by data provider.',
+  'Free cash flow': 'Cash remaining after operating needs and capital expenditure; can support investment or shareholder returns.',
+  'Return on equity': 'Profit generated relative to book equity; leverage and one-off gains can distort it.',
+  'Return on invested capital': 'How effectively the business earns returns on capital used in operations.',
+  'Market cap': 'Market value of outstanding shares, not the same as enterprise value.',
+  'P/E ratio': 'Share price relative to earnings per share; interpret alongside growth and peers.',
+  'Forward P/E': 'Price relative to estimated future earnings; changes when forecasts are revised.',
+  '52-week high': 'Highest stored price over the rolling year; not a fair-value estimate.',
+  '52-week low': 'Lowest stored price over the rolling year; not a support guarantee.',
+  'Average volume': 'Typical shares traded; helps assess liquidity but can change around events.',
+  'RSI (14)': 'Momentum oscillator from 0–100; extreme readings are context, not automatic buy/sell signals.',
+  'SMA 20': 'Average closing price over about 20 trading sessions; a short-term trend reference.',
+  'SMA 50': 'Average closing price over about 50 sessions; often used to assess medium-term direction.',
+  'SMA 200': 'Average closing price over about 200 sessions; a longer-term trend reference.',
+  'MACD histogram': 'Difference between MACD and its signal line; sign and changes indicate momentum shifts.',
+  'ATR': 'Average true range estimates recent price movement size, not direction.',
+  'ADX': 'Measures trend strength, not whether the trend is bullish or bearish.',
+}[label] ?? 'Interpret alongside the company’s history, sector peers, reporting period and data source.');
+
 const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d': 4 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -258,13 +284,13 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           <section className="sd-card" id="fundamentals">
             <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Business and financial health</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
             {stock.description && <p className="sd-description">{stock.description}</p>}
-            {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
-            {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>}
+            {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
+            {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div>}
           </section>
 
           <section className="sd-card" id="technicals">
             <div className="sd-section-heading"><div><span className="sd-kicker">TECHNICALS</span><h2>Technical indicators</h2><p>Latest stored daily indicator snapshot; unavailable indicators are omitted.</p></div><span className="sd-count">{tech?.calculated_at ? dateLabel(tech.calculated_at) : 'No timestamp'}</span></div>
-            {technicalCards.length ? <div className="sd-metric-grid">{technicalCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Technical indicator data is not available yet.</div>}
+            {technicalCards.length ? <div className="sd-metric-grid">{technicalCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Technical indicator data is not available yet.</div>}
           </section>
 
           <section className="sd-card" id="financials">
