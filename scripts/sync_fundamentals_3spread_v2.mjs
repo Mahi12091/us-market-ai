@@ -223,10 +223,29 @@ async function upsertBatch(table, rows, conflict, chunk = 100) {
 }
 
 function buildFundamental(stock, statements, quote) {
-  const sorted = statements.slice().sort((a,b) => String(b.period_end).localeCompare(String(a.period_end)));
-  const inc = sorted.filter(r => normalizedStatementType(r.statement_type) === 'income_statement' && normalizedPeriodType(r) === 'quarterly');
-  const bs = sorted.filter(r => normalizedStatementType(r.statement_type) === 'balance_sheet');
-  const cf = sorted.filter(r => normalizedStatementType(r.statement_type) === 'cash_flow' && normalizedPeriodType(r) === 'quarterly');
+  const sorted = statements.slice().sort((a,b) =>
+    String(b.period_end).localeCompare(String(a.period_end)) ||
+    String(b.accepted_time ?? '').localeCompare(String(a.accepted_time ?? ''))
+  );
+  // Only use one non-comparative reported/derived three-month row per fiscal quarter.
+  // Excluding cumulative YTD and comparative rows prevents TTM valuation from double-counting revenue.
+  const uniqueQuarters = (type) => {
+    const seen = new Set();
+    return sorted.filter(r =>
+      normalizedStatementType(r.statement_type) === type &&
+      normalizedPeriodType(r) === 'quarterly' &&
+      r.is_comparative !== true
+    ).filter(r => {
+      const y = num(r.fiscal_year), q = num(r.fiscal_quarter);
+      const key = y != null && q != null ? `${y}-Q${q}` : String(r.period_end ?? '');
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const inc = uniqueQuarters('income_statement');
+  const bs = sorted.filter(r => normalizedStatementType(r.statement_type) === 'balance_sheet' && r.is_comparative !== true);
+  const cf = uniqueQuarters('cash_flow');
   const latestIncome = inc[0], latestBalance = bs[0], latestCf = cf[0];
   if (!latestIncome && !latestBalance && !latestCf) return null;
   const f = r => r ? extractFields(r.statement_json) : {};
@@ -274,7 +293,7 @@ for (const [index, stock] of stocks.entries()) {
   const symbol=String(stock.symbol).toUpperCase(), stockId=Number(stock.id);
   console.log(`[3spread-v2] ${index+1}/${stocks.length} ${symbol} start`);
   try {
-    let statements = await dbAll('threespread_financial_statements', { select: 'stock_id,ticker,block_id,filing_id,statement_type,period_end,period_type,fiscal_year,fiscal_quarter,statement_json', stock_id: `eq.${stockId}`, order: 'period_end.desc' }, 500);
+    let statements = await dbAll('threespread_financial_statements', { select: 'stock_id,ticker,block_id,filing_id,statement_type,period_end,period_type,period_length,fiscal_year,fiscal_quarter,derived,is_comparative,accepted_time,statement_json', stock_id: `eq.${stockId}`, order: 'period_end.desc,accepted_time.desc' }, 500);
     let fetched=false;
     if (!statements.length) {
       const apiSymbol=symbol.replace(/\./g,'-');
