@@ -11,6 +11,7 @@ import './home-premium.css';
 import './search/search.css';
 import './research-category.css';
 import './sector-directory.css';
+import './navigation-mega-menu.css';
 import './nav-menu.css';
 import SiteHeader from '@/components/site-header';
 
