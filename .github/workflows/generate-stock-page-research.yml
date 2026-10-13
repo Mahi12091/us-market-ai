@@ -1,0 +1,79 @@
+name: Generate Stock Page Research
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Optional single ticker (for example NVDA). Leave blank to process a batch.'
+        required: false
+        type: string
+      limit:
+        description: 'Number of stocks in this run (keep batches small while validating)'
+        required: true
+        default: '5'
+        type: string
+      offset:
+        description: 'Starting offset in market-cap-sorted active stocks'
+        required: true
+        default: '0'
+        type: string
+      force:
+        description: 'Regenerate even if source data has not changed'
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stock-page-research-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      NEON_REST_URL: http://127.0.0.1:8787
+      NEON_API_KEY: neon-local
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL || 'gpt-4o-mini' }}
+      AI_REQUEST_DELAY_MS: '1000'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          test -n "${NEON_DATABASE_URL:-}" || { echo "NEON_DATABASE_URL is missing"; exit 1; }
+          test -n "${OPENAI_API_KEY:-}" || { echo "OPENAI_API_KEY is missing"; exit 1; }
+      - name: Start local Neon REST bridge
+        shell: bash
+        run: |
+          nohup node scripts/neon-rest-api.mjs > /tmp/neon-rest.log 2>&1 &
+          ready=false
+          for i in {1..30}; do
+            if curl -fsS 'http://127.0.0.1:8787/rest/v1/stocks?limit=1' >/dev/null 2>&1; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then cat /tmp/neon-rest.log; exit 1; fi
+      - name: Generate structured stock research
+        shell: bash
+        env:
+          INPUT_SYMBOL: ${{ inputs.symbol }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+          INPUT_OFFSET: ${{ inputs.offset }}
+          INPUT_FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          args=( "--limit=${INPUT_LIMIT}" "--offset=${INPUT_OFFSET}" )
+          if [ -n "${INPUT_SYMBOL:-}" ]; then args+=( "--symbol=${INPUT_SYMBOL}" ); fi
+          if [ "${INPUT_FORCE}" = "true" ]; then args+=( "--force" ); fi
+          node scripts/generate_stock_page_research.mjs "${args[@]}"
