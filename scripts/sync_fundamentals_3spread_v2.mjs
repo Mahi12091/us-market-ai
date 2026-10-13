@@ -99,17 +99,16 @@ async function getFirstPage(path) {
 }
 
 function normalizedPeriodType(r) {
-  const p = String(r.period_type ?? r.period ?? '').toLowerCase();
-  if (p.includes('quarter') || p.includes('three_month') || p.includes('three month')) return 'quarterly';
+  const p = String(r.period_type ?? r.period ?? '').toLowerCase().replace(/-/g, '_');
+  if (p.includes('quarter') || p.includes('three_month')) return 'quarterly';
   if (p.includes('annual') || p === 'fy') return 'annual';
   if (p.includes('ttm') || p.includes('trailing')) return 'ttm';
-  // 3spread balance sheets are point-in-time statements. For the normalized
-  // financial_statements table they are stored as the fiscal quarter/year.
-  if (p.includes('point')) return num(r.fiscal_quarter) ? 'quarterly' : 'annual';
-  if (p.includes('semi') || p.includes('six_month') || p.includes('six month') || p.includes('nine_month') || p.includes('nine month')) {
-    return num(r.fiscal_quarter) ? 'quarterly' : 'annual';
-  }
-  return 'quarterly';
+  // Preserve cumulative / point-in-time basis. Collapsing these to "quarterly"
+  // lets a nine-month YTD total overwrite the actual three-month quarter.
+  if (p.includes('point')) return 'point_in_time';
+  if (p.includes('nine_month') || p.includes('nine month')) return 'nine_month';
+  if (p.includes('semi') || p.includes('six_month') || p.includes('six month')) return 'semi_annual';
+  return p || 'unknown';
 }
 
 function normalizedStatementType(st) {
