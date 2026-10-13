@@ -31,7 +31,6 @@ const metricExplanation = (label: string) => (({
   'Net margin': 'Share of revenue that remains as profit after expenses and taxes.',
   'EPS': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
   'EPS (reported period)': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
-  'EPS (reported period)': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
   'Debt / equity': 'Debt relative to shareholder equity; definitions may vary by data provider.',
   'Free cash flow': 'Cash remaining after operating needs and capital expenditure; can support investment or shareholder returns.',
   'Return on equity': 'Profit generated relative to book equity; leverage and one-off gains can distort it.',
