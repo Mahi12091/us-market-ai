@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'Compare US Stocks',description:'Compare US-listed companies and continue to detailed stock research.'}; export default function Page(){return <ResearchCategoryPage mode="compare"/>;}
