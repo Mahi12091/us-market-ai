@@ -256,6 +256,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }} />
     <div className="sd-shell">
       <nav className="sd-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>›</span><a href="/stocks">US Stocks</a>{displaySector && <><span>›</span><a href={stock.sector && String(stock.sector).toLowerCase() !== 'other' ? `/stocks?sector=${encodeURIComponent(stock.sector)}` : `/stocks`}>{displaySector}</a></>}<span>›</span><b>{stock.symbol}</b></nav>
+      <nav className="research-subnav" aria-label="Stock research sections"><a href={`/stocks/${stock.slug}/financials`}>Financials</a><a href={`/stocks/${stock.slug}/valuation`}>Valuation</a><a href={`/stocks/${stock.slug}/ownership`}>Ownership</a><a href={`/stocks/${stock.slug}/forecast`}>Forecast Lab</a><a href={`/stocks/${stock.slug}/news`}>Stock News</a></nav>
       <header className="sd-hero">
         <div className="sd-identity">
           <div className="sd-monogram" aria-hidden="true">{String(stock.symbol).slice(0, 1)}</div>
