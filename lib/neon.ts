@@ -1,6 +1,19 @@
 import { neon } from '@neondatabase/serverless';
 
-const connection = process.env.NEON_DATABASE_URL || 'postgresql://invalid:invalid@invalid.invalid/invalid';
+// Support the common Vercel/Neon connection-variable names. If none is
+// configured, fail clearly instead of silently querying an intentionally invalid
+// placeholder URL and rendering every database-backed page as empty.
+const connection =
+  process.env.NEON_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_PRISMA_URL;
+
+if (!connection) {
+  throw new Error(
+    'Database connection is not configured. Set NEON_DATABASE_URL or DATABASE_URL in the deployment environment.',
+  );
+}
 export const sql = neon(connection);
 
 type Filter = { sql: string; values: unknown[] };
