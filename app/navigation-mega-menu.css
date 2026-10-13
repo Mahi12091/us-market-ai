@@ -36,3 +36,27 @@
 @media(max-width:800px){.site-header .brand-logo img{width:clamp(165px,48vw,210px)}.site-header .header-inner{height:64px}.site-header .desktop-nav{display:none}.site-header .header-actions{margin-left:auto}.site-header .mobile-menu{width:40px;height:40px;display:flex;align-items:center;justify-content:center;padding:0;font-size:21px}.site-header .mobile-nav{padding:12px 0 22px}.site-header .mega-menu{display:none}}
 @media(max-width:420px){.site-header .brand-logo img{width:155px}.site-header .header-inner{gap:6px}.site-header .search-link{width:38px;justify-content:center;padding:0}.site-header .mobile-menu{width:38px;height:38px}.site-header .mobile-section>a{padding:10px 7px}}
 @media(prefers-reduced-motion:reduce){.site-header .mega-menu{animation:none}.site-header *{transition:none!important}}
+
+
+/* Complete navigation hierarchy: explore links and grouped mobile categories. */
+.site-header .mega-heading-actions{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.site-header .mega-view-all{display:inline-flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #dce8f7;border-radius:9px;background:#fff;color:#145fc7;font-size:11px;font-weight:800;white-space:nowrap}
+.site-header .mega-view-all:hover{background:#eaf2ff;border-color:#c8dcf7}
+.site-header .mega-columns{grid-template-columns:repeat(2,minmax(0,1fr))}
+.site-header .mobile-view-all{display:flex;justify-content:space-between;align-items:center;margin:10px 0 5px;padding:11px 12px;border:1px solid #dce8f7;border-radius:9px;background:#f4f8ff;color:#145fc7;font-size:12px;font-weight:800}
+.site-header .mobile-link-group{padding:8px 0 2px}
+.site-header .mobile-link-group>small{display:block;padding:7px 9px 2px;color:#718096;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
+@media(max-width:1100px) and (min-width:801px){
+ .site-header .nav-button{padding:0 7px;font-size:12px}
+ .site-header .brand-logo img{width:165px}
+ .site-header .header-inner{gap:8px}
+}
+@media(max-width:800px){
+ .site-header .mega-heading-actions{gap:6px}
+ .site-header .mega-view-all{display:none}
+ .site-header .mobile-link-group>a{padding:10px 9px}
+}
+@media(max-width:420px){
+ .site-header .mega-heading-actions{gap:4px}
+ .site-header .mega-close{flex:0 0 30px}
+}
