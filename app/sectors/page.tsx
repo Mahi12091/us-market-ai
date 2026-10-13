@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'US Sector Analysis',description:'Explore US stock sectors and industries using company metadata.'}; export default function Page(){return <ResearchCategoryPage mode="sectors"/>;}
