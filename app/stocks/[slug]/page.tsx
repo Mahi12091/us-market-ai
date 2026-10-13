@@ -45,9 +45,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { data: stock } = await db.from('stocks').select('company_name,symbol,description,sector,industry').eq('slug', slug).maybeSingle();
   if (!stock) return { title: 'Stock Not Found', robots: { index: false, follow: true } };
 
-  const fallback = `${stock.company_name} (${stock.symbol}) stock price forecast and analysis covering financials, valuation, technical indicators, earnings, risks and long-term model scenarios through 2050.`;
-  const description = stock.description?.trim() ? stock.description.trim().slice(0, 155) : fallback.slice(0, 160);
-  const title = `${stock.company_name} (${stock.symbol}) Stock Price Forecast 2026, 2027, 2030, 2035 & 2050`;
+  const title = `${stock.company_name} (${stock.symbol}) Stock Analysis, Price Forecast & Financials`;
+  const description = `${stock.company_name} (${stock.symbol}) stock analysis: latest price, price history, model forecast, valuation, financial performance, earnings, dividends and investment risks.`.slice(0, 160);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
   const canonical = siteUrl ? `${siteUrl}/stocks/${slug}` : `/stocks/${slug}`;
 
@@ -182,9 +181,19 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     ['MACD histogram', number(tech?.macd_histogram)], ['ATR', number(tech?.atr)], ['ADX', number(tech?.adx)], ['Trend', technicalTrend],
   ].filter(([, value]) => value !== '—' && value !== 'Not available yet');
   const faq = [
-    [`What is ${stock.symbol} stock's current price?`, `The latest stored quote for ${stock.symbol} is ${money(quote?.price)}. Quote freshness is shown beside the price.`],
-    [`What is the outlook for ${stock.symbol}?`, livePredictions.length ? `The current quantitative model labels the near-term outlook “${direction}”. Forecasts are estimates, not guarantees.` : 'A current short-term model forecast is not available in the database yet.'],
-    [`Does ${stock.symbol} pay a dividend?`, (dividends ?? []).length ? 'Dividend records are available in the dividend history section below.' : 'No dividend records are currently stored for this stock. This does not by itself prove the company pays no dividend.'],
+    [`What is ${stock.symbol} stock's current price?`, `The latest stored quote for ${stock.symbol} is ${money(quote?.price)}. ${quoteTimestamp ? `The quote timestamp is ${quoteTimestamp.toLocaleString('en-US')}.` : 'A verified quote timestamp is not available.'} Prices can change during market hours.`],
+    [`What is the ${stock.symbol} stock forecast?`, livePredictions.length ? `The latest available quantitative model signal is “${direction}”. The forecast table shows only stored model outputs and their horizons; these are estimates, not guarantees or personalized investment advice.` : 'A current short-term model forecast is not available in the database yet, so this page does not invent a price target.'],
+    [`What is the ${stock.symbol} stock price prediction for 2026?`, (longForecastRows ?? []).some((row: any[]) => String(row[0]) === '2026') ? `A stored model scenario for 2026 is shown in the long-term forecast table above. It is a model estimate and can differ materially from the eventual market price.` : 'A verified 2026 long-term model output is not currently stored for this stock. Check the forecast section for available horizons rather than relying on an unsupported target.'],
+    [`Is ${stock.symbol} stock overvalued or undervalued?`, valuationPe !== null ? `The latest stored trailing P/E is ${number(valuationPe)}${valuationForwardPe !== null ? ` and forward P/E is ${number(valuationForwardPe)}` : ''}. Those multiples alone cannot establish fair value; compare growth, cash flow, earnings quality, risk and relevant peers.` : 'The database does not currently contain a usable trailing P/E value. Without verified valuation inputs and a suitable comparison set, this page cannot responsibly label the shares overvalued or undervalued.'],
+    [`What is ${stock.symbol}'s P/E ratio?`, valuationPe !== null ? `The latest stored trailing P/E ratio is ${number(valuationPe)}. P/E compares share price with earnings per share and should be interpreted alongside growth, cyclicality and accounting quality.` : 'A usable trailing P/E ratio is not currently available in the stored valuation data.'],
+    [`What is ${stock.symbol}'s 52-week high and low?`, week52High !== null && week52Low !== null ? `The stored 52-week range is ${money(week52Low)} to ${money(week52High)}. This describes the recent trading range, not a forecast or a guaranteed support/resistance level.` : 'A complete 52-week high/low range is not currently available from the stored quote or daily price history.'],
+    [`Does ${stock.symbol} pay a dividend, and what is its dividend history?`, (dividends ?? []).length ? `The database contains ${dividends.length} dividend event record(s). See the dividend history table for stored ex-dates, payment dates and amounts; coverage may be incomplete.` : 'No dividend records are currently stored for this stock. That absence does not prove the company pays no dividend.'],
+    [`When is ${stock.symbol}'s next earnings report?`, earnings?.[0]?.earnings_date ? `The most recent earnings record in this database is dated ${dateLabel(earnings[0].earnings_date)}. This is not a confirmed next-report date; check company investor relations for the official upcoming earnings date.` : 'An earnings date is not currently available in the stored earnings records. Check the company’s investor-relations website for its official calendar.'],
+    [`How has ${stock.symbol} stock performed recently?`, cleanHistory.length > 1 ? `The price chart uses ${cleanHistory.length} stored daily observations, and the market snapshot includes the latest available quote. Use the chart to inspect the period shown; past performance does not predict future returns.` : 'There are not enough stored daily price observations to describe recent historical performance reliably.'],
+    [`Is ${stock.symbol} stock in a bullish or bearish trend?`, technicalTrend !== 'Not available yet' ? `The stored technical snapshot classifies the trend as “${technicalTrend}”. This rule-based label is based on available indicators and is not a standalone buy or sell signal.` : 'The required technical indicator data is incomplete, so a reliable bullish/bearish trend label is not available.'],
+    [`What are the main risks of investing in ${stock.symbol}?`, risks ? 'Available risk metrics are shown in the risk and performance section. These metrics do not capture every business, competitive, regulatory or market risk; review company filings and disclosures as well.' : 'A current risk-metrics snapshot is not available. Review the company’s filings, competition, financial statements, business concentration and market exposure before making an investment decision.'],
+    [`Where can I find ${stock.symbol}'s financial statements and earnings history?`, 'Use the Financial Statements section for stored statement records, financial metric history, earnings results and estimate revisions. Coverage depends on the data available for this company.'],
+    [`Does US Market AI provide a guaranteed ${stock.symbol} price target?`, 'No. Forecasts shown here are quantitative model outputs, not guarantees or personalized financial advice. Missing forecast values are left unavailable rather than filled with invented targets.'],
   ];
   return <main className="stock-page-v2">
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(graphJsonLd) }} />
@@ -218,7 +227,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       <section className="sd-layout-main">
         <div className="sd-primary-column">
           <section className="sd-card sd-chart-card" id="chart">
-            <div className="sd-section-heading"><div><span className="sd-kicker">PRICE HISTORY</span><h2>Price performance</h2><p>Daily closing prices from the stored market history.</p></div><span className="sd-count">{cleanHistory.length} sessions</span></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">PRICE HISTORY</span><h2>Stock price history and performance</h2><p>Daily closing prices from the stored market history.</p></div><span className="sd-count">{cleanHistory.length} sessions</span></div>
             {chart.length ? <PriceChart data={chart}/> : <div className="sd-empty sd-chart-empty">Historical price data is not available for this ticker yet.</div>}
           </section>
 
@@ -276,14 +285,14 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </article>
 
           <section className="sd-card" id="forecast">
-            <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Model outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Stock price forecast and outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
             {table(['Horizon','Model target','Expected change','Signal','Confidence score'], shortForecastRows)}
             {longForecastRows.length > 0 && <><h3 className="sd-subheading">Long-term model scenarios</h3><p className="sd-muted">Only years with stored model outputs are shown. Long-range scenarios carry substantial uncertainty.</p>{table(['Target year','Model target','Model return','Model version'], longForecastRows)}</>}
             {longForecastRows.length === 0 && <p className="sd-footnote">Long-term forecast records are not available yet; no values are fabricated or extrapolated on this page.</p>}
           </section>
 
           <section className="sd-card" id="fundamentals">
-            <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Business and financial health</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Financial performance and company fundamentals</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
             {stock.description && <p className="sd-description">{stock.description}</p>}
             {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
             {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div>}
@@ -295,7 +304,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </section>
 
           <section className="sd-card" id="financials">
-            <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements</h2><p>Recent normalized financial statement records.</p></div></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements, earnings history and estimate revisions</h2><p>Recent normalized financial statement records.</p></div></div>
             {table(['Period','Statement','Revenue','Net income','Total assets','Free cash flow'], (financialStatements ?? []).slice(0, 12).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), compactMoney(row.revenue), compactMoney(row.net_income), compactMoney(row.total_assets), compactMoney(row.free_cash_flow)]))}
             <h3 className="sd-subheading">Financial metric history</h3>{table(['Period','Revenue growth','Gross margin','Operating margin','Net margin','ROE','ROIC'], (financialMetrics ?? []).slice(0, 8).map((m: any) => [dateLabel(m.period_end), pct(m.revenue_growth), pct(m.gross_margin), pct(m.operating_margin), pct(m.net_margin), pct(m.roe), pct(m.roic)]))}
             <h3 className="sd-subheading">Earnings history</h3>
@@ -304,7 +313,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </section>
 
           <section className="sd-card" id="valuation">
-            <div className="sd-section-heading"><div><span className="sd-kicker">VALUATION</span><h2>Valuation snapshot</h2><p>Multiples shown only when the database has a usable value.</p></div></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">VALUATION</span><h2>Stock valuation: P/E, forward P/E and multiples</h2><p>Multiples shown only when the database has a usable value.</p></div></div>
             {(() => { const vals = [['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)], ['Price / sales', number(valuationPs)], ['Price / book', number(valuationPb)], ['PEG ratio', number(fundamentals?.peg_ratio)], ['Enterprise value', compactMoney(fundamentals?.enterprise_value)]] .filter(([, value]) => value !== '—'); return vals.length ? <div className="sd-metric-grid">{vals.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Valuation multiples are not available yet.</div>; })()}
             {(peerMetrics ?? []).length > 0 && <><h3 className="sd-subheading">Peer context</h3>{table(['Metric','Company','Peer median','Peer average','Percentile'], (peerMetrics ?? []).slice(0, 12).map((p: any) => [p.metric_name ?? '—', number(p.company_value), number(p.peer_median), number(p.peer_average), p.percentile == null ? '—' : `${number(p.percentile)}%`]))}</>}
           </section>
@@ -315,7 +324,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </section>
 
           <section className="sd-card" id="dividends">
-            <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend history</h2><p>Stored dividend events, where available.</p></div></div>
+            <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend history and shareholder payments</h2><p>Stored dividend events, where available.</p></div></div>
             {table(['Ex-date','Payment date','Dividend / share','Frequency','Currency'], (dividends ?? []).slice(0, 10).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', d.currency ?? 'USD']))}
           </section>
 
