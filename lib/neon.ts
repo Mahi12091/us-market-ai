@@ -7,18 +7,15 @@ const connection =
   process.env.NEON_DATABASE_URL ||
   process.env.DATABASE_URL ||
   process.env.POSTGRES_URL ||
-  process.env.POSTGRES_PRISMA_URL ||
-  'postgresql://invalid:invalid@invalid.invalid/invalid';
+  process.env.POSTGRES_PRISMA_URL;
 
-if (
-  !process.env.NEON_DATABASE_URL &&
-  !process.env.DATABASE_URL &&
-  !process.env.POSTGRES_URL &&
-  !process.env.POSTGRES_PRISMA_URL
-) {
-  console.warn('[database] No supported database URL environment variable is configured.');
+// CI builds may not have production secrets. Keep builds deterministic, but log
+// the missing configuration so database-backed pages do not silently look valid.
+if (!connection) {
+  console.error('[database] Missing NEON_DATABASE_URL, DATABASE_URL, POSTGRES_URL, and POSTGRES_PRISMA_URL.');
 }
-export const sql = neon(connection);
+const safeConnection = connection || 'postgresql://invalid:invalid@invalid.invalid/invalid';
+export const sql = neon(safeConnection);
 
 type Filter = { sql: string; values: unknown[] };
 const IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
