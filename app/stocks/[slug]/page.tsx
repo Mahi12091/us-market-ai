@@ -30,6 +30,7 @@ const metricExplanation = (label: string) => (({
   'Operating margin': 'Share of revenue left after operating expenses, before interest and taxes.',
   'Net margin': 'Share of revenue that remains as profit after expenses and taxes.',
   'EPS': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
+  'EPS (reported period)': 'Earnings per share for the stored reporting period; confirm whether the figure is quarterly, annual or trailing twelve months before comparing it with valuation multiples.',
   'Debt / equity': 'Debt relative to shareholder equity; definitions may vary by data provider.',
   'Free cash flow': 'Cash remaining after operating needs and capital expenditure; can support investment or shareholder returns.',
   'Return on equity': 'Profit generated relative to book equity; leverage and one-off gains can distort it.',
@@ -192,7 +193,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
       return true;
     });
     if (!clean.length) return <div className="sd-empty">No verified records available for this section yet.</div>;
-    return <div className="sd-table-scroll"><table className="sd-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{clean.map((row, i) => <tr key={i}>{row.map((value, j) => <td key={j}>{value == null || String(value).trim() === '' ? '—' : String(value)}</td>)}</tr>)}</tbody></table></div>;
+    return <div className="sd-table-scroll"><table className="sd-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{clean.map((row, i) => <tr key={i}>{row.map((value, j) => <td key={j}>{value == null || String(value).trim() === '' ? '—' : typeof value === 'object' ? value : String(value)}</td>)}</tr>)}</tbody></table></div>;
   };
   const metricCards = [
     ['Market cap', compactMoney(marketCap)], ['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)],
