@@ -53,7 +53,7 @@ export default async function MarketsPage() {
   const stocks = (rawStocks ?? []) as StockRow[];
   const ids = [...new Set([...stocks.map(s => s.id), ...proxyStocks.map(s => s.id)])];
   const [{ data: rawQuotes }, { data: rawHistory }] = await Promise.all([
-    ids.length ? db.from('latest_quotes').select('stock_id,price,change_percent,volume').in('stock_id', ids) : Promise.resolve({data: []}),
+    db.from('latest_quotes').select('stock_id,price,change_percent,volume').limit(6000),
     (() => { const spy = proxyStocks.find(s => s.symbol === 'SPY'); return spy ? db.from('price_history').select('timestamp,close').eq('stock_id', spy.id).eq('timeframe','1d').order('timestamp',{ascending:false}).limit(180) : Promise.resolve({data: []}); })(),
   ]);
   const quotes = (rawQuotes ?? []) as QuoteRow[];
