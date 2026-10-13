@@ -1,0 +1,1 @@
+import type { Metadata } from 'next'; import { ResearchCategoryPage } from '@/components/research-category-page'; export const metadata:Metadata={title:'IPO Research',description:'Explore newly listed companies and available IPO metadata.'}; export default function Page(){return <ResearchCategoryPage mode="ipo"/>;}
