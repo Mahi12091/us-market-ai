@@ -11,7 +11,7 @@ const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `
 const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
 const number = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: digits }); };
 const dateLabel = (v: unknown) => { if (!v) return '—'; const d = new Date(String(v)); return Number.isFinite(d.getTime()) ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'; }
-const metricExplanation = (label: string) => ({
+const metricExplanation = (label: string) => (({
   'Revenue': 'Total sales reported for the period; compare growth across several periods.',
   'Revenue growth': 'How quickly sales are expanding or contracting versus the comparison period.',
   'Gross margin': 'Share of revenue left after direct costs; higher margins can indicate pricing power.',
@@ -35,7 +35,7 @@ const metricExplanation = (label: string) => ({
   'MACD histogram': 'Difference between MACD and its signal line; sign and changes indicate momentum shifts.',
   'ATR': 'Average true range estimates recent price movement size, not direction.',
   'ADX': 'Measures trend strength, not whether the trend is bullish or bearish.',
-}[label] ?? 'Interpret alongside the company’s history, sector peers, reporting period and data source.');
+} as Record<string, string>)[label] ?? 'Interpret alongside the company’s history, sector peers, reporting period and data source.');
 
 const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d': 4 };
 
