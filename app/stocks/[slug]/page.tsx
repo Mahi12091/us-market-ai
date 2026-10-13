@@ -127,11 +127,15 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const valuationPb = finite(fundamentals?.price_book);
   const rsi = finite(tech?.rsi);
   const sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200);
-  const visibleNews = (news ?? []).filter((n: any) => n.title || n.summary).slice(0, 8);
+  const stockTerms = [String(stock.symbol ?? '').toLowerCase(), ...String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((part: string) => part.length >= 4)].filter(Boolean);
+  const visibleNews = (news ?? []).filter((n: any) => {
+    const text = `${n.title ?? ''} ${n.summary ?? ''}`.toLowerCase();
+    return text.trim() && stockTerms.some(term => text.includes(term));
+  }).slice(0, 8);
   const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
   const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
   const table = (headers: string[], rows: any[][]) => {
-    const clean = rows.filter(row => row.some(value => value !== null && value !== undefined && value !== '' && value !== '—'));
+    const clean = rows.filter(row => row.filter(value => value !== null && value !== undefined && value !== '' && value !== '—').length >= 2);
     if (!clean.length) return <div className="sd-empty">No verified records available for this section yet.</div>;
     return <div className="sd-table-scroll"><table className="sd-table"><thead><tr>{headers.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{clean.map((row, i) => <tr key={i}>{row.map((value, j) => <td key={j}>{value == null || value === '' ? '—' : String(value)}</td>)}</tr>)}</tbody></table></div>;
   };
@@ -225,6 +229,22 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
                 <p className="sd-editorial-source-note">Editorial integrity: this summary uses fields available in the current database. Missing evidence is called out rather than filled with invented facts. Review the financial tables, source records and methodology below before relying on any conclusion.</p>
               </div>
             )}
+            <section className="sd-thesis-block" aria-label="Evidence-led investment thesis">
+              <h3>What the numbers mean for investors</h3>
+              <div className="sd-thesis-grid">
+                <div><span>Business quality</span><p>{finite(fundamentals?.revenue_growth) !== null && finite(fundamentals?.revenue_growth)! > 0 ? `Reported revenue growth is ${pct(fundamentals?.revenue_growth)}. Growth is encouraging, but investors should confirm it is recurring and understand what product, geography or customer group is driving it.` : 'A reliable revenue-growth reading is not available or is not positive in the latest stored snapshot. Review multiple reporting periods before judging the growth trajectory.'}</p></div>
+                <div><span>Profitability</span><p>{finite(fundamentals?.gross_margin) !== null && finite(fundamentals?.operating_margin) !== null ? `Gross margin is ${pct(fundamentals?.gross_margin)} and operating margin is ${pct(fundamentals?.operating_margin)}. The gap helps show how much operating costs absorb after direct costs; compare the trend with prior periods and sector peers.` : 'Margin data is incomplete. Revenue alone cannot show whether the company converts sales into sustainable profit.'}</p></div>
+                <div><span>Valuation</span><p>{valuationPe !== null ? `The stored P/E is ${number(valuationPe)}. A multiple is not a verdict by itself: interpret it alongside expected earnings growth, cyclicality, cash flow, and comparable companies.` : 'A usable P/E value is not stored. Avoid calling the shares cheap or expensive until earnings and valuation data can be verified.'}</p></div>
+                <div><span>Price trend</span><p>{sma20 !== null && sma50 !== null && sma200 !== null && finite(quote?.price) !== null ? `The latest quote can be compared with the 20-, 50- and 200-day moving averages (${money(sma20)}, ${money(sma50)}, and ${money(sma200)}). Moving averages describe trend, not intrinsic value, and can lag sudden market changes.` : 'Moving-average context is incomplete, so this page avoids asserting a confirmed trend from missing indicators.'}</p></div>
+              </div>
+              <h3>Bull case, bear case and evidence to watch</h3>
+              <div className="sd-case-grid">
+                <div className="sd-case sd-case-bull"><strong>Bull case</strong><p>{finite(fundamentals?.revenue_growth) !== null && finite(fundamentals?.revenue_growth)! > 0 && finite(fundamentals?.free_cash_flow) !== null && finite(fundamentals?.free_cash_flow)! > 0 ? 'The stored snapshot combines positive revenue growth with positive free cash flow. If future reports sustain both, it would support—but not guarantee—the case for durable business momentum.' : 'The bullish case needs confirmation from reported revenue growth, cash generation, and future company disclosures; the current snapshot does not establish those conditions together.'}</p></div>
+                <div className="sd-case sd-case-bear"><strong>Bear case</strong><p>{valuationPe !== null && valuationPe > 30 ? `The stored P/E of ${number(valuationPe)} means expectations matter: a slowdown, weaker margins or downward earnings revisions could pressure the valuation.` : 'Potential downside still includes weaker demand, margin compression, competition, execution issues, or a broad market sell-off. Company-specific evidence is needed to quantify these risks.'}</p></div>
+                <div className="sd-case sd-case-watch"><strong>What to watch next</strong><p>Track the next earnings release, changes in revenue and margin trends, cash flow, management guidance, analyst estimate revisions, and primary-source filings. Update the thesis when new evidence arrives rather than relying on one ratio or forecast.</p></div>
+              </div>
+              <p className="sd-editorial-source-note">These interpretations are rule-based explanations of the stored fields, not independently verified company-specific forecasts. Missing data is not treated as zero; all investment cases remain conditional on new evidence.</p>
+            </section>
             <div className="sd-editorial-meta">US Market AI Research Desk · {modifiedDate ? `Data/research timestamp: ${dateLabel(modifiedDate)}` : 'Research timestamp unavailable'} · <a href="/disclaimer">Methodology & disclaimer</a></div>
           </article>
 
