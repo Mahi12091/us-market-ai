@@ -45,10 +45,14 @@ const faq = [
 
 export default async function MarketsPage() {
   const db = createDatabaseClient();
-  const [{ data: rawProxyStocks }, { data: rawStocks }] = await Promise.all([
+  const [{ data: rawProxyStocks, error: proxyLookupError }, { data: rawStocks, error: stockLookupError }] = await Promise.all([
     db.from('stocks').select('id,symbol,company_name').eq('is_active', true).in('symbol', proxies.map(p => p[0])),
     db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('asset_type','stock').limit(5000),
   ]);
+  // Never log a connection string or credentials; only report configuration state and query errors.
+  if (!process.env.NEON_DATABASE_URL) console.error('[markets] NEON_DATABASE_URL is missing in this deployment environment.');
+  if (proxyLookupError) console.error('[markets] Benchmark stock lookup failed:', proxyLookupError.message);
+  if (stockLookupError) console.error('[markets] Stock universe lookup failed:', stockLookupError.message);
   const proxyStocks = (rawProxyStocks ?? []) as ProxyRow[];
   const stocks = (rawStocks ?? []) as StockRow[];
   // Fetch quotes by bounded stock-ID batches. A single unfiltered quote query can
