@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 
 const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://usmarketai.com').replace(/\/$/, '');
+export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 1000;
 
 type SitemapStock = {
@@ -11,6 +12,15 @@ type SitemapStock = {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const db = createDatabaseClient();
+  const staticRoutes: MetadataRoute.Sitemap = [
+    { url: base, changeFrequency: 'hourly', priority: 1 },
+    { url: `${base}/stocks`, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${base}/markets`, changeFrequency: 'hourly', priority: 0.8 },
+    { url: `${base}/news`, changeFrequency: 'hourly', priority: 0.8 },
+    { url: `${base}/predictions`, changeFrequency: 'daily', priority: 0.8 },
+    { url: `${base}/sectors`, changeFrequency: 'daily', priority: 0.8 },
+    { url: `${base}/blog`, changeFrequency: 'daily', priority: 0.7 },
+  ];
   const stocks: SitemapStock[] = [];
 
   // Paginate through every eligible stock. A single .limit(5000) would
@@ -27,8 +37,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
-      console.error('Sitemap stock query failed:', error.message);
-      throw new Error('Unable to build the stock sitemap');
+      console.error('Sitemap stock query failed; returning static routes:', error.message);
+      return staticRoutes;
     }
 
     const batch = (data ?? []) as SitemapStock[];
@@ -36,15 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (batch.length < PAGE_SIZE) break;
   }
 
-  const staticRoutes: MetadataRoute.Sitemap = [
-    { url: base, changeFrequency: 'hourly', priority: 1 },
-    { url: `${base}/stocks`, changeFrequency: 'hourly', priority: 0.9 },
-    { url: `${base}/markets`, changeFrequency: 'hourly', priority: 0.8 },
-    { url: `${base}/news`, changeFrequency: 'hourly', priority: 0.8 },
-    { url: `${base}/predictions`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${base}/sectors`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${base}/blog`, changeFrequency: 'daily', priority: 0.7 },
-  ];
+
 
   const stockRoutes: MetadataRoute.Sitemap = stocks
     .filter((stock): stock is SitemapStock & { slug: string } => Boolean(stock.slug?.trim()))
