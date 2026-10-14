@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 
 type StockRow = { id: string; symbol: string; slug: string | null; company_name: string; sector: string | null; market_cap: number | null };
 type ProxyRow = { id: string; symbol: string; company_name: string };
-type QuoteRow = { stock_id: string; price: number | null; change_percent: number | null; volume: number | null };
+type QuoteRow = { stock_id: string; price: number | null; change_percent: number | null; volume: number | null; quote_timestamp: string | null };
 type HistoryRow = { timestamp: string; close: number | null };
 
 const proxies = [['SPY','S&P 500','Tracks large-cap US equity performance'],['QQQ','Nasdaq 100','Tracks major non-financial Nasdaq companies'],['DIA','Dow Jones','Tracks 30 prominent US blue-chip companies'],['IWM','Russell 2000','Represents smaller US companies']] as const;
@@ -33,7 +33,9 @@ const sectors: { label: string; aliases: string[] }[] = [
   {label:'Other / Unclassified',aliases:['Other']},
 ];
 const pct = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
-const money = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `$${Number(v).toLocaleString('en-US',{maximumFractionDigits:2})}`;
+const money = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v).toLocaleString('en-US',{maximumFractionDigits:2})}`;
+const quoteIsFresh = (value: string | null | undefined) => { if (!value) return false; const time = new Date(value).getTime(); return Number.isFinite(time) && Date.now() - time <= 4 * 24 * 60 * 60 * 1000; };
+const quoteDate = (value: string | null | undefined) => { if (!value) return 'Timestamp unavailable'; const d = new Date(value); return Number.isFinite(d.getTime()) ? `As of ${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}` : 'Timestamp unavailable'; }
 const faq = [
   {question:'What does the US Market Overview show?',answer:'The dashboard brings together available data for major US market benchmark proxies, daily market breadth, sector-level price changes and SPY historical closing prices. Coverage depends on the latest records available from the data sources.'},
   {question:'Which market indexes are covered?',answer:'The page uses SPY as an S&P 500 proxy, QQQ for the Nasdaq 100, DIA for the Dow Jones Industrial Average and IWM for the Russell 2000. These are ETF proxies, not the official index values.'},
@@ -66,7 +68,7 @@ export default async function MarketsPage() {
   const idBatches: string[][] = [];
   for (let i = 0; i < ids.length; i += 200) idBatches.push(ids.slice(i, i + 200));
   const quoteBatchResults = await Promise.all(idBatches.map(async (batch) => {
-    const result = await db.from('latest_quotes').select('stock_id,price,change_percent,volume').in('stock_id', batch);
+    const result = await db.from('latest_quotes').select('stock_id,price,change_percent,volume,quote_timestamp').in('stock_id', batch);
     if (result.error) {
       console.error('[markets] Quote batch query failed:', result.error.message);
       return [];
@@ -81,7 +83,7 @@ export default async function MarketsPage() {
   const history = ((rawHistory ?? []) as HistoryRow[]).slice().reverse();
   const byId = new Map(quotes.map(q => [String(q.stock_id),q]));
   const proxyMap = new Map(proxyStocks.map(s => [s.symbol,{...s,quote:byId.get(String(s.id))}]));
-  const validQuotes = stocks.map(s => ({...s,quote:byId.get(String(s.id))})).filter(s => s.quote?.price != null && s.quote?.change_percent != null);
+  const validQuotes = stocks.map(s => ({...s,quote:byId.get(String(s.id))})).filter(s => s.quote?.price != null && s.quote?.change_percent != null && quoteIsFresh(s.quote?.quote_timestamp));
   const advancers = validQuotes.filter(s => Number(s.quote?.change_percent) > 0).length;
   const decliners = validQuotes.filter(s => Number(s.quote?.change_percent) < 0).length;
   const unchanged = validQuotes.filter(s => Number(s.quote?.change_percent) === 0).length;
@@ -111,12 +113,12 @@ export default async function MarketsPage() {
 
     <section className="market-intro-copy">
       <div><div className="market-section-kicker">THE MARKET IN CONTEXT</div><h2>A broader view of the US stock market</h2></div>
-      <div className="market-intro-text"><p>US Market AI’s Market Overview is designed to help investors and researchers understand how different parts of the US equity market are moving—not just whether one headline index is up or down. The dashboard combines benchmark ETF proxies with daily price changes across the active stocks tracked by the platform.</p><p>Use the benchmark cards to orient yourself, market breadth to gauge participation, and the sector dashboard to compare groups of companies. Then follow the links into stock research for company-level fundamentals, valuation, technical indicators and forecast research where available.</p><p className="market-data-note"><strong>Data transparency:</strong> displayed figures come from records available to the platform. ETF prices are proxies for their respective indexes, sector averages are calculated from tracked stocks, and missing values are left unreported rather than estimated.</p></div>
+      <div className="market-intro-text"><p>US Market AI’s Market Overview is designed to help investors and researchers understand how different parts of the US equity market are moving—not just whether one headline index is up or down. The dashboard combines benchmark ETF proxies with daily price changes across the active stocks tracked by the platform.</p><p>Use the benchmark cards to orient yourself, market breadth to gauge participation, and the sector dashboard to compare groups of companies. Then follow the links into stock research for company-level fundamentals, valuation, technical indicators and forecast research where available.</p><p className="market-data-note"><strong>Data transparency:</strong> displayed figures come from records available to the platform. ETF prices are proxies for their respective indexes. Market breadth and sector averages exclude quotes older than four days; stale proxy prices may remain visible with their timestamp, but stale daily moves are withheld.</p></div>
     </section>
 
     <section className="market-data-section">
       <div className="section-card-head market-section-head"><div><div className="market-section-kicker">BENCHMARKS</div><h2>Major US market gauges</h2><p>ETF proxies provide a practical reference for broad-market, large-cap, technology-heavy and small-cap performance.</p></div><span className="market-source-label">Latest available records</span></div>
-      <div className="market-index-grid">{proxies.map(([symbol,name,detail])=>{const item=proxyMap.get(symbol);return <article className="index-card" key={symbol}><div className="index-top"><div><div className="index-name">{name}</div><div className="index-symbol">{symbol} · ETF proxy</div></div><span className={`index-status ${item?.quote?.price != null ? 'has-data' : 'no-data'}`}>{item?.quote?.price != null ? 'Quote available' : 'No quote'}</span></div><div className="index-value">{money(item?.quote?.price)}</div><div className={Number(item?.quote?.change_percent ?? 0)>=0?'positive index-pending':'negative index-pending'}>{item?.quote?.change_percent != null ? pct(item.quote.change_percent) : 'Daily change unavailable'}</div><p className="market-index-detail">{detail}</p></article>})}</div>
+      <div className="market-index-grid">{proxies.map(([symbol,name,detail])=>{const item=proxyMap.get(symbol);const fresh=quoteIsFresh(item?.quote?.quote_timestamp);return <article className="index-card" key={symbol}><div className="index-top"><div><div className="index-name">{name}</div><div className="index-symbol">{symbol} · ETF proxy</div></div><span className={`index-status ${item?.quote?.price != null ? (fresh ? 'has-data' : 'no-data') : 'no-data'}`}>{item?.quote?.price != null ? (fresh ? 'Fresh quote' : 'Stale quote') : 'No quote'}</span></div><div className="index-value">{money(item?.quote?.price)}</div><div className={fresh && Number(item?.quote?.change_percent ?? 0)>=0?'positive index-pending':'negative index-pending'}>{fresh && item?.quote?.change_percent != null ? pct(item.quote.change_percent) : 'Daily change unavailable'}</div><small>{quoteDate(item?.quote?.quote_timestamp)}</small><p className="market-index-detail">{detail}</p></article>})}</div>
       <p className="market-method-note">These symbols are exchange-traded funds used as market proxies. Their prices and returns can differ from the official index levels and should not be treated as the indexes themselves.</p>
     </section>
 
