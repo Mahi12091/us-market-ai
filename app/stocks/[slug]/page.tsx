@@ -319,7 +319,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   ].filter(([, value]) => value !== null && value !== undefined && value !== '—');
   const hasChartData = chart.length > 0;
   const hasForecastData = shortForecastRows.length > 0 || longForecastRows.length > 0;
-  const hasFundamentalsData = financialCards.length > 0 || metricCards.length > 0 || Boolean(stock.description);
+  const hasFundamentalsData = financialCards.length > 0 || metricCards.length > 0;
   const hasTechnicalData = technicalCards.length > 0;
   const hasFinancialsData = (financialStatements ?? []).length > 0 || (financialMetrics ?? []).length > 0 || (earnings ?? []).length > 0 || (earningsRevisions ?? []).length > 0;
   const hasValuationData = valuationCards.length > 0 || verifiedPeerMetrics.length > 0;
@@ -454,7 +454,6 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
           {hasFundamentalsData && <section className="sd-card" id="fundamentals">
             <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Financial performance and company fundamentals</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
-            {stock.description && <p className="sd-description">{stock.description}</p>}
             {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
             {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div>}
           </section>}
