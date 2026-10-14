@@ -57,6 +57,8 @@ jobs:
         run: node scripts/calculate_derived_fundamentals.mjs
       - name: Repair missing Sharpe and Sortino from historical returns
         run: node scripts/repair_missing_risk_metrics.mjs
+      - name: Repair missing beta against SPY from historical returns
+        run: node scripts/repair_missing_beta.mjs
       - name: Backfill verified SEC company metadata
         run: node scripts/backfill_stock_profile_from_sec.mjs
       - name: Final missing-field audit
@@ -73,6 +75,7 @@ jobs:
             UNION ALL SELECT 'stocks_missing_description', COUNT(*) FROM stocks WHERE is_active AND description IS NULL
             UNION ALL SELECT 'technical_rows_missing_mfi_or_williams_r', COUNT(*) FROM technical_indicators WHERE mfi IS NULL OR williams_r IS NULL
             UNION ALL SELECT 'risk_rows_missing_sharpe_or_sortino', COUNT(*) FROM risk_metrics WHERE sharpe_ratio IS NULL OR sortino_ratio IS NULL
+            UNION ALL SELECT 'risk_rows_missing_beta', COUNT(*) FROM risk_metrics r JOIN stocks s ON s.id = r.stock_id WHERE s.is_active IS TRUE AND s.asset_type = 'stock' AND r.beta IS NULL
             UNION ALL SELECT 'predictions_missing_uncertainty', COUNT(*) FROM predictions WHERE uncertainty IS NULL
             UNION ALL SELECT 'long_term_predictions_missing_uncertainty', COUNT(*) FROM long_term_predictions WHERE uncertainty IS NULL
           `);
