@@ -143,14 +143,33 @@ function normalizeMassive(row) {
 }
 
 function classifySector(industry, description) {
-  const text = `${industry || ''} ${description || ''}`.toLowerCase();
+  const industryText = String(industry || '').toLowerCase();
+  const descriptionText = String(description || '').toLowerCase();
+  const text = industryText + ' ' + descriptionText;
   const has = (...words) => words.some((word) => text.includes(word));
-  if (has('bank', 'financial', 'insurance', 'capital markets', 'investment', 'credit', 'mortgage', 'asset management', 'brokerage', 'lending')) return 'Financial Services';
+  const industryHas = (...words) => words.some((word) => industryText.includes(word));
+
+  // Prefer specific industry evidence over broad words in company descriptions.
+  // Check real estate before finance because REIT descriptions often mention investments.
+  if (industryHas('real estate', 'reit', 'property trust', 'realty', 'lessors of real property')) return 'Real Estate';
+  if (industryHas('computer programming', 'data processing', 'prepackaged software', 'software', 'semiconductor', 'electronic computers', 'computer storage', 'computer peripheral', 'electronic components', 'internet services', 'cloud computing')) return 'Technology';
+  if (industryHas('motor vehicles', 'passenger car bodies', 'automobile', 'auto manufacturing', 'motor vehicle parts', 'automotive')) return 'Consumer Discretionary';
+  if (industryHas('commercial banks', 'national commercial banks', 'savings institutions', 'credit unions', 'insurance carriers', 'securities brokers', 'investment banking', 'consumer finance', 'mortgage bankers', 'asset management', 'financial services', 'brokerage')) return 'Financial Services';
+  if (industryHas('pharmaceutical', 'biotechnology', 'medical', 'health services', 'hospitals', 'therapeutic', 'diagnostic', 'life sciences', 'biological products')) return 'Healthcare';
+  if (industryHas('petroleum', 'oil and gas', 'oil & gas', 'drilling oil', 'oilfield', 'pipeline', 'coal mining', 'refining', 'natural gas distribution', 'energy')) return 'Energy';
+  if (industryHas('electric services', 'water supply', 'water utilities', 'gas utilities', 'electric utilities')) return 'Utilities';
+  if (industryHas('telecommunications', 'telephone communications', 'wireless', 'broadcasting', 'cable television', 'motion pictures', 'entertainment', 'publishing')) return 'Communication Services';
+  if (industryHas('retail', 'restaurants', 'apparel', 'food stores', 'grocery', 'beverages', 'consumer products', 'household products', 'personal products', 'hotels', 'leisure', 'department stores')) return 'Consumer';
+  if (industryHas('mining', 'metal', 'steel', 'chemical', 'materials', 'paper', 'forest products', 'gold', 'silver', 'copper', 'industrial gases')) return 'Basic Materials';
+  if (industryHas('aerospace', 'machinery', 'industrial', 'transportation', 'railroad', 'trucking', 'airline', 'construction', 'manufacturing', 'defense', 'engineering', 'shipbuilding')) return 'Industrials';
+
+  // Only use broader description signals as a fallback after specific industry checks.
   if (has('pharma', 'biotech', 'medical', 'health', 'hospital', 'therapeutic', 'drug', 'diagnostic', 'life sciences')) return 'Healthcare';
   if (has('software', 'semiconductor', 'computer', 'electronics', 'technology', 'data processing', 'cloud services', 'internet services')) return 'Technology';
-  if (has('oil', 'gas', 'petroleum', 'energy', 'drilling', 'pipeline', 'refining', 'coal')) return 'Energy';
-  if (has('utility', 'electric services', 'water supply', 'natural gas distribution')) return 'Utilities';
   if (has('telecommunication', 'telecommunications', 'wireless', 'broadcasting', 'media', 'entertainment', 'publishing')) return 'Communication Services';
+  if (has('oil', 'petroleum', 'energy', 'drilling', 'pipeline', 'refining', 'coal')) return 'Energy';
+  if (has('utility', 'electric services', 'water supply', 'natural gas distribution')) return 'Utilities';
+  if (has('bank', 'financial', 'insurance', 'capital markets', 'investment', 'credit', 'mortgage', 'asset management', 'brokerage', 'lending')) return 'Financial Services';
   if (has('real estate', 'reit', 'property trust', 'realty')) return 'Real Estate';
   if (has('retail', 'restaurant', 'apparel', 'food store', 'grocery', 'beverage', 'consumer products', 'household products', 'personal products', 'hotel', 'leisure')) return 'Consumer';
   if (has('mining', 'metal', 'steel', 'chemical', 'materials', 'paper', 'forest products', 'gold', 'silver', 'copper')) return 'Basic Materials';
@@ -351,9 +370,12 @@ for (const stock of stocks) {
   const storedSector = clean(stock.sector);
   const usableSector = (value) => value && !['other', 'unknown', 'n/a', 'na', 'unclassified'].includes(value.toLowerCase()) ? value : null;
   // Do not let a stored "Other" placeholder block a verified industry/SIC classification.
-  const sector = usableSector(providerSector)
+  const industrySector = classifySector(industry, null);
+  const descriptionSector = classifySector(null, description);
+  const sector = industrySector
+    ?? usableSector(providerSector)
     ?? usableSector(storedSector)
-    ?? classifySector(industry, description)
+    ?? descriptionSector
     ?? classifySectorFromSic(provider.sic_code)
     ?? providerSector
     ?? storedSector
