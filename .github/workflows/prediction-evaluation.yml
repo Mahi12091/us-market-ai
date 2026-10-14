@@ -1,0 +1,39 @@
+name: Prediction Evaluation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/evaluate_predictions.mjs'
+      - '.github/workflows/prediction-evaluation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: us-market-ai-prediction-evaluation
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate database connection
+        run: test -n "$NEON_DATABASE_URL"
+      - name: Evaluate matured predictions
+        run: node scripts/evaluate_predictions.mjs
