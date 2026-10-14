@@ -21,8 +21,8 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
       <div className="section-head">
         <div>
           <div className="eyebrow">LONG-TERM RESEARCH</div>
-          <h2>Stock price prediction research 2026–2050</h2>
-          <p className="muted">Sector-wise long-term research with a dedicated article layout, thumbnail space and links to every stock research page.</p>
+          <h2>Explore stocks for long-term research</h2>
+          <p className="muted">Explore companies by sector and continue to their stock profiles for available fundamentals, forecasts and risk context.</p>
         </div>
         <a href="/blog">View all research →</a>
       </div>
@@ -46,13 +46,13 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
               </div>
               <div className="long-term-article-grid">
                 {(items.length ? items : [{ symbol: 'STOCK', slug: null, company_name: 'Long-term research article', sector: category.name }]).map((stock, index) => (
-                  <a className="long-term-article-card" href={stock.slug ? `/blog/${stock.slug}-stock-price-prediction-2026-2050` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
-                    <div className="long-term-thumb"><span>THUMBNAIL<br/>PLACEHOLDER</span></div>
+                  <a className="long-term-article-card" href={stock.slug ? `/stocks/${stock.slug}` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
+                    <div className="long-term-thumb"><span>STOCK RESEARCH</span></div>
                     <div className="long-term-article-copy">
                       <small>{stock.symbol} · {category.name}</small>
                       <h4>{stock.company_name} Stock Price Prediction 2026–2050</h4>
-                      <p>Long-term forecast research, model methodology, risk factors and links to live stock intelligence.</p>
-                      <b>Read research →</b>
+                      <p>Open the company profile to review available data, research and model coverage.</p>
+                      <b>Open stock profile →</b>
                     </div>
                   </a>
                 ))}
