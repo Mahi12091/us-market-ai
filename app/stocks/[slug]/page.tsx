@@ -366,7 +366,9 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
         </div>
       </header>
 
-      <nav className="sd-jumpnav" aria-label="On this page">\n        <a href="#overview">Overview</a>{hasChartData && <a href="#chart">Chart</a>}{hasForecastData && <a href="#forecast">Forecast</a>}{hasFundamentalsData && <a href="#fundamentals">Fundamentals</a>}{hasTechnicalData && <a href="#technicals">Technicals</a>}{hasFinancialsData && <a href="#financials">Financials</a>}{hasValuationData && <a href="#valuation">Valuation</a>}{hasNewsData && <a href="#news">News</a>}{hasDividendData && <a href="#dividends">Dividends</a>}{hasRiskData && <a href="#risk">Risk</a>}{hasResearchEvidence && <a href="#research-data">Research data</a>}\n      </nav>
+      <nav className="sd-jumpnav" aria-label="On this page">
+        <a href="#overview">Overview</a>{hasChartData && <a href="#chart">Chart</a>}{hasForecastData && <a href="#forecast">Forecast</a>}{hasFundamentalsData && <a href="#fundamentals">Fundamentals</a>}{hasTechnicalData && <a href="#technicals">Technicals</a>}{hasFinancialsData && <a href="#financials">Financials</a>}{hasValuationData && <a href="#valuation">Valuation</a>}{hasNewsData && <a href="#news">News</a>}{hasDividendData && <a href="#dividends">Dividends</a>}{hasRiskData && <a href="#risk">Risk</a>}{hasResearchEvidence && <a href="#research-data">Research data</a>}
+      </nav>
 
       <section className="sd-market-strip" id="overview" aria-label="Market snapshot">
         <div><span>Previous close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Open</span><strong>{money(quote?.open)}</strong></div><div><span>Day range</span><strong>{quote?.low != null && quote?.high != null ? `${money(quote.low)} – ${money(quote.high)}` : '—'}</strong></div><div><span>52-week range</span><strong>{week52Low != null && week52High != null ? `${money(week52Low)} – ${money(week52High)}` : '—'}</strong></div><div><span>Volume</span><strong>{quote?.volume == null ? '—' : Number(quote.volume).toLocaleString('en-US')}</strong></div><div><span>Market cap</span><strong>{compactMoney(marketCap)}</strong></div>
