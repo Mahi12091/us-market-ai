@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 100;
 
 type StocksSearchParams = { page?: string; sector?: string };
+type DirectoryStock = { symbol: string; slug: string | null; company_name: string; sector: string | null; industry: string | null; exchange: string | null; asset_type: string | null };
 
 export default async function StocksPage({ searchParams }: { searchParams: Promise<StocksSearchParams> }) {
   const params = await searchParams;
@@ -28,9 +29,9 @@ export default async function StocksPage({ searchParams }: { searchParams: Promi
     .order('symbol')
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (error) console.error('[stocks] Directory query failed:', error.message);
-  const fetchedRows = pageRows ?? [];
+  const fetchedRows = (pageRows ?? []) as DirectoryStock[];
   const hasNextPage = fetchedRows.length > PAGE_SIZE;
-  const stocks = fetchedRows.slice(0, PAGE_SIZE).filter((stock: { slug: string | null }) => Boolean(stock.slug?.trim()));
+  const stocks = fetchedRows.slice(0, PAGE_SIZE).filter((stock) => Boolean(stock.slug?.trim()));
   const pageHref = (nextPage: number) => {
     const query = new URLSearchParams();
     query.set('page', String(nextPage));
