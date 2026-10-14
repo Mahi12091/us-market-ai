@@ -5,8 +5,38 @@ const sql = neon(process.env.NEON_DATABASE_URL);
 const UA = process.env.NEWS_USER_AGENT || 'USMarketAI/1.0 contact: support@usmarketai.com';
 const BATCH = Math.max(10, Math.min(250, Number(process.env.FREE_NEWS_STOCKS_PER_RUN || 100)));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const decode = s => String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
-const tag = (xml, name) => { const m = xml.match(new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>', 'i')); return m ? decode(m[1].replace(/<[^>]+>/g, '')) : null; };
+function cleanText(value) {
+  let text = String(value || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+  for (let i = 0; i < 3; i++) {
+    text = text
+      .replace(/&nbsp;|&#160;|&#xA0;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&quot;|&#34;|&#x22;/gi, '"')
+      .replace(/&#39;|&apos;|&#x27;/gi, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&#(\d+);?/g, (_, digits) => {
+        const code = Number(digits);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
+      })
+      .replace(/&#x([\da-f]+);?/gi, (_, digits) => {
+        const code = Number.parseInt(digits, 16);
+        return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : ' ';
+      });
+  }
+  return text
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\b(?:href|target|rel|class|style)\s*=\s*["'][^"']*["']/gi, ' ')
+    .replace(/&(?:nbsp|amp|quot|lt|gt|#\d+|#x[\da-f]+);?/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+const tag = (xml, name) => {
+  const m = xml.match(new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>', 'i'));
+  return m ? cleanText(m[1]) : null;
+};
 function parseItems(xml) {
   return [...xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi)].map(m => {
     const x=m[1]; const title=tag(x,'title'); const link=tag(x,'link') || tag(x,'guid'); const pub=tag(x,'pubDate');
