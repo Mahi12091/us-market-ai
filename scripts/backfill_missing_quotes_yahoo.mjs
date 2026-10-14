@@ -80,13 +80,14 @@ const missing = await sql`
   LEFT JOIN latest_quotes q ON q.stock_id = s.id
   WHERE s.is_active = true AND (
     q.stock_id IS NULL OR
+    (q.quote_timestamp IS NOT NULL AND q.quote_timestamp::date < CURRENT_DATE - 2) OR
     (EXISTS (SELECT 1 FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')
       AND (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')::date < CURRENT_DATE - 2)
   )
   ORDER BY s.asset_type, s.symbol
 `;
 if (!missing.length) {
-  console.log('[yahoo-backfill] No missing quotes or stale daily histories found.');
+  console.log('[yahoo-backfill] No missing/stale quotes or stale daily histories found.');
   process.exit(0);
 }
 
