@@ -108,3 +108,29 @@
 .market-strip-inner{width:max-content;min-width:max-content}
 .ticker-mini{flex:0 0 180px}
 @media(max-width:600px){.ticker-mini{flex-basis:145px;min-width:145px}.market-strip-inner{width:max-content;min-width:max-content}}
+
+
+/* Mobile market ticker: keep the strip horizontally swipeable below the site header. */
+.home-page .market-strip{
+  display:block;
+  width:100%;
+  max-width:100%;
+  overflow-x:auto !important;
+  overflow-y:hidden !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  touch-action:pan-x;
+  scrollbar-width:none;
+}
+.home-page .market-strip::-webkit-scrollbar{display:none}
+.home-page .market-strip-inner{
+  display:flex;
+  width:max-content;
+  min-width:max-content;
+  max-width:none;
+}
+.home-page .ticker-mini{flex:0 0 180px;min-width:180px}
+@media(max-width:600px){
+  .home-page .ticker-mini{flex-basis:155px;min-width:155px}
+  .home-page .market-strip-inner{width:max-content;min-width:max-content}
+}
