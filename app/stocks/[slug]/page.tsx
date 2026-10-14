@@ -248,7 +248,14 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     if (!current || predictionDate > currentDate) latestLongTermByYear.set(year, prediction);
   }
   const longForecastRows = [...latestLongTermByYear.values()]
-    .filter((prediction: any) => finite(prediction.base_price) !== null && finite(prediction.bear_price) !== null && finite(prediction.bull_price) !== null)
+    .filter((prediction: any) => {
+      const bear = finite(prediction.bear_price), base = finite(prediction.base_price), bull = finite(prediction.bull_price);
+      const cagr = finite(prediction.expected_cagr), confidence = finite(prediction.confidence);
+      return bear !== null && base !== null && bull !== null
+        && bear > 0 && bear <= base && base <= bull
+        && (cagr === null || (cagr >= -100 && cagr <= 100))
+        && (confidence === null || (confidence >= 0 && confidence <= 100));
+    })
     .sort((a: any, b: any) => Number(a.target_year) - Number(b.target_year))
     .map((prediction: any) => [
       String(prediction.target_year),
