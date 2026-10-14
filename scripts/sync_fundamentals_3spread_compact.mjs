@@ -14,7 +14,7 @@ const num = value => {
 };
 const norm = value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 const todayUtc = new Date().toISOString().slice(0, 10);
-const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\\d{4}-\\d{2}-\\d{2}$/.test(day) && day <= todayUtc; };
+const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= todayUtc; };
 
 async function getJson(path) {
   for (let attempt = 1; attempt <= 5; attempt++) {
