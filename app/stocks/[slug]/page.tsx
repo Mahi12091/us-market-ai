@@ -8,6 +8,21 @@ export const revalidate = 300;
 
 const finite = (v: unknown): number | null => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 const positive = (v: unknown): number | null => { const n = finite(v); return n !== null && n > 0 ? n : null; };
+const usableMultiple = (value: unknown, max = 500): number | null => {
+  const n = finite(value);
+  return n !== null && n > 0 && n <= max ? n : null;
+};
+const safeRiskMetric = (field: string, value: unknown): number | null => {
+  const n = finite(value);
+  if (n === null) return null;
+  if (field === 'beta' || field === 'sharpe_ratio' || field === 'sortino_ratio') return Math.abs(n) <= 10 ? n : null;
+  if (field === 'debt_equity') return n >= 0 && n <= 100 ? n : null;
+  if (field === 'current_ratio' || field === 'quick_ratio') return n >= 0 && n <= 100 ? n : null;
+  if (field === 'interest_coverage') return n >= -100 && n <= 1000 ? n : null;
+  if (field === 'altman_z_score') return Math.abs(n) <= 100 ? n : null;
+  if (field === 'volatility' || field === 'atr') return n >= 0 ? n : null;
+  return n;
+};
 const statementMetric = (row: any, field: string): number | null => {
   const value = finite(row?.[field]);
   if (value === null) return null;
@@ -185,10 +200,10 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const quoteTimestamp = quote?.quote_timestamp && Number.isFinite(new Date(quote.quote_timestamp).getTime()) ? new Date(quote.quote_timestamp) : null;
   // Keep displaying the last stored price with its timestamp, but never present an old daily move as current.
   const quoteIsStale = !quoteTimestamp || Date.now() - quoteTimestamp.getTime() > 4 * 24 * 60 * 60 * 1000;
-  const valuationPe = finite(valuations?.pe) ?? finite(fundamentals?.pe_ratio);
-  const valuationForwardPe = finite(valuations?.forward_pe) ?? finite(fundamentals?.forward_pe);
-  const valuationPs = finite(fundamentals?.price_sales);
-  const valuationPb = finite(fundamentals?.price_book);
+  const valuationPe = usableMultiple(valuations?.pe) ?? usableMultiple(fundamentals?.pe_ratio);
+  const valuationForwardPe = usableMultiple(valuations?.forward_pe) ?? usableMultiple(fundamentals?.forward_pe);
+  const valuationPs = usableMultiple(fundamentals?.price_sales);
+  const valuationPb = usableMultiple(fundamentals?.price_book);
   const rsi = finite(tech?.rsi);
   const sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200);
   const stockTerms = [String(stock.symbol ?? '').toLowerCase(), String(stock.company_name ?? '').toLowerCase(), ...String(stock.company_name ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((part: string) => part.length >= 4)].filter(Boolean);
@@ -254,10 +269,10 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     ['Free cash flow', compactMoney(fundamentals?.free_cash_flow)], ['FCF margin', pct(fundamentals?.fcf_margin)],
     ['Return on equity', pct(fundamentals?.roe)], ['Return on assets', pct(fundamentals?.roa)],
     ['Return on invested capital', pct(fundamentals?.roic)], ['Return on capital employed', pct(fundamentals?.roce)],
-    ['Debt / equity', number(fundamentals?.debt_equity)], ['PEG ratio', number(fundamentals?.peg_ratio)],
-    ['Price / sales', number(fundamentals?.price_sales)], ['Price / book', number(fundamentals?.price_book)],
-    ['EV / revenue', number(fundamentals?.enterprise_value_to_revenue)], ['EV / EBITDA', number(fundamentals?.enterprise_value_to_ebitda)],
-    ['Price / FCF', number(fundamentals?.price_to_fcf)], ['Earnings yield', pct(fundamentals?.earnings_yield)],
+    ['Debt / equity', number(safeRiskMetric('debt_equity', fundamentals?.debt_equity))], ['PEG ratio', number(usableMultiple(fundamentals?.peg_ratio, 100))],
+    ['Price / sales', number(usableMultiple(fundamentals?.price_sales))], ['Price / book', number(usableMultiple(fundamentals?.price_book))],
+    ['EV / revenue', number(usableMultiple(fundamentals?.enterprise_value_to_revenue))], ['EV / EBITDA', number(usableMultiple(fundamentals?.enterprise_value_to_ebitda))],
+    ['Price / FCF', number(usableMultiple(fundamentals?.price_to_fcf))], ['Earnings yield', pct(fundamentals?.earnings_yield)],
     ['Dividend yield', pct(fundamentals?.dividend_yield)], ['Payout ratio', pct(fundamentals?.payout_ratio)],
     ['FCF growth', pct(fundamentals?.fcf_growth)], ['3-year CAGR', pct(fundamentals?.three_year_cagr)],
     ['5-year CAGR', pct(fundamentals?.five_year_cagr)], ['10-year CAGR', pct(fundamentals?.ten_year_cagr)],
@@ -450,8 +465,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </section>
 
           <section className="sd-card" id="risk">
-            <div className="sd-section-heading"><div><span className="sd-kicker">RISK CONTEXT</span><h2>Risk and performance profile</h2><p>Computed risk/performance records; not a recommendation.</p></div></div>
-            {(() => { const riskItems = [['Volatility', pct(risks?.volatility)], ['Beta', number(risks?.beta)], ['ATR', number(risks?.atr)], ['Maximum drawdown', finite(risks?.maximum_drawdown) === null ? '—' : `-${Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2)}%`], ['Sharpe ratio', number(risks?.sharpe_ratio)], ['Sortino ratio', number(risks?.sortino_ratio)], ['Debt / equity', number(risks?.debt_equity)], ['Current ratio', number(risks?.current_ratio)], ['Quick ratio', number(risks?.quick_ratio)], ['Interest coverage', number(risks?.interest_coverage)], ['Altman Z-score', number(risks?.altman_z_score)], ['Short interest', compactMoney(risks?.short_interest)], ['Short % of float', pct(risks?.short_percent_float)], ['Liquidity risk', risks?.liquidity_risk], ['1-day return', pct(performance?.period_1d)], ['5-day return', pct(performance?.period_5d)], ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)], ['6-month return', pct(performance?.period_6m)], ['YTD return', pct(performance?.period_ytd)], ['1-year return', pct(performance?.period_1y)], ['3-year return', pct(performance?.period_3y)], ['5-year return', pct(performance?.period_5y)], ['10-year return', pct(performance?.period_10y)], ['All-time return', pct(performance?.period_max)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
+            <div className="sd-section-heading"><div><span className="sd-kicker">RISK CONTEXT</span><h2>Risk and performance profile</h2><p>Computed risk/performance records; not a recommendation. Mathematically uninterpretable or extreme ratios are withheld rather than displayed as reliable facts.</p></div></div>
+            {(() => { const riskItems = [['Volatility', pct(safeRiskMetric('volatility', risks?.volatility))], ['Beta', number(safeRiskMetric('beta', risks?.beta))], ['ATR', number(safeRiskMetric('atr', risks?.atr))], ['Maximum drawdown', finite(risks?.maximum_drawdown) === null || Math.abs(finite(risks?.maximum_drawdown) as number) > 100 ? '—' : `-${Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2)}%`], ['Sharpe ratio', number(safeRiskMetric('sharpe_ratio', risks?.sharpe_ratio))], ['Sortino ratio', number(safeRiskMetric('sortino_ratio', risks?.sortino_ratio))], ['Debt / equity', number(safeRiskMetric('debt_equity', risks?.debt_equity))], ['Current ratio', number(safeRiskMetric('current_ratio', risks?.current_ratio))], ['Quick ratio', number(safeRiskMetric('quick_ratio', risks?.quick_ratio))], ['Interest coverage', number(safeRiskMetric('interest_coverage', risks?.interest_coverage))], ['Altman Z-score', number(safeRiskMetric('altman_z_score', risks?.altman_z_score))], ['Short interest', compactMoney(risks?.short_interest)], ['Short % of float', pct(risks?.short_percent_float)], ['Liquidity risk', risks?.liquidity_risk], ['1-day return', pct(performance?.period_1d)], ['5-day return', pct(performance?.period_5d)], ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)], ['6-month return', pct(performance?.period_6m)], ['YTD return', pct(performance?.period_ytd)], ['1-year return', pct(performance?.period_1y)], ['3-year return', pct(performance?.period_3y)], ['5-year return', pct(performance?.period_5y)], ['10-year return', pct(performance?.period_10y)], ['All-time return', pct(performance?.period_max)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
           </section>
 
           {hasResearchEvidence && <section className="sd-card" id="research-data">
