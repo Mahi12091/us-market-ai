@@ -289,6 +289,43 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     ['Momentum', number(tech?.momentum)], ['Volatility', pct(tech?.volatility)], ['ATR', number(tech?.atr)], ['ADX', number(tech?.adx)],
     ['Support level', money(tech?.support_level)], ['Resistance level', money(tech?.resistance_level)], ['Trend', technicalTrend],
   ].filter(([, value]) => value !== '—' && value !== 'Not available yet');
+  const valuationCards = [
+    ['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)],
+    ['Price / sales', number(valuationPs)], ['Price / book', number(valuationPb)],
+    ['PEG ratio', number(usableMultiple(fundamentals?.peg_ratio, 100))],
+    ['Enterprise value', compactMoney(fundamentals?.enterprise_value)],
+  ].filter(([, value]) => value !== '—');
+  const riskCards = [
+    ['Volatility', pct(safeRiskMetric('volatility', risks?.volatility))],
+    ['Beta', number(safeRiskMetric('beta', risks?.beta))],
+    ['ATR', number(safeRiskMetric('atr', risks?.atr))],
+    ['Maximum drawdown', finite(risks?.maximum_drawdown) === null || Math.abs(finite(risks?.maximum_drawdown) as number) > 100 ? '—' : '-' + Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2) + '%'],
+    ['Sharpe ratio', number(safeRiskMetric('sharpe_ratio', risks?.sharpe_ratio))],
+    ['Sortino ratio', number(safeRiskMetric('sortino_ratio', risks?.sortino_ratio))],
+    ['Debt / equity', number(safeRiskMetric('debt_equity', risks?.debt_equity))],
+    ['Current ratio', number(safeRiskMetric('current_ratio', risks?.current_ratio))],
+    ['Quick ratio', number(safeRiskMetric('quick_ratio', risks?.quick_ratio))],
+    ['Interest coverage', number(safeRiskMetric('interest_coverage', risks?.interest_coverage))],
+    ['Altman Z-score', number(safeRiskMetric('altman_z_score', risks?.altman_z_score))],
+    ['Short interest', compactMoney(risks?.short_interest)],
+    ['Short % of float', pct(risks?.short_percent_float)],
+    ['Liquidity risk', risks?.liquidity_risk],
+    ['1-day return', pct(performance?.period_1d)], ['5-day return', pct(performance?.period_5d)],
+    ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)],
+    ['6-month return', pct(performance?.period_6m)], ['YTD return', pct(performance?.period_ytd)],
+    ['1-year return', pct(performance?.period_1y)], ['3-year return', pct(performance?.period_3y)],
+    ['5-year return', pct(performance?.period_5y)], ['10-year return', pct(performance?.period_10y)],
+    ['All-time return', pct(performance?.period_max)],
+  ].filter(([, value]) => value !== null && value !== undefined && value !== '—');
+  const hasChartData = chart.length > 0;
+  const hasForecastData = shortForecastRows.length > 0 || longForecastRows.length > 0;
+  const hasFundamentalsData = financialCards.length > 0 || metricCards.length > 0 || Boolean(stock.description);
+  const hasTechnicalData = technicalCards.length > 0;
+  const hasFinancialsData = (financialStatements ?? []).length > 0 || (financialMetrics ?? []).length > 0 || (earnings ?? []).length > 0 || (earningsRevisions ?? []).length > 0;
+  const hasValuationData = valuationCards.length > 0 || verifiedPeerMetrics.length > 0;
+  const hasNewsData = visibleNews.length > 0;
+  const hasDividendData = (dividends ?? []).length > 0;
+  const hasRiskData = riskCards.length > 0;
   const faq = [
     [`What is ${stock.symbol} stock's current price?`, `The latest stored quote for ${stock.symbol} is ${money(quote?.price)}. ${quoteTimestamp ? `The quote timestamp is ${quoteTimestamp.toLocaleString('en-US')}.` : 'A verified quote timestamp is not available.'} Prices can change during market hours.`],
     [`What is the ${stock.symbol} stock forecast and analysis?`, livePredictions.length ? `The latest available quantitative model signal is “${direction}”. Review the forecast horizons alongside the company's reported financials, valuation, technical indicators and risks below; model outputs are estimates, not guarantees or personalized investment advice.` : 'A current short-term model forecast is not available in the database yet. The analysis below summarizes available company and market evidence without inventing a price target.'],
@@ -329,9 +366,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
         </div>
       </header>
 
-      <nav className="sd-jumpnav" aria-label="On this page">
-        <a href="#overview">Overview</a><a href="#chart">Chart</a><a href="#forecast">Forecast</a><a href="#fundamentals">Fundamentals</a><a href="#technicals">Technicals</a><a href="#financials">Financials</a><a href="#news">News</a><a href="#research-data">Research data</a>
-      </nav>
+      <nav className="sd-jumpnav" aria-label="On this page">\n        <a href="#overview">Overview</a>{hasChartData && <a href="#chart">Chart</a>}{hasForecastData && <a href="#forecast">Forecast</a>}{hasFundamentalsData && <a href="#fundamentals">Fundamentals</a>}{hasTechnicalData && <a href="#technicals">Technicals</a>}{hasFinancialsData && <a href="#financials">Financials</a>}{hasValuationData && <a href="#valuation">Valuation</a>}{hasNewsData && <a href="#news">News</a>}{hasDividendData && <a href="#dividends">Dividends</a>}{hasRiskData && <a href="#risk">Risk</a>}{hasResearchEvidence && <a href="#research-data">Research data</a>}\n      </nav>
 
       <section className="sd-market-strip" id="overview" aria-label="Market snapshot">
         <div><span>Previous close</span><strong>{money(quote?.previous_close)}</strong></div><div><span>Open</span><strong>{money(quote?.open)}</strong></div><div><span>Day range</span><strong>{quote?.low != null && quote?.high != null ? `${money(quote.low)} – ${money(quote.high)}` : '—'}</strong></div><div><span>52-week range</span><strong>{week52Low != null && week52High != null ? `${money(week52Low)} – ${money(week52High)}` : '—'}</strong></div><div><span>Volume</span><strong>{quote?.volume == null ? '—' : Number(quote.volume).toLocaleString('en-US')}</strong></div><div><span>Market cap</span><strong>{compactMoney(marketCap)}</strong></div>
@@ -339,10 +374,10 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
       <section className="sd-layout-main">
         <div className="sd-primary-column">
-          <section className="sd-card sd-chart-card" id="chart">
+          {hasChartData && <section className="sd-card sd-chart-card" id="chart">
             <div className="sd-section-heading"><div><span className="sd-kicker">PRICE HISTORY</span><h2>Stock price history and performance</h2><p>Daily closing prices from the stored market history.</p></div><span className="sd-count">{cleanHistory.length} sessions</span></div>
             {chart.length ? <PriceChart data={chart}/> : <div className="sd-empty sd-chart-empty">Historical price data is not available for this ticker yet.</div>}
-          </section>
+          </section>}
 
           <article className="sd-card sd-editorial" id="research-article">
             <div className="sd-section-heading">
@@ -408,26 +443,26 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
             <div className="sd-editorial-meta">US Market AI Research Desk · {modifiedDate ? `Data/research timestamp: ${dateLabel(modifiedDate)}` : 'Research timestamp unavailable'} · <a href="/disclaimer">Methodology & disclaimer</a></div>
           </article>
 
-          <section className="sd-card" id="forecast">
+          {hasForecastData && <section className="sd-card" id="forecast">
             <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Stock forecast and analysis: price outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
             {table(['Horizon','Model target','Expected change','Signal','Confidence score'], shortForecastRows)}
             {longForecastRows.length > 0 && <><h3 className="sd-subheading">Long-term model scenarios</h3><p className="sd-muted">Only years with stored model outputs are shown. Long-range scenarios carry substantial uncertainty.</p>{table(['Target year','Model target','Model return','Model version'], longForecastRows)}</>}
             {longForecastRows.length === 0 && <p className="sd-footnote">Long-term forecast records are not available yet; no values are fabricated or extrapolated on this page.</p>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="fundamentals">
+          {hasFundamentalsData && <section className="sd-card" id="fundamentals">
             <div className="sd-section-heading"><div><span className="sd-kicker">COMPANY FUNDAMENTALS</span><h2>Financial performance and company fundamentals</h2><p>Reported fields from the current fundamentals snapshot.</p></div></div>
             {stock.description && <p className="sd-description">{stock.description}</p>}
             {financialCards.length ? <div className="sd-metric-grid">{financialCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Fundamental metrics have not been populated for this stock yet.</div>}
             {metricCards.length > 0 && <div className="sd-metric-grid sd-metric-grid-muted">{metricCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="technicals">
+          {hasTechnicalData && <section className="sd-card" id="technicals">
             <div className="sd-section-heading"><div><span className="sd-kicker">TECHNICALS</span><h2>Technical indicators</h2><p>Latest stored daily indicator snapshot; unavailable indicators are omitted.</p></div><span className="sd-count">{tech?.calculated_at ? dateLabel(tech.calculated_at) : 'No timestamp'}</span></div>
             {technicalCards.length ? <div className="sd-metric-grid">{technicalCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong><small>{metricExplanation(String(label))}</small></div>)}</div> : <div className="sd-empty">Technical indicator data is not available yet.</div>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="financials">
+          {hasFinancialsData && <section className="sd-card" id="financials">
             <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements, earnings history and estimate revisions</h2><p>Recent normalized financial statement records.</p></div></div>
             <p className="sd-detail-copy">Showing up to 60 recent statement records. Reported periods and statement types are preserved; blank values are not estimated. Contradictory zero sentinels are withheld instead of presented as verified facts.</p>{table(['Period','Statement','Fiscal period','Basis','Revenue','Cost of revenue','Gross profit','Operating income','Net income','Basic EPS','Diluted EPS','Cash','Total assets','Total liabilities','Debt','Equity','Operating cash flow','Capex','Free cash flow','Source'], (financialStatements ?? []).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), row.fiscal_period ?? '—', row.period_type ?? '—', compactMoney(row.revenue), compactMoney(row.cost_of_revenue), compactMoney(row.gross_profit), compactMoney(row.operating_income), compactMoney(statementMetric(row, 'net_income')), money(statementMetric(row, 'eps_basic')), money(statementMetric(row, 'eps_diluted')), compactMoney(row.cash_and_equivalents), compactMoney(row.total_assets), compactMoney(row.total_liabilities), compactMoney(row.total_debt), compactMoney(row.shareholders_equity), compactMoney(row.operating_cash_flow), compactMoney(row.capital_expenditure), compactMoney(row.free_cash_flow), row.data_source ?? '—']))}
             <h3 className="sd-subheading">Financial metric history</h3>{table(['Period','Revenue growth','Gross margin','Operating margin','Net margin','ROE','ROIC'], (financialMetrics ?? []).slice(0, 8).map((m: any) => [dateLabel(m.period_end), pct(m.revenue_growth), pct(m.gross_margin), pct(m.operating_margin), pct(m.net_margin), pct(m.roe), pct(m.roic)]))}
@@ -440,20 +475,20 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
               {table(['Report date','Fiscal period','EPS actual','EPS estimate','Revenue actual','Revenue estimate'], (earnings ?? []).map((e: any) => [dateLabel(e.earnings_date), e.fiscal_period ?? '—', money(e.eps_actual), money(e.eps_estimate), compactMoney(e.revenue_actual), compactMoney(e.revenue_estimate)]))}
             </>}
             {(earningsRevisions ?? []).length > 0 && <><h3 className="sd-subheading">Analyst estimate revisions</h3>{table(['Revision date','Period','EPS estimate','Revenue estimate','Analyst count'], (earningsRevisions ?? []).slice(0, 8).map((e: any) => [dateLabel(e.revision_date), e.fiscal_period ?? e.period ?? '—', money(e.eps_estimate), compactMoney(e.revenue_estimate), number(e.analyst_count, 0)]))}</>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="valuation">
+          {hasValuationData && <section className="sd-card" id="valuation">
             <div className="sd-section-heading"><div><span className="sd-kicker">VALUATION</span><h2>Stock valuation: P/E, forward P/E and multiples</h2><p>Multiples shown only when the database has a usable value.</p></div></div>
-            {(() => { const vals = [['P/E ratio', number(valuationPe)], ['Forward P/E', number(valuationForwardPe)], ['Price / sales', number(valuationPs)], ['Price / book', number(valuationPb)], ['PEG ratio', number(fundamentals?.peg_ratio)], ['Enterprise value', compactMoney(fundamentals?.enterprise_value)]] .filter(([, value]) => value !== '—'); return vals.length ? <div className="sd-metric-grid">{vals.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div> : <div className="sd-empty">Valuation multiples are not available yet.</div>; })()}
+            {valuationCards.length > 0 && <div className="sd-metric-grid">{valuationCards.map(([label, value]) => <div className="sd-metric" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>}
             {verifiedPeerMetrics.length > 0 ? <><h3 className="sd-subheading">Peer context</h3>{table(['Metric','Company','Peer median','Peer average','Percentile'], verifiedPeerMetrics.slice(0, 12).map((p: any) => [p.metric_name ?? '—', number(p.company_value), number(p.peer_median), number(p.peer_average), `${number(p.percentile)}%`]))}</> : <p className="sd-footnote">Peer comparisons are withheld until a comparable industry group and a reliable peer set are verified.</p>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="news">
+          {hasNewsData && <section className="sd-card" id="news">
             <div className="sd-section-heading"><div><span className="sd-kicker">LATEST DEVELOPMENTS</span><h2>News and company updates</h2><p>Stories linked to this stock in the current database.</p></div></div>
             {visibleNews.length ? <div className="sd-news-list">{visibleNews.map((item: any) => <article className="sd-news-item" key={item.id}><div className="sd-news-meta"><span>{cleanNewsText(item.source) || 'News source'}</span><span>{dateLabel(item.published_at)}</span></div><h3>{safeNewsUrl(item.url) ? <a href={safeNewsUrl(item.url)!} target="_blank" rel="noopener noreferrer">{cleanNewsText(item.title) || 'Market story'}</a> : (cleanNewsText(item.title) || 'Market story')}</h3>{newsSummary(item.summary, item.title) && <p>{newsSummary(item.summary, item.title)}</p>}{item.sentiment && <span className="sd-news-sentiment">{item.sentiment}</span>}</article>)}</div> : <div className="sd-empty">No ticker-linked news records are available yet.</div>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="dividends">
+          {hasDividendData && <section className="sd-card" id="dividends">
             <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend data and payment history</h2><p>Source-specific dividend records, with unavailable event dates left blank.</p></div></div>
             {(dividends ?? []).length > 0 && (dividends ?? []).every((d: any) => d.data_source === 'SEC_XBRL_BULK') ? <>
               <p className="sd-detail-copy">These are SEC-reported dividends-per-share facts. The stored date is the SEC filing/observation date, not a confirmed declaration or ex-dividend date. These records do not establish record dates or payment dates and must not be treated as a dividend payment calendar.</p>
@@ -462,12 +497,12 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
               <p className="sd-detail-copy">Showing up to 30 recent dividend events. Dates and statistics are shown only when supplied by the source; missing event dates are not inferred.</p>
               {table(['Ex-date','Declaration date','Record date','Payment date','Dividend / share','Frequency','Yield','Payout ratio','5-year CAGR','Growth streak','Currency','Source'], (dividends ?? []).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.declaration_date), dateLabel(d.record_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', pct(d.dividend_yield), pct(d.payout_ratio), pct(d.five_year_cagr), d.growth_streak_years == null ? '—' : String(d.growth_streak_years), d.currency ?? 'USD', d.data_source ?? '—']))}
             </>}
-          </section>
+          </section>}
 
-          <section className="sd-card" id="risk">
+          {hasRiskData && <section className="sd-card" id="risk">
             <div className="sd-section-heading"><div><span className="sd-kicker">RISK CONTEXT</span><h2>Risk and performance profile</h2><p>Computed risk/performance records; not a recommendation. Mathematically uninterpretable or extreme ratios are withheld rather than displayed as reliable facts.</p></div></div>
-            {(() => { const riskItems = [['Volatility', pct(safeRiskMetric('volatility', risks?.volatility))], ['Beta', number(safeRiskMetric('beta', risks?.beta))], ['ATR', number(safeRiskMetric('atr', risks?.atr))], ['Maximum drawdown', finite(risks?.maximum_drawdown) === null || Math.abs(finite(risks?.maximum_drawdown) as number) > 100 ? '—' : `-${Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2)}%`], ['Sharpe ratio', number(safeRiskMetric('sharpe_ratio', risks?.sharpe_ratio))], ['Sortino ratio', number(safeRiskMetric('sortino_ratio', risks?.sortino_ratio))], ['Debt / equity', number(safeRiskMetric('debt_equity', risks?.debt_equity))], ['Current ratio', number(safeRiskMetric('current_ratio', risks?.current_ratio))], ['Quick ratio', number(safeRiskMetric('quick_ratio', risks?.quick_ratio))], ['Interest coverage', number(safeRiskMetric('interest_coverage', risks?.interest_coverage))], ['Altman Z-score', number(safeRiskMetric('altman_z_score', risks?.altman_z_score))], ['Short interest', compactMoney(risks?.short_interest)], ['Short % of float', pct(risks?.short_percent_float)], ['Liquidity risk', risks?.liquidity_risk], ['1-day return', pct(performance?.period_1d)], ['5-day return', pct(performance?.period_5d)], ['1-month return', pct(performance?.period_1m)], ['3-month return', pct(performance?.period_3m)], ['6-month return', pct(performance?.period_6m)], ['YTD return', pct(performance?.period_ytd)], ['1-year return', pct(performance?.period_1y)], ['3-year return', pct(performance?.period_3y)], ['5-year return', pct(performance?.period_5y)], ['10-year return', pct(performance?.period_10y)], ['All-time return', pct(performance?.period_max)]] .filter(([, value]) => value !== null && value !== undefined && value !== '—'); return riskItems.length ? <div className="sd-metric-grid">{riskItems.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>; })()}
-          </section>
+            {riskCards.length > 0 ? <div className="sd-metric-grid">{riskCards.map(([label, value]) => <div className="sd-metric" key={String(label)}><span>{label}</span><strong>{String(value)}</strong></div>)}</div> : <div className="sd-empty">Risk metrics have not been calculated for this stock yet.</div>}
+          </section>}
 
           {hasResearchEvidence && <section className="sd-card" id="research-data">
             <div className="sd-section-heading"><div><span className="sd-kicker">RESEARCH EVIDENCE</span><h2>Source data and research records</h2><p>Expandable evidence tables keep the main page focused while preserving detailed data.</p></div></div>
