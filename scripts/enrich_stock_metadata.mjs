@@ -347,7 +347,17 @@ for (const stock of stocks) {
   const provider = profiles.get(String(stock.symbol).toUpperCase()) || {};
   const industry = provider.industry ?? stock.industry ?? null;
   const description = provider.description ?? stock.description ?? null;
-  const sector = provider.sector ?? stock.sector ?? classifySector(industry, description) ?? classifySectorFromSic(provider.sic_code) ?? 'Other';
+  const providerSector = clean(provider.sector);
+  const storedSector = clean(stock.sector);
+  const usableSector = (value) => value && !['other', 'unknown', 'n/a', 'na', 'unclassified'].includes(value.toLowerCase()) ? value : null;
+  // Do not let a stored "Other" placeholder block a verified industry/SIC classification.
+  const sector = usableSector(providerSector)
+    ?? usableSector(storedSector)
+    ?? classifySector(industry, description)
+    ?? classifySectorFromSic(provider.sic_code)
+    ?? providerSector
+    ?? storedSector
+    ?? 'Other';
   const website = provider.website_url ?? stock.website_url ?? null;
   // If a provider supplies the official site but not a hosted logo, use the site's favicon as a visual fallback.
   const domain = website ? (() => { try { return new URL(website.startsWith('http') ? website : `https://${website}`).hostname.replace(/^www\./, ''); } catch { return null; } })() : null;
