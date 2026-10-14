@@ -8,6 +8,14 @@ export const revalidate = 300;
 
 const finite = (v: unknown): number | null => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
 const positive = (v: unknown): number | null => { const n = finite(v); return n !== null && n > 0 ? n : null; };
+const statementMetric = (row: any, field: string): number | null => {
+  const value = finite(row?.[field]);
+  if (value === null) return null;
+  if ((field === 'shares_basic' || field === 'shares_diluted') && value <= 0) return null;
+  if (field === 'net_income' && value === 0 && ((finite(row?.eps_basic) ?? 0) > 0 || (finite(row?.eps_diluted) ?? 0) > 0)) return null;
+  if ((field === 'eps_basic' || field === 'eps_diluted') && value === 0 && (finite(row?.net_income) ?? 0) > 0) return null;
+  return value;
+};
 const money = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`; };
 const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; };
 const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
@@ -190,9 +198,16 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   }).slice(0, 8);
   const verifiedPeerMetrics = (peerMetrics ?? []).filter((p: any) => {
     const group = String(p.peer_group_key ?? '').trim().toLowerCase();
+    const metric = String(p.metric_name ?? '').trim().toLowerCase();
+    const values = [finite(p.company_value), finite(p.peer_median), finite(p.peer_average)];
+    const percentile = finite(p.percentile);
+    const isPeMetric = metric === 'pe' || metric.includes('pe_ratio') || metric.includes('price_earnings');
+    const maxAbs = isPeMetric ? 500 : 1000;
+    const returnField = metric.includes('roe') ? 'roe' : metric.includes('roa') ? 'roa' : metric.includes('roic') ? 'roic' : null;
+    if (returnField && finite(fundamentals?.[returnField]) === null) return false;
     return group !== '' && !['unknown', 'n/a', 'none', 'unclassified'].includes(group)
-      && finite(p.company_value) !== null && finite(p.peer_median) !== null
-      && finite(p.peer_average) !== null && finite(p.percentile) !== null;
+      && values.every((value) => value !== null && Math.abs(value) <= maxAbs)
+      && percentile !== null && percentile >= 0 && percentile <= 100;
   });
   const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
   const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
@@ -388,7 +403,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
           <section className="sd-card" id="financials">
             <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements, earnings history and estimate revisions</h2><p>Recent normalized financial statement records.</p></div></div>
-            <p className="sd-detail-copy">Showing up to 60 recent statement records. Reported periods and statement types are preserved; blank values are not estimated.</p>{table(['Period','Statement','Fiscal period','Basis','Revenue','Cost of revenue','Gross profit','Operating income','Net income','Basic EPS','Diluted EPS','Cash','Total assets','Total liabilities','Debt','Equity','Operating cash flow','Capex','Free cash flow','Source'], (financialStatements ?? []).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), row.fiscal_period ?? '—', row.period_type ?? '—', compactMoney(row.revenue), compactMoney(row.cost_of_revenue), compactMoney(row.gross_profit), compactMoney(row.operating_income), compactMoney(row.net_income), money(row.eps_basic), money(row.eps_diluted), compactMoney(row.cash_and_equivalents), compactMoney(row.total_assets), compactMoney(row.total_liabilities), compactMoney(row.total_debt), compactMoney(row.shareholders_equity), compactMoney(row.operating_cash_flow), compactMoney(row.capital_expenditure), compactMoney(row.free_cash_flow), row.data_source ?? '—']))}
+            <p className="sd-detail-copy">Showing up to 60 recent statement records. Reported periods and statement types are preserved; blank values are not estimated. Contradictory zero sentinels are withheld instead of presented as verified facts.</p>{table(['Period','Statement','Fiscal period','Basis','Revenue','Cost of revenue','Gross profit','Operating income','Net income','Basic EPS','Diluted EPS','Cash','Total assets','Total liabilities','Debt','Equity','Operating cash flow','Capex','Free cash flow','Source'], (financialStatements ?? []).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), row.fiscal_period ?? '—', row.period_type ?? '—', compactMoney(row.revenue), compactMoney(row.cost_of_revenue), compactMoney(row.gross_profit), compactMoney(row.operating_income), compactMoney(statementMetric(row, 'net_income')), money(statementMetric(row, 'eps_basic')), money(statementMetric(row, 'eps_diluted')), compactMoney(row.cash_and_equivalents), compactMoney(row.total_assets), compactMoney(row.total_liabilities), compactMoney(row.total_debt), compactMoney(row.shareholders_equity), compactMoney(row.operating_cash_flow), compactMoney(row.capital_expenditure), compactMoney(row.free_cash_flow), row.data_source ?? '—']))}
             <h3 className="sd-subheading">Financial metric history</h3>{table(['Period','Revenue growth','Gross margin','Operating margin','Net margin','ROE','ROIC'], (financialMetrics ?? []).slice(0, 8).map((m: any) => [dateLabel(m.period_end), pct(m.revenue_growth), pct(m.gross_margin), pct(m.operating_margin), pct(m.net_margin), pct(m.roe), pct(m.roic)]))}
             <h3 className="sd-subheading">Earnings history</h3>
             {(earnings ?? []).length > 0 && (earnings ?? []).every((e: any) => e.data_source === 'SEC_XBRL_BULK') ? <>
