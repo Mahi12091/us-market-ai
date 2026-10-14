@@ -95,7 +95,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     db.from('stocks').select('id,symbol,slug,company_name,sector,industry,market_cap').eq('is_active', true).eq(stock.sector && String(stock.sector).toLowerCase() !== 'other' ? 'sector' : 'industry', stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry ?? '')).neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
     db.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(60),
-    db.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false }).limit(30),
+    db.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false, nullsFirst: false }).order('declaration_date', { ascending: false }).limit(30),
     db.from('ownership_snapshots').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(8),
     db.from('institutional_holders').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(50),
     db.from('insider_transactions').select('*').eq('stock_id', stock.id).order('transaction_date', { ascending: false }).limit(20),
@@ -396,8 +396,14 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           </section>
 
           <section className="sd-card" id="dividends">
-            <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend history and shareholder payments</h2><p>Stored dividend events, where available.</p></div></div>
-            <p className="sd-detail-copy">Showing up to 30 recent dividend events. Statistics are shown only when supplied by the source.</p>{table(['Ex-date','Declaration date','Record date','Payment date','Dividend / share','Frequency','Yield','Payout ratio','5-year CAGR','Growth streak','Currency','Source'], (dividends ?? []).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.declaration_date), dateLabel(d.record_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', pct(d.dividend_yield), pct(d.payout_ratio), pct(d.five_year_cagr), d.growth_streak_years == null ? '—' : String(d.growth_streak_years), d.currency ?? 'USD', d.data_source ?? '—']))}
+            <div className="sd-section-heading"><div><span className="sd-kicker">SHAREHOLDER RETURNS</span><h2>Dividend data and payment history</h2><p>Source-specific dividend records, with unavailable event dates left blank.</p></div></div>
+            {(dividends ?? []).length > 0 && (dividends ?? []).every((d: any) => d.data_source === 'SEC_XBRL_BULK') ? <>
+              <p className="sd-detail-copy">These are SEC-reported dividends-per-share facts. The stored date is the SEC filing/observation date, not a confirmed declaration or ex-dividend date. These records do not establish record dates or payment dates and must not be treated as a dividend payment calendar.</p>
+              {table(['SEC filing / observation date','Reported dividend per share','Currency','Source'], (dividends ?? []).map((d: any) => [dateLabel(d.declaration_date), d.amount == null ? '—' : money(d.amount, 4), d.currency ?? 'USD', d.data_source ?? '—']))}
+            </> : <>
+              <p className="sd-detail-copy">Showing up to 30 recent dividend events. Dates and statistics are shown only when supplied by the source; missing event dates are not inferred.</p>
+              {table(['Ex-date','Declaration date','Record date','Payment date','Dividend / share','Frequency','Yield','Payout ratio','5-year CAGR','Growth streak','Currency','Source'], (dividends ?? []).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.declaration_date), dateLabel(d.record_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', pct(d.dividend_yield), pct(d.payout_ratio), pct(d.five_year_cagr), d.growth_streak_years == null ? '—' : String(d.growth_streak_years), d.currency ?? 'USD', d.data_source ?? '—']))}
+            </>
           </section>
 
           <section className="sd-card" id="risk">
