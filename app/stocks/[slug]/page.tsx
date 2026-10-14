@@ -201,7 +201,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     const metric = String(p.metric_name ?? '').trim().toLowerCase();
     const values = [finite(p.company_value), finite(p.peer_median), finite(p.peer_average)];
     const percentile = finite(p.percentile);
-    const maxAbs = metric.includes('pe') ? 500 : 1000;
+    const isPeMetric = metric === 'pe' || metric.includes('pe_ratio') || metric.includes('price_earnings');
+    const maxAbs = isPeMetric ? 500 : 1000;
     const returnField = metric.includes('roe') ? 'roe' : metric.includes('roa') ? 'roa' : metric.includes('roic') ? 'roic' : null;
     if (returnField && finite(fundamentals?.[returnField]) === null) return false;
     return group !== '' && !['unknown', 'n/a', 'none', 'unclassified'].includes(group)
