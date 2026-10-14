@@ -131,7 +131,7 @@ const missing = await sql`
   LEFT JOIN latest_quotes q ON q.stock_id = s.id
   WHERE s.is_active = true AND (
     q.stock_id IS NULL OR
-    (q.quote_timestamp IS NOT NULL AND q.quote_timestamp::date < CURRENT_DATE - 2) OR
+    (q.quote_timestamp IS NOT NULL AND q.quote_timestamp::date < CURRENT_DATE - 1) OR
     (EXISTS (SELECT 1 FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')
       AND (
         (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')::date < CURRENT_DATE - 2
