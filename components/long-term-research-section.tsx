@@ -46,11 +46,11 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
               </div>
               <div className="long-term-article-grid">
                 {items.length ? items.map((stock, index) => (
-                  <a className="long-term-article-card" href={stock.slug ? `/stocks/${stock.slug}` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
+                  <a className="long-term-article-card" href={stock.slug ? `/stocks/${stock.slug}` : '/stocks'} key={`${category.name}-${stock.symbol}-${index}`}>
                     <div className="long-term-thumb"><span>STOCK RESEARCH</span></div>
                     <div className="long-term-article-copy">
                       <small>{stock.symbol} · {category.name}</small>
-                      <h4>{stock.company_name} Stock Price Prediction 2026–2050</h4>
+                      <h4>{stock.company_name} — Long-term research</h4>
                       <p>Open the company profile to review available data, research and model coverage.</p>
                       <b>Open stock profile →</b>
                     </div>
