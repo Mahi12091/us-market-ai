@@ -45,7 +45,7 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
                 <a href={sectorHref}>More →</a>
               </div>
               <div className="long-term-article-grid">
-                {(items.length ? items : [{ symbol: 'STOCK', slug: null, company_name: 'Long-term research article', sector: category.name }]).map((stock, index) => (
+                {items.length ? items.map((stock, index) => (
                   <a className="long-term-article-card" href={stock.slug ? `/stocks/${stock.slug}` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
                     <div className="long-term-thumb"><span>STOCK RESEARCH</span></div>
                     <div className="long-term-article-copy">
@@ -55,7 +55,7 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
                       <b>Open stock profile →</b>
                     </div>
                   </a>
-                ))}
+                )) : <div className="long-term-empty">No matching stocks are available in this section yet. <a href="/stocks">Browse all stocks →</a></div>}
               </div>
             </div>
           );
