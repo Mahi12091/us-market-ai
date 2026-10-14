@@ -15,7 +15,7 @@ const execFileAsync = promisify(execFile);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const todayUtc = new Date().toISOString().slice(0, 10);
-const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\\d{4}-\\d{2}-\\d{2}$/.test(day) && day <= todayUtc; };
+const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= todayUtc; };
 const cik = v => String(v ?? '').replace(/\D/g, '').padStart(10, '0');
 
 async function download(url, file) {
