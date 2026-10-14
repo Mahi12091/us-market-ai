@@ -165,13 +165,21 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     fundamentals.total_debt = null;
     fundamentals.debt_equity = null;
   }
-  const financialStatementsForDisplay = (financialStatements ?? []).filter((row: any, index: number, rows: any[]) => {
-    if (row.statement_type !== 'balance_sheet' || finite(row.total_debt) !== 0 || !row.period_end) return true;
-    const periodKey = new Date(row.period_end).toISOString().slice(0, 10);
-    return !rows.some((other: any, otherIndex: number) => otherIndex !== index
-      && other.statement_type === 'balance_sheet'
-      && other.period_end && new Date(other.period_end).toISOString().slice(0, 10) === periodKey
-      && finite(other.total_debt) !== null && finite(other.total_debt)! > 0);
+  const financialStatementsForDisplay = (financialStatements ?? []).map((row: any) => {
+    if (row.statement_type !== 'balance_sheet' || finite(row.total_debt) !== 0 || !row.period_end
+      || !String(row.data_source ?? '').toLowerCase().includes('3spread')) return row;
+    const rowDate = new Date(row.period_end);
+    if (!Number.isFinite(rowDate.getTime())) return row;
+    const hasConflictingReportedDebt = (financialStatements ?? []).some((other: any) => {
+      if (other === row || other.statement_type !== 'balance_sheet' || finite(other.total_debt) === null
+        || finite(other.total_debt)! <= 0 || !other.period_end
+        || String(other.data_source ?? '').toLowerCase().includes('3spread')) return false;
+      const otherDate = new Date(other.period_end);
+      return Number.isFinite(otherDate.getTime()) && otherDate.getTime() <= rowDate.getTime()
+        && otherDate.getTime() >= rowDate.getTime() - 548 * 24 * 60 * 60 * 1000;
+    });
+    // Keep the rest of the reported row intact; withhold only a zero debt sentinel contradicted by a recent non-3Spread filing.
+    return hasConflictingReportedDebt ? { ...row, total_debt: null } : row;
   });
 
   const orderedHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
