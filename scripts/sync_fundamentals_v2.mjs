@@ -85,12 +85,13 @@ function ratio(a,b){return a!=null&&b!=null&&b!==0?a/b:null;}
 function pct(a,b){const r=ratio(a,b);return r==null?null:r*100;}
 function growth(current,previous){return current!=null&&previous!=null&&previous!==0?(current/previous-1)*100:null;}
 
+const todayUtc = new Date().toISOString().slice(0, 10);
 function factRows(facts,tags,units=['USD','USD/shares','shares']){
   for(const tag of tags){
     const fact=facts?.facts?.['us-gaap']?.[tag]||facts?.facts?.['ifrs-full']?.[tag]||facts?.facts?.dei?.[tag];
     if(!fact?.units) continue;
     for(const unit of units){
-      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end);
+      const rows=(fact.units[unit]||[]).filter(x=>x?.val!=null&&x?.end&&String(x.end).slice(0,10)<=todayUtc);
       if(rows.length) return rows.map(x=>({...x,val:num(x.val)})).filter(x=>x.val!=null);
     }
   }
