@@ -14,14 +14,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const stocks: SitemapStock[] = [];
 
   // Paginate through every eligible stock. A single .limit(5000) would
-  // silently omit pages when the stock universe grows beyond 5,000.
+  // silently omit pages when the stock universe grows beyond 5,000. The
+  // Neon query builder does not support Supabase's .not() filter, so null
+  // or blank slugs are excluded safely when creating the URL list.
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await db
       .from('stocks')
       .select('slug,updated_at')
       .eq('is_active', true)
       .eq('is_indexable', true)
-      .not('slug', 'is', null)
       .order('slug', { ascending: true })
       .range(offset, offset + PAGE_SIZE - 1);
 
