@@ -13,8 +13,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const db = createDatabaseClient();
   const stocks: SitemapStock[] = [];
 
-  // Read the complete eligible stock set in pages. A single .limit(5000)
-  // silently excluded eligible stock URLs when the database grew past 5,000.
+  // Paginate through every eligible stock. A single .limit(5000) would
+  // silently omit pages when the stock universe grows beyond 5,000.
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const { data, error } = await db
       .from('stocks')
@@ -42,8 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/news`, changeFrequency: 'hourly', priority: 0.8 },
     { url: `${base}/predictions`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${base}/sectors`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${base}/blog`, changeFrequency: 'daily', priority: 0.8 },
-    { url: `${base}/search`, changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${base}/blog`, changeFrequency: 'daily', priority: 0.7 },
   ];
 
   const stockRoutes: MetadataRoute.Sitemap = stocks
@@ -55,19 +54,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-  // Long-term research article routes are generated from eligible stock slugs.
-  const researchRoutes: MetadataRoute.Sitemap = stocks
-    .filter((stock): stock is SitemapStock & { slug: string } => Boolean(stock.slug?.trim()))
-    .map((stock) => ({
-      url: `${base}/blog/${stock.slug}-stock-price-prediction-2026-2050`,
-      ...(stock.updated_at ? { lastModified: new Date(stock.updated_at) } : {}),
-      changeFrequency: 'weekly' as const,
-      priority: 0.6,
-    }));
+  const entries = [...staticRoutes, ...stockRoutes];
 
-  const entries = [...staticRoutes, ...stockRoutes, ...researchRoutes];
-
-  // Sitemap protocol allows at most 50,000 URLs per sitemap file.
+  // Google sitemap protocol limit: 50,000 URLs per sitemap file.
   if (entries.length > 50000) {
     throw new Error(`Sitemap contains ${entries.length} URLs; split into a sitemap index before deploying`);
   }
