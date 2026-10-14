@@ -38,7 +38,7 @@ function prettySector(value: string | null | undefined) { return value?.trim() |
 export default async function Home() {
   const supabase = createDatabaseClient();
   const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }] = await Promise.all([
-    supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(80),
+    supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(500),
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
     supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(8),
   ]);
