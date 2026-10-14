@@ -7,14 +7,14 @@ type ResearchStock = {
 };
 
 const categories = [
-  { name: 'Technology', description: 'Long-term research on software, semiconductors, cloud and technology leaders.' },
-  { name: 'Financial Services', description: 'Forecast research covering banks, payments, exchanges and financial platforms.' },
-  { name: 'Healthcare', description: 'Long-term research across healthcare, biotech and medical innovation.' },
-  { name: 'Consumer & Communication', description: 'Research across consumer brands, retail, media and communication businesses.' },
+  { name: 'Technology', sectors: ['Technology'], description: 'Company research across software, semiconductors, cloud and technology businesses.' },
+  { name: 'Financial Services', sectors: ['Financial Services'], description: 'Company research covering banks, payments, exchanges and financial platforms.' },
+  { name: 'Healthcare', sectors: ['Healthcare'], description: 'Company research across healthcare, biotech and medical innovation.' },
+  { name: 'Consumer & Communication', sectors: ['Consumer', 'Consumer Discretionary', 'Communication Services'], description: 'Company research across consumer businesses, retail, media and communications.' },
 ];
 
 export default function LongTermResearchSection({ stocks }: { stocks: readonly ResearchStock[] }) {
-  const normalized = stocks.map((stock) => ({ ...stock, sector: stock.sector?.trim() || 'Consumer & Communication' }));
+  const normalized = stocks.map((stock) => ({ ...stock, sector: stock.sector?.trim() || 'Other' }));
 
   return (
     <section className="section long-term-research-section">
@@ -29,12 +29,9 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
 
       <div className="long-term-category-grid">
         {categories.map((category) => {
-          const items = normalized.filter((stock) => {
-            if (category.name === 'Consumer & Communication') {
-              return ['Consumer Cyclical', 'Consumer Defensive', 'Communication Services'].includes(stock.sector ?? '');
-            }
-            return stock.sector === category.name;
-          }).slice(0, 4);
+          const items = normalized
+            .filter((stock) => category.sectors.includes(stock.sector ?? '') && Boolean(stock.slug?.trim()))
+            .slice(0, 4);
 
           const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
 
@@ -50,8 +47,8 @@ export default function LongTermResearchSection({ stocks }: { stocks: readonly R
                     <div className="long-term-thumb"><span>STOCK RESEARCH</span></div>
                     <div className="long-term-article-copy">
                       <small>{stock.symbol} · {category.name}</small>
-                      <h4>{stock.company_name} — Long-term research</h4>
-                      <p>Open the company profile to review available data, research and model coverage.</p>
+                      <h4>{stock.company_name} stock research</h4>
+                      <p>Review available price history, fundamentals, forecasts and risk context on the company profile.</p>
                       <b>Open stock profile →</b>
                     </div>
                   </a>
