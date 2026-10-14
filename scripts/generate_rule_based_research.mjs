@@ -25,6 +25,7 @@ fund AS (
   SELECT DISTINCT ON (stock_id) stock_id, fiscal_period, report_date, revenue, revenue_growth,
     eps, eps_growth, gross_margin, operating_margin, net_margin, pe_ratio, free_cash_flow, debt_equity
   FROM fundamentals
+  WHERE report_date IS NULL OR report_date <= CURRENT_DATE
   ORDER BY stock_id, report_date DESC NULLS LAST, updated_at DESC
 ),
 risk AS (
