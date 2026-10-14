@@ -80,7 +80,7 @@ const horizonOrder: Record<string, number> = { '24h': 1, '7d': 2, '30d': 3, '90d
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const db = createDatabaseClient();
-  const { data: stock } = await db.from('stocks').select('company_name,symbol,description,sector,industry').eq('slug', slug).maybeSingle();
+  const { data: stock } = await db.from('stocks').select('company_name,symbol,description,sector,industry,is_indexable').eq('slug', slug).maybeSingle();
   if (!stock) return { title: 'Stock Not Found', robots: { index: false, follow: true } };
 
   const title = `${stock.company_name} (${stock.symbol}) Forecast and Analysis | Stock Price & Financials`;
@@ -92,7 +92,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title,
     description,
     keywords: [stock.symbol, `${stock.company_name} stock`, `${stock.symbol} stock price`, `${stock.symbol} financials`, `${stock.symbol} valuation`, `${stock.symbol} earnings`, `${stock.symbol} dividend`, `${stock.symbol} stock analysis`, stock.sector, stock.industry].filter(Boolean) as string[],
-    alternates: { canonical }, robots: { index: true, follow: true },
+    alternates: { canonical }, robots: { index: stock.is_indexable !== false, follow: true },
     openGraph: { title, description, type: 'website', url: canonical },
     twitter: { card: 'summary', title, description },
   };
