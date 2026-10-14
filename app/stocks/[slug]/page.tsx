@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createDatabaseClient } from '@/lib/neon';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
+import { cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 
@@ -389,7 +390,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
           <section className="sd-card" id="news">
             <div className="sd-section-heading"><div><span className="sd-kicker">LATEST DEVELOPMENTS</span><h2>News and company updates</h2><p>Stories linked to this stock in the current database.</p></div></div>
-            {visibleNews.length ? <div className="sd-news-list">{visibleNews.map((item: any) => <article className="sd-news-item" key={item.id}><div className="sd-news-meta"><span>{item.source ?? 'News source'}</span><span>{dateLabel(item.published_at)}</span></div><h3>{item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</h3>{item.summary && <p>{item.summary}</p>}{item.sentiment && <span className="sd-news-sentiment">{item.sentiment}</span>}</article>)}</div> : <div className="sd-empty">No ticker-linked news records are available yet.</div>}
+            {visibleNews.length ? <div className="sd-news-list">{visibleNews.map((item: any) => <article className="sd-news-item" key={item.id}><div className="sd-news-meta"><span>{cleanNewsText(item.source) || 'News source'}</span><span>{dateLabel(item.published_at)}</span></div><h3>{safeNewsUrl(item.url) ? <a href={safeNewsUrl(item.url)!} target="_blank" rel="noopener noreferrer">{cleanNewsText(item.title) || 'Market story'}</a> : (cleanNewsText(item.title) || 'Market story')}</h3>{newsSummary(item.summary, item.title) && <p>{newsSummary(item.summary, item.title)}</p>}{item.sentiment && <span className="sd-news-sentiment">{item.sentiment}</span>}</article>)}</div> : <div className="sd-empty">No ticker-linked news records are available yet.</div>}
           </section>
 
           <section className="sd-card" id="dividends">
