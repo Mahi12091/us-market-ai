@@ -3,18 +3,46 @@ import { neon } from '@neondatabase/serverless';
 if (!process.env.NEON_DATABASE_URL) throw new Error('NEON_DATABASE_URL is required');
 const sql = neon(process.env.NEON_DATABASE_URL);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Free quote providers can transiently throttle scheduled refreshes. Retry
+// network errors, timeouts, HTTP 429 and 5xx responses, but do not retry
+// permanent client errors such as HTTP 404 for unsupported symbols.
+async function fetchWithRetry(url, options, providerLabel) {
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(15000)
+      });
+      if (response.ok) return response;
+      const error = new Error(providerLabel + ' HTTP ' + response.status);
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt === 3) throw error;
+      lastError = error;
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || error);
+      const statusCode = Number(message.match(/HTTP ([0-9]{3})/)?.[1]);
+      const permanentClientError = statusCode >= 400 && statusCode < 500 && statusCode !== 429;
+      if (permanentClientError || attempt === 3) throw error;
+    }
+    await sleep(500 * attempt);
+  }
+  throw lastError || new Error(providerLabel + ' failed after retries');
+}
 const n = (value) => value == null || !Number.isFinite(Number(value)) ? null : Number(value);
 const round = (value, places = 6) => value == null ? null : Number(Number(value).toFixed(places));
 
 async function yahooHistory(symbol) {
   const url = 'https://query1.finance.yahoo.com/v8/finance/chart/' +
     encodeURIComponent(symbol) + '?range=1y&interval=1d&events=div%2Csplits';
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (compatible; USMarketAI/1.0; +https://usmarketai.com)',
       'Accept': 'application/json'
     }
-  });
+  }, 'Yahoo chart');
   if (!response.ok) throw new Error('Yahoo chart HTTP ' + response.status);
   const payload = await response.json();
   const result = payload?.chart?.result?.[0];
@@ -39,9 +67,9 @@ async function yahooHistory(symbol) {
 
 async function stooqHistory(symbol) {
   const url = 'https://stooq.com/q/d/l/?s=' + encodeURIComponent(symbol.toLowerCase() + '.us') + '&i=d';
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; USMarketAI/1.0; +https://usmarketai.com)', 'Accept': 'text/csv,*/*' }
-  });
+  }, 'Stooq CSV');
   if (!response.ok) throw new Error('Stooq CSV HTTP ' + response.status);
   const csv = await response.text();
   const lines = csv.trim().split(/\r?\n/);
