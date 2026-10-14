@@ -7,16 +7,36 @@ export const metadata: Metadata = {
   description: 'Browse US-listed stocks with dedicated pages for price, technicals, fundamentals, earnings and AI forecasts.',
 };
 
-export default async function StocksPage() {
+const PAGE_SIZE = 100;
+
+type StocksSearchParams = { page?: string; sector?: string };
+
+export default async function StocksPage({ searchParams }: { searchParams: Promise<StocksSearchParams> }) {
+  const params = await searchParams;
+  const requestedPage = Number.parseInt(params.page ?? '1', 10);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 1000 ? requestedPage : 1;
+  const sector = (params.sector ?? '').trim();
   const supabase = createDatabaseClient();
-  const { data: stocks } = await supabase
+  let query = supabase
     .from('stocks')
     .select('symbol,slug,company_name,sector,industry,exchange,asset_type')
     .eq('is_active', true)
     .eq('is_indexable', true)
-    .eq('asset_type', 'stock')
+    .eq('asset_type', 'stock');
+  if (sector) query = query.eq('sector', sector);
+  const { data: pageRows, error } = await query
     .order('symbol')
-    .limit(3000);
+    .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  if (error) console.error('[stocks] Directory query failed:', error.message);
+  const fetchedRows = pageRows ?? [];
+  const hasNextPage = fetchedRows.length > PAGE_SIZE;
+  const stocks = fetchedRows.slice(0, PAGE_SIZE).filter((stock: { slug: string | null }) => Boolean(stock.slug?.trim()));
+  const pageHref = (nextPage: number) => {
+    const query = new URLSearchParams();
+    query.set('page', String(nextPage));
+    if (sector) query.set('sector', sector);
+    return `/stocks?${query.toString()}`;
+  };
 
   return (
     <div className="container stocks-page">
@@ -37,15 +57,19 @@ export default async function StocksPage() {
           <div className="stocks-toolbar">
             <div>
               <h2 style={{ margin: 0, fontSize: 20 }}>Stock research directory</h2>
-              <p className="muted" style={{ margin: '5px 0 0', fontSize: 11 }}>{stocks?.length ?? 0} indexable stock pages currently available</p>
+              <p className="muted" style={{ margin: '5px 0 0', fontSize: 11 }}>Showing {stocks.length} stock pages · Page {page}</p>
             </div>
-            <div className="stocks-filter" aria-label="Stock categories">
-              <span className="active">All stocks</span><span>Technology</span><span>Financials</span><span>Healthcare</span><span>Consumer</span>
-            </div>
+            <nav className="stocks-filter" aria-label="Stock categories">
+              <Link className={!sector ? 'active' : ''} href="/stocks?page=1">All stocks</Link>
+              <Link className={sector === 'Technology' ? 'active' : ''} href="/stocks?sector=Technology&page=1">Technology</Link>
+              <Link className={sector === 'Financial Services' ? 'active' : ''} href="/stocks?sector=Financial%20Services&page=1">Financials</Link>
+              <Link className={sector === 'Healthcare' ? 'active' : ''} href="/stocks?sector=Healthcare&page=1">Healthcare</Link>
+              <Link className={sector === 'Consumer' ? 'active' : ''} href="/stocks?sector=Consumer&page=1">Consumer</Link>
+            </nav>
           </div>
         </section>
 
-        {stocks?.length ? (
+        {stocks.length ? (
           <div className="stock-directory">
             {stocks.map((stock) => (
               <Link className="directory-card" href={`/stocks/${stock.slug}`} key={stock.symbol}>
@@ -61,8 +85,13 @@ export default async function StocksPage() {
             ))}
           </div>
         ) : (
-          <div className="empty-directory"><strong>No stock records yet</strong><p>The market-data import will populate the research directory automatically.</p></div>
+          <div className="empty-directory"><strong>No stock records found</strong><p>{sector ? `No indexable stocks are currently listed in the ${sector} sector.` : 'No indexable stock records are available right now.'}</p></div>
         )}
+        <nav className="stocks-pagination" aria-label="Stock directory pages">
+          {page > 1 ? <Link className="outline-btn" href={pageHref(page - 1)}>← Previous</Link> : <span />}
+          <span>Page {page}</span>
+          {hasNextPage ? <Link className="blue-btn" href={pageHref(page + 1)}>Next →</Link> : <span />}
+        </nav>
       </div>
     </div>
   );
