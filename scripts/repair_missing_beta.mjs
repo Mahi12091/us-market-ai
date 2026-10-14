@@ -3,7 +3,7 @@ import { neon } from '@neondatabase/serverless';
 if (!process.env.NEON_DATABASE_URL) throw new Error('NEON_DATABASE_URL is required.');
 const sql = neon(process.env.NEON_DATABASE_URL);
 
-console.log('[beta-repair] calculating missing 252-session beta against SPY from stored daily prices.');
+console.log('[beta-repair] calculating missing 252-session beta against SPY; withholding absolute beta estimates above 10 for review.');
 const result = await sql.query(`
 WITH targets AS (
   SELECT r.stock_id, r.calculation_date
@@ -93,6 +93,7 @@ updated AS (
     AND r.beta IS NULL
     AND e.observations >= 60
     AND e.beta IS NOT NULL
+    AND ABS(e.beta) <= 10
   RETURNING r.stock_id
 )
 SELECT COUNT(*)::int AS risk_rows_updated,
@@ -100,7 +101,7 @@ SELECT COUNT(*)::int AS risk_rows_updated,
 FROM updated
 `);
 console.log(JSON.stringify({
-  method: 'Population covariance(stock daily returns, SPY daily returns) / population variance(SPY daily returns); up to 252-session lookback, minimum 60 matched daily returns; adjusted_close fallback to close; no synthetic prices',
+  method: 'Population covariance(stock daily returns, SPY daily returns) / population variance(SPY daily returns); up to 252-session lookback, minimum 60 matched daily returns; adjusted_close fallback to close; no synthetic prices; estimates with absolute beta above 10 withheld',
   ...result[0]
 }, null, 2));
 
