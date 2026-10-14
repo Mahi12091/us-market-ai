@@ -7,6 +7,7 @@ import { cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
 export const revalidate = 300;
 
 const finite = (v: unknown): number | null => { if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+const positive = (v: unknown): number | null => { const n = finite(v); return n !== null && n > 0 ? n : null; };
 const money = (v: unknown, digits = 2) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })}`; };
 const pct = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`; };
 const compactMoney = (v: unknown) => { const n = finite(v); return n === null ? '—' : `${n.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 2 })}`; };
@@ -80,13 +81,13 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const { data: stock } = await db.from('stocks').select('*').eq('slug', slug).eq('is_active', true).maybeSingle();
   if (!stock) notFound();
 
-  const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: aiResearch }, { data: fundamentals }, { data: financialMetrics }, { data: earnings }, { data: earningsRevisions }, { data: news }, { data: history }, { data: results }, { data: related }, { data: financialStatements }, { data: dividends }, { data: ownership }, { data: institutionalHolders }, { data: insiderTransactions }, { data: monthlyResearch }, { data: quarterlyResearch }, { data: threeSpreadMetrics }, { data: threeSpreadRatios }, { data: performance }, { data: risks }, { data: valuations }, { data: secFilings }, { data: identifiers }, { data: peerMetrics }, { data: provenance }, { data: quality }, { data: longTerm }] = await Promise.all([
+  const [{ data: quote }, { data: tech }, { data: predictions }, { data: article }, { data: aiResearch }, { data: rawFundamentals }, { data: financialMetrics }, { data: earnings }, { data: earningsRevisions }, { data: news }, { data: history }, { data: results }, { data: related }, { data: financialStatements }, { data: dividends }, { data: ownership }, { data: institutionalHolders }, { data: insiderTransactions }, { data: monthlyResearch }, { data: quarterlyResearch }, { data: threeSpreadMetrics }, { data: threeSpreadRatios }, { data: performance }, { data: risks }, { data: valuations }, { data: secFilings }, { data: identifiers }, { data: peerMetrics }, { data: provenance }, { data: quality }, { data: longTerm }] = await Promise.all([
     db.from('latest_quotes').select('*').eq('stock_id', stock.id).maybeSingle(),
     db.from('technical_indicators').select('*').eq('stock_id', stock.id).eq('timeframe', '1d').order('calculated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('predictions').select('*').eq('stock_id', stock.id).eq('model_version', 'quant-v3.0').order('prediction_time', { ascending: false }).limit(8),
     db.from('ai_articles').select('title,summary,content,updated_at').eq('stock_id', stock.id).eq('is_published', true).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('ai_research').select('*').eq('stock_id', stock.id).order('updated_at', { ascending: false }).limit(3),
-    db.from('fundamentals').select('*').eq('stock_id', stock.id).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    db.from('fundamentals').select('*').eq('stock_id', stock.id).order('report_date', { ascending: false, nullsFirst: false }).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('financial_metrics').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(12),
     db.from('earnings').select('*').eq('stock_id', stock.id).order('earnings_date', { ascending: false }).limit(6),
     db.from('earnings_revisions').select('*').eq('stock_id', stock.id).order('revision_date', { ascending: false }).limit(12),
@@ -114,6 +115,16 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('long_term_predictions').select('*').eq('stock_id', stock.id).eq('model_version', 'long-term-v1.0').order('target_year', { ascending: true }),
   ]);
 
+  const fundamentals = rawFundamentals ? { ...rawFundamentals } : null;
+  // Reject impossible zero sentinels for positive-only identity/scale fields, and flag internally contradictory earnings facts instead of presenting them as verified financial results.
+  if (fundamentals && finite(fundamentals.shares_outstanding) !== null && Number(fundamentals.shares_outstanding) <= 0) fundamentals.shares_outstanding = null;
+  if (fundamentals && finite(fundamentals.market_cap) !== null && Number(fundamentals.market_cap) <= 0) fundamentals.market_cap = null;
+  if (fundamentals && finite(fundamentals.net_income) === 0 && (finite(fundamentals.eps) ?? 0) > 0) {
+    fundamentals.net_income = null;
+    if (finite(fundamentals.roe) === 0) fundamentals.roe = null;
+    if (finite(fundamentals.roa) === 0) fundamentals.roa = null;
+  }
+
   const orderedHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const chart: ChartPoint[] = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime())).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: finite(x.close)! }));
   const derived52WeekHigh = orderedHistory.map(x => finite(x.high)).filter((v): v is number => v !== null).reduce((m, v) => Math.max(m, v), -Infinity);
@@ -126,7 +137,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const direction = latestPrediction?.direction ?? 'Not available yet';
   const securityType = stock.company_name?.toLowerCase().includes('preferred stock') ? 'Preferred Stock' : (stock.asset_type ?? 'Equity');
   const displaySector = stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry ?? securityType);
-  const marketCap = quote?.market_cap ?? fundamentals?.market_cap ?? stock.market_cap;
+  const marketCap = positive(quote?.market_cap) ?? positive(fundamentals?.market_cap) ?? positive(stock.market_cap);
   const technicalTrend = tech?.trend ?? (() => {
     const price = finite(quote?.price), sma20 = finite(tech?.sma_20), sma50 = finite(tech?.sma_50), sma200 = finite(tech?.sma_200), rsi = finite(tech?.rsi), hist = finite(tech?.macd_histogram);
     if (price === null || sma20 === null || sma50 === null || sma200 === null || rsi === null || hist === null) return 'Not available yet';
