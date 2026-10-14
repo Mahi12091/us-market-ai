@@ -147,6 +147,32 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     if (finite(fundamentals.roe) === 0) fundamentals.roe = null;
     if (finite(fundamentals.roa) === 0) fundamentals.roa = null;
   }
+  const fundamentalsReportDate = fundamentals?.report_date ? new Date(fundamentals.report_date) : null;
+  const hasRecentPositiveDebtStatement = Boolean(
+    fundamentals && finite(fundamentals.total_debt) === 0
+      && fundamentalsReportDate && Number.isFinite(fundamentalsReportDate.getTime())
+      && (financialStatements ?? []).some((row: any) => {
+        const periodEnd = row.period_end ? new Date(row.period_end) : null;
+        return row.statement_type === 'balance_sheet' && finite(row.total_debt) !== null && finite(row.total_debt)! > 0
+          && periodEnd && Number.isFinite(periodEnd.getTime())
+          && periodEnd.getTime() <= fundamentalsReportDate.getTime()
+          && periodEnd.getTime() >= fundamentalsReportDate.getTime() - 548 * 24 * 60 * 60 * 1000;
+      })
+  );
+  if (hasRecentPositiveDebtStatement && fundamentals) {
+    // A zero debt snapshot conflicts with a positive reported balance-sheet debt figure from the prior 18 months.
+    // Withhold the ambiguous snapshot instead of asserting the company has no debt.
+    fundamentals.total_debt = null;
+    fundamentals.debt_equity = null;
+  }
+  const financialStatementsForDisplay = (financialStatements ?? []).filter((row: any, index: number, rows: any[]) => {
+    if (row.statement_type !== 'balance_sheet' || finite(row.total_debt) !== 0 || !row.period_end) return true;
+    const periodKey = new Date(row.period_end).toISOString().slice(0, 10);
+    return !rows.some((other: any, otherIndex: number) => otherIndex !== index
+      && other.statement_type === 'balance_sheet'
+      && other.period_end && new Date(other.period_end).toISOString().slice(0, 10) === periodKey
+      && finite(other.total_debt) !== null && finite(other.total_debt)! > 0);
+  });
 
   const orderedHistory = [...(history ?? [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const chart: ChartPoint[] = orderedHistory.filter(x => finite(x.close) !== null && Number.isFinite(new Date(x.timestamp).getTime())).map(x => ({ time: new Date(x.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), close: finite(x.close)! }));
@@ -331,7 +357,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     ['Maximum drawdown', finite(risks?.maximum_drawdown) === null || Math.abs(finite(risks?.maximum_drawdown) as number) > 100 ? '—' : '-' + Math.abs(finite(risks?.maximum_drawdown) as number).toFixed(2) + '%'],
     ['Sharpe ratio', number(safeRiskMetric('sharpe_ratio', risks?.sharpe_ratio))],
     ['Sortino ratio', number(safeRiskMetric('sortino_ratio', risks?.sortino_ratio))],
-    ['Debt / equity', number(safeRiskMetric('debt_equity', risks?.debt_equity))],
+    ['Debt / equity', number(safeRiskMetric('debt_equity', hasRecentPositiveDebtStatement && finite(risks?.debt_equity) === 0 ? null : risks?.debt_equity))],
     ['Current ratio', number(safeRiskMetric('current_ratio', risks?.current_ratio))],
     ['Quick ratio', number(safeRiskMetric('quick_ratio', risks?.quick_ratio))],
     ['Interest coverage', number(safeRiskMetric('interest_coverage', risks?.interest_coverage))],
@@ -494,7 +520,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
 
           {hasFinancialsData && <section className="sd-card" id="financials">
             <div className="sd-section-heading"><div><span className="sd-kicker">REPORTED RESULTS</span><h2>Financial statements, earnings history and estimate revisions</h2><p>Recent normalized financial statement records.</p></div></div>
-            <p className="sd-detail-copy">Showing up to 60 recent statement records. Reported periods and statement types are preserved; blank values are not estimated. Contradictory zero sentinels are withheld instead of presented as verified facts.</p>{table(['Period','Statement','Fiscal period','Basis','Revenue','Cost of revenue','Gross profit','Operating income','Net income','Basic EPS','Diluted EPS','Cash','Total assets','Total liabilities','Debt','Equity','Operating cash flow','Capex','Free cash flow','Source'], (financialStatements ?? []).map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), row.fiscal_period ?? '—', row.period_type ?? '—', compactMoney(row.revenue), compactMoney(row.cost_of_revenue), compactMoney(row.gross_profit), compactMoney(row.operating_income), compactMoney(statementMetric(row, 'net_income')), money(statementMetric(row, 'eps_basic')), money(statementMetric(row, 'eps_diluted')), compactMoney(row.cash_and_equivalents), compactMoney(row.total_assets), compactMoney(row.total_liabilities), compactMoney(row.total_debt), compactMoney(row.shareholders_equity), compactMoney(row.operating_cash_flow), compactMoney(row.capital_expenditure), compactMoney(row.free_cash_flow), row.data_source ?? '—']))}
+            <p className="sd-detail-copy">Showing up to 60 recent statement records. Reported periods and statement types are preserved; blank values are not estimated. Contradictory zero sentinels are withheld instead of presented as verified facts.</p>{table(['Period','Statement','Fiscal period','Basis','Revenue','Cost of revenue','Gross profit','Operating income','Net income','Basic EPS','Diluted EPS','Cash','Total assets','Total liabilities','Debt','Equity','Operating cash flow','Capex','Free cash flow','Source'], financialStatementsForDisplay.map((row: any) => [dateLabel(row.period_end), String(row.statement_type ?? '—').replaceAll('_', ' '), row.fiscal_period ?? '—', row.period_type ?? '—', compactMoney(row.revenue), compactMoney(row.cost_of_revenue), compactMoney(row.gross_profit), compactMoney(row.operating_income), compactMoney(statementMetric(row, 'net_income')), money(statementMetric(row, 'eps_basic')), money(statementMetric(row, 'eps_diluted')), compactMoney(row.cash_and_equivalents), compactMoney(row.total_assets), compactMoney(row.total_liabilities), compactMoney(row.total_debt), compactMoney(row.shareholders_equity), compactMoney(row.operating_cash_flow), compactMoney(row.capital_expenditure), compactMoney(row.free_cash_flow), row.data_source ?? '—']))}
             <h3 className="sd-subheading">Financial metric history</h3>{table(['Period','Revenue growth','Gross margin','Operating margin','Net margin','ROE','ROIC'], (financialMetrics ?? []).slice(0, 8).map((m: any) => [dateLabel(m.period_end), pct(m.revenue_growth), pct(m.gross_margin), pct(m.operating_margin), pct(m.net_margin), pct(m.roe), pct(m.roic)]))}
             <h3 className="sd-subheading">Earnings history</h3>
             {(earnings ?? []).length > 0 && (earnings ?? []).every((e: any) => e.data_source === 'SEC_XBRL_BULK') ? <>
