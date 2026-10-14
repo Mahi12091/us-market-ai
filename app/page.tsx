@@ -25,7 +25,6 @@ export const metadata: Metadata = {
 type StockRow = { id: string; symbol: string; slug: string | null; company_name: string; market_cap: number | null; sector: string | null; logo_url: string | null };
 type MarketStockRow = { id: string; symbol: string; slug: string | null; company_name: string };
 type NewsRow = { id: string; stock_id: string | null; title: string; summary: string | null; source: string | null; published_at: string | null; sentiment: string | null; url: string | null };
-type ArticleRow = { id: string; stock_id: string | null; title: string; summary: string | null; slug: string | null; generated_at: string | null };
 type QuoteRow = { stock_id: string; price: number | null; change_percent: number | null };
 
 const marketLabels: Record<string, string> = { SPY: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow Jones', IWM: 'Russell 2000' };
@@ -38,17 +37,15 @@ function prettySector(value: string | null | undefined) { return value?.trim() |
 
 export default async function Home() {
   const supabase = createDatabaseClient();
-  const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }, { data: rawBlogArticles }] = await Promise.all([
+  const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }] = await Promise.all([
     supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(80),
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
     supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(8),
-    supabase.from('ai_articles').select('id,stock_id,title,summary,slug,generated_at').eq('is_published', true).order('generated_at', { ascending: false }).limit(6),
   ]);
   const stocks = (rawStocks ?? []) as StockRow[];
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
   const newsItems = (rawNews ?? []) as NewsRow[];
-  const blogArticles = (rawBlogArticles ?? []) as ArticleRow[];
-  const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id), ...blogArticles.map(a => a.stock_id).filter((id): id is string => Boolean(id))])];
+  const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
   const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent').in('stock_id', allIds) : { data: [] };
   const quotes = (rawQuotes ?? []) as QuoteRow[];
   const quoteMap = new Map(quotes.map(q => [q.stock_id, q]));
