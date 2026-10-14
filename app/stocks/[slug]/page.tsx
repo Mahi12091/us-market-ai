@@ -272,7 +272,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
         </div>
         <div className="sd-price-block">
           <div className="sd-price">{money(quote?.price)}</div>
-          {quoteIsStale ? <div className="sd-empty" role="status">Daily change withheld because the stored quote is stale.</div> : <div className={finite(quote?.change) !== null && finite(quote?.change)! >= 0 ? 'sd-positive' : 'sd-negative'}>{finite(quote?.change) !== null ? `${finite(quote?.change)! >= 0 ? '+' : ''}${money(quote?.change)}` : 'Change unavailable'} <span>({pct(dailyChange)})</span></div>}
+          {quoteIsStale ? <div className="sd-quote-stale-note" role="status">Daily change withheld because the stored quote is stale.</div> : <div className={finite(quote?.change) !== null && finite(quote?.change)! >= 0 ? 'sd-positive' : 'sd-negative'}>{finite(quote?.change) !== null ? `${finite(quote?.change)! >= 0 ? '+' : ''}${money(quote?.change)}` : 'Change unavailable'} <span>({pct(dailyChange)})</span></div>}
           <small>{quoteTimestamp ? `${quoteIsStale ? 'Last stored quote' : 'Quote updated'} ${quoteTimestamp.toLocaleString('en-US')}${quoteIsStale ? ' · may not reflect current market conditions' : ''}` : 'Latest quote timestamp unavailable · price freshness cannot be verified'}</small>
         </div>
       </header>
