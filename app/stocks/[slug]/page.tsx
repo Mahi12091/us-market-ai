@@ -403,7 +403,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
             </> : <>
               <p className="sd-detail-copy">Showing up to 30 recent dividend events. Dates and statistics are shown only when supplied by the source; missing event dates are not inferred.</p>
               {table(['Ex-date','Declaration date','Record date','Payment date','Dividend / share','Frequency','Yield','Payout ratio','5-year CAGR','Growth streak','Currency','Source'], (dividends ?? []).map((d: any) => [dateLabel(d.ex_date), dateLabel(d.declaration_date), dateLabel(d.record_date), dateLabel(d.payment_date), d.amount == null ? '—' : money(d.amount, 4), d.frequency ?? '—', pct(d.dividend_yield), pct(d.payout_ratio), pct(d.five_year_cagr), d.growth_streak_years == null ? '—' : String(d.growth_streak_years), d.currency ?? 'USD', d.data_source ?? '—']))}
-            </>
+            </>}
           </section>
 
           <section className="sd-card" id="risk">
