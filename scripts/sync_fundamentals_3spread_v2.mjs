@@ -10,6 +10,8 @@ const DEEP = process.env.SYNC_3SPREAD_METRICS_RATIOS === 'true';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const todayUtc = new Date().toISOString().slice(0, 10);
+const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= todayUtc; };
 
 async function getJson(path) {
   for (let attempt = 1; attempt <= 5; attempt++) {
@@ -332,7 +334,7 @@ for (const [index, stock] of stocks.entries()) {
       await upsertBatch('threespread_statement_line_items',li,'stock_id,block_id,item_key');
     }
 
-    const normalized=statements.map(r=>statementRow(stockId,r)).filter(Boolean);
+    const normalized=statements.filter(r=>isValidPeriodEnd(r.period_end)).map(r=>statementRow(stockId,r)).filter(Boolean);
     await upsertBatch('financial_statements',normalized,'stock_id,statement_type,period_type,fiscal_period');
 
     let metrics=[], ratios=[];

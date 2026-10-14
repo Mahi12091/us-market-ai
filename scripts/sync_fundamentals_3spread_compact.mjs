@@ -13,6 +13,8 @@ const num = value => {
   return Number.isFinite(n) ? n : null;
 };
 const norm = value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const todayUtc = new Date().toISOString().slice(0, 10);
+const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= todayUtc; };
 
 async function getJson(path) {
   for (let attempt = 1; attempt <= 5; attempt++) {
@@ -235,7 +237,7 @@ for (let index = 0; index < stockRows.length; index++) {
   const apiSymbol = symbol.replace(/\./g, '-');
   console.log(`[3spread-compact] ${index + 1}/${stockRows.length} ${symbol}`);
   try {
-    const statements = await getAll(`/v1/financials/statements?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`);
+    const statements = (await getAll(`/v1/financials/statements?ticker=${encodeURIComponent(apiSymbol)}&version=latest&limit=10`)).filter(statement => isValidPeriodEnd(statement.period_end));
     const rows = [];
     for (const statement of statements) {
       const statementType = normalizedStatementType(statement.statement_type);

@@ -14,6 +14,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'sec-financial-backfill-'));
 const execFileAsync = promisify(execFile);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+const todayUtc = new Date().toISOString().slice(0, 10);
+const isValidPeriodEnd = value => { const day = String(value ?? '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(day) && day <= todayUtc; };
 const cik = v => String(v ?? '').replace(/\D/g, '').padStart(10, '0');
 
 async function download(url, file) {
@@ -95,6 +97,7 @@ function periodFacts(selected, stock) {
   const groups = new Map();
   for (const [field, fact] of selected) {
     for (const x of fact.values) {
+      if (!isValidPeriodEnd(x.end)) continue;
       const isDuration=Boolean(x.start);
       if (durationTag.has(field)!==isDuration) continue;
       const days=isDuration ? (Date.parse(x.end)-Date.parse(x.start))/86400000+1 : 0;
@@ -211,7 +214,7 @@ async function backfillFmp(stock) {
   for(const def of statementDefs){
     const row=def.data;
     const periodEnd=row.date||row.filingDate;
-    if(!periodEnd) continue;
+    if(!isValidPeriodEnd(periodEnd)) continue;
     const values={};
     for(const [field,key] of def.fields){const v=pick(row,key);if(v!=null)values[field]=v;}
     if(!Object.keys(values).length) continue;
