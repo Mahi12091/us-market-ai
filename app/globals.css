@@ -573,3 +573,40 @@
     line-height: 1.05;
   }
 }
+
+
+/* Stock directory: responsive layout, accessible filters and pagination */
+.stocks-page{padding:28px 0 64px;color:var(--text,#10233e)}
+.stocks-shell{display:flex;flex-direction:column;gap:24px}
+.stocks-page .page-hero{padding:clamp(24px,4vw,44px);border:1px solid var(--border,#dfe7f1);border-radius:22px;background:linear-gradient(115deg,#fff 0%,#f0f6ff 100%);box-shadow:0 12px 34px rgba(23,55,92,.06)}
+.stocks-page .page-hero-content{max-width:760px}
+.stocks-page .page-hero h1{margin:8px 0 12px;font-size:clamp(32px,5vw,48px);line-height:1.05;letter-spacing:-1.6px}
+.stocks-page .page-hero p{max-width:680px;margin:0;color:var(--muted,#64748b);font-size:15px;line-height:1.7}
+.stocks-page .hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.stocks-page .blue-btn,.stocks-page .outline-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:10px 15px;border:1px solid #1769e0;border-radius:10px;font-size:12px;font-weight:750;text-decoration:none;white-space:nowrap}
+.stocks-page .blue-btn{background:#1769e0;color:#fff}
+.stocks-page .outline-btn{background:#fff;color:#1769e0;border-color:#cbd9eb}
+.stocks-page .stocks-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.stocks-page .stocks-filter{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.stocks-page .stocks-filter a{display:inline-flex;align-items:center;min-height:34px;padding:8px 11px;border:1px solid var(--border,#dfe7f1);border-radius:999px;color:var(--muted,#64748b);background:#fff;font-size:11px;font-weight:700}
+.stocks-page .stocks-filter a.active,.stocks-page .stocks-filter a:hover{color:#1769e0;background:#eef5ff;border-color:#b9d2f7}
+.stocks-page .stock-directory{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.stocks-page .directory-card{display:flex;min-width:0;min-height:170px;flex-direction:column;gap:8px;padding:15px;border:1px solid var(--border,#dfe7f1);border-radius:14px;background:#fff;box-shadow:0 4px 16px rgba(23,55,92,.035);transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease}
+.stocks-page .directory-card:hover{transform:translateY(-2px);border-color:#b7cff0;box-shadow:0 10px 24px rgba(23,55,92,.08)}
+.stocks-page .directory-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.stocks-page .ticker-badge{display:grid;place-items:center;min-width:36px;height:36px;padding:0 7px;border-radius:10px;background:#edf4ff;color:#1769e0;font-size:12px;font-weight:850}
+.stocks-page .research-badge{color:#1769e0;font-size:8px;font-weight:850;letter-spacing:1px}
+.stocks-page .directory-symbol{font-size:16px;font-weight:850;letter-spacing:.2px}
+.stocks-page .directory-name{color:var(--muted,#64748b);font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.stocks-page .directory-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto}
+.stocks-page .directory-meta span{max-width:100%;padding:4px 6px;border-radius:6px;background:#f4f7fb;color:#63748a;font-size:9px;overflow-wrap:anywhere}
+.stocks-page .directory-arrow{align-self:flex-end;color:#1769e0;font-size:16px;font-weight:800}
+.stocks-page .stocks-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:6px}
+.stocks-page .stocks-pagination>span{color:var(--muted,#64748b);font-size:12px}
+.stocks-page .empty-directory{padding:28px;border:1px dashed var(--border,#dfe7f1);border-radius:14px;background:#fff;color:var(--muted,#64748b)}
+.stocks-page .empty-directory strong{display:block;color:var(--text,#10233e);margin-bottom:6px}
+.stocks-page .empty-directory p{margin:0;font-size:13px;line-height:1.5}
+@media(max-width:1050px){.stocks-page .stock-directory{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.stocks-page{padding:16px 0 36px}.stocks-page .page-hero{padding:22px 18px;border-radius:16px}.stocks-page .page-hero p{font-size:13px}.stocks-page .stocks-toolbar{align-items:flex-start;flex-direction:column}.stocks-page .stocks-filter{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.stocks-page .stocks-filter a{flex:0 0 auto}.stocks-page .stock-directory{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stocks-page .directory-card{padding:11px;min-height:166px}.stocks-page .directory-meta span{font-size:8px}.stocks-page .stocks-pagination .blue-btn,.stocks-page .stocks-pagination .outline-btn{padding:9px 11px}}
+@media(max-width:380px){.stocks-page .stock-directory{grid-template-columns:minmax(0,1fr)}}
+@media(prefers-reduced-motion:reduce){.stocks-page .directory-card{transition:none}}
