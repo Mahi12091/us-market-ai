@@ -103,7 +103,7 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
     db.from('price_history').select('timestamp,close,high,low').eq('stock_id', stock.id).eq('timeframe', '1d').order('timestamp', { ascending: false }).limit(250),
     db.from('prediction_results').select('id,horizon,predicted_price,actual_price,percentage_error,hit,evaluated_at').eq('stock_id', stock.id).order('evaluated_at', { ascending: false }).limit(8),
     db.from('stocks').select('id,symbol,slug,company_name,sector,industry,market_cap').eq('is_active', true).eq(stock.sector && String(stock.sector).toLowerCase() !== 'other' ? 'sector' : 'industry', stock.sector && String(stock.sector).toLowerCase() !== 'other' ? stock.sector : (stock.industry ?? '')).neq('id', stock.id).order('market_cap', { ascending: false, nullsFirst: false }).limit(4),
-    db.from('financial_statements').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(60),
+    db.from('financial_statements').select('*').eq('stock_id', stock.id).lte('period_end', new Date().toISOString().slice(0, 10)).order('period_end', { ascending: false }).order('statement_type', { ascending: true }).limit(60),
     db.from('dividends').select('*').eq('stock_id', stock.id).order('ex_date', { ascending: false, nullsFirst: false }).order('declaration_date', { ascending: false }).limit(30),
     db.from('ownership_snapshots').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(8),
     db.from('institutional_holders').select('*').eq('stock_id', stock.id).order('period_end', { ascending: false }).limit(50),
