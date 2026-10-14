@@ -158,6 +158,7 @@
 .sd-chart-card .price-chart-native{margin:0 -5px}
 .sd-chart-card .chart-range-tabs button{border-radius:8px}
 .sd-empty{padding:17px;border:1px dashed #d6e0ed;border-radius:11px;background:#f9fbfe;color:var(--sd-muted);font-size:13px;line-height:1.65}
+.sd-quote-stale-note{margin:8px 0;padding:7px 10px;border:1px solid #f1d3a3;border-radius:8px;background:#fff8eb;color:#85520a;font-size:12px;line-height:1.5}
 .sd-chart-empty{min-height:150px;display:flex;align-items:center}
 .sd-muted,.sd-footnote{color:var(--sd-muted);font-size:12px;line-height:1.65}
 .sd-footnote{margin:13px 0 0}
