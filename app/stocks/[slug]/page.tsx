@@ -236,7 +236,29 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
   const hasEvaluationData = (identifiers ?? []).length > 0 || (results ?? []).length > 0;
   const hasResearchEvidence = hasOwnershipData || hasInsiderTransactions || hasSecFilings || hasPublishedResearch || hasPeriodResearch || hasThirdPartyData || hasProvenanceData || hasEvaluationData;
   const shortForecastRows = livePredictions.filter(p => finite(p.predicted_price) !== null).map(p => [String(p.horizon).toUpperCase(), money(p.predicted_price), pct(p.predicted_change_percent), p.direction ?? '—', finite(p.confidence) === null ? '—' : number(p.confidence, 0)]);
-  const longForecastRows = (longTerm ?? []).filter((p: any) => finite(p.target_year) !== null && finite(p.predicted_price) !== null).map((p: any) => [String(p.target_year), money(p.predicted_price), pct(p.predicted_return_percent ?? p.expected_return_percent), p.model_version ?? 'long-term-v1.0']);
+  // The production schema stores bear/base/bull scenario prices and expected_cagr (in percent units),
+  // not predicted_price/predicted_return_percent. Keep only the newest stored scenario for each future year.
+  const latestLongTermByYear = new Map<number, any>();
+  for (const prediction of longTerm ?? []) {
+    const year = finite(prediction.target_year);
+    if (year === null || year <= new Date().getUTCFullYear()) continue;
+    const current = latestLongTermByYear.get(year);
+    const predictionDate = new Date(prediction.prediction_date ?? prediction.updated_at ?? prediction.created_at ?? 0).getTime();
+    const currentDate = current ? new Date(current.prediction_date ?? current.updated_at ?? current.created_at ?? 0).getTime() : -Infinity;
+    if (!current || predictionDate > currentDate) latestLongTermByYear.set(year, prediction);
+  }
+  const longForecastRows = [...latestLongTermByYear.values()]
+    .filter((prediction: any) => finite(prediction.base_price) !== null && finite(prediction.bear_price) !== null && finite(prediction.bull_price) !== null)
+    .sort((a: any, b: any) => Number(a.target_year) - Number(b.target_year))
+    .map((prediction: any) => [
+      String(prediction.target_year),
+      money(prediction.base_price),
+      money(prediction.bear_price),
+      money(prediction.bull_price),
+      finite(prediction.expected_cagr) === null ? '—' : `${number(prediction.expected_cagr, 2)}%`,
+      finite(prediction.confidence) === null ? '—' : number(prediction.confidence, 0),
+      String(prediction.signal ?? prediction.direction ?? '—'),
+    ]);
   const cellHasValue = (value: unknown) => value !== null && value !== undefined && String(value).trim() !== '' && String(value).trim() !== '—' && String(value).trim() !== 'null' && String(value).trim() !== 'undefined';
   const table = (headers: string[], rows: any[][]) => {
     // Hide genuinely empty/provider-placeholder rows and exact duplicates before rendering.
@@ -448,8 +470,8 @@ export default async function StockPage({ params }: { params: Promise<{ slug: st
           {hasForecastData && <section className="sd-card" id="forecast">
             <div className="sd-section-heading"><div><span className="sd-kicker">QUANTITATIVE RESEARCH</span><h2>Stock forecast and analysis: price outlook</h2><p>Forecasts are model outputs, not promises or personalized investment advice.</p></div><span className={direction === 'Bullish' ? 'sd-status-positive' : direction === 'Bearish' ? 'sd-status-negative' : 'sd-status-neutral'}>{direction}</span></div>
             {table(['Horizon','Model target','Expected change','Signal','Confidence score'], shortForecastRows)}
-            {longForecastRows.length > 0 && <><h3 className="sd-subheading">Long-term model scenarios</h3><p className="sd-muted">Only years with stored model outputs are shown. Long-range scenarios carry substantial uncertainty.</p>{table(['Target year','Model target','Model return','Model version'], longForecastRows)}</>}
-            {longForecastRows.length === 0 && <p className="sd-footnote">Long-term forecast records are not available yet; no values are fabricated or extrapolated on this page.</p>}
+            {longForecastRows.length > 0 && <><h3 className="sd-subheading">Long-term model scenarios</h3><p className="sd-muted">Latest stored scenario per future target year. Bear, base and bull prices are model scenarios, not guaranteed targets. The relative model score is not a calibrated probability; uncertainty rises materially for distant years.</p>{table(['Target year','Base case','Bear case','Bull case','Expected CAGR','Relative model score','Signal'], longForecastRows)}</>}
+            {longForecastRows.length === 0 && <p className="sd-footnote">No future-year long-term scenario records are available for this stock; no values are fabricated or extrapolated on this page.</p>}
           </section>}
 
           {hasFundamentalsData && <section className="sd-card" id="fundamentals">
