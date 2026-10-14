@@ -105,7 +105,11 @@ const missing = await sql`
     q.stock_id IS NULL OR
     (q.quote_timestamp IS NOT NULL AND q.quote_timestamp::date < CURRENT_DATE - 2) OR
     (EXISTS (SELECT 1 FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')
-      AND (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')::date < CURRENT_DATE - 2)
+      AND (
+        (SELECT MAX(ph."timestamp") FROM price_history ph WHERE ph.stock_id=s.id AND ph.timeframe='1d')::date < CURRENT_DATE - 2
+        OR q.quote_timestamp IS NULL
+        OR q.quote_timestamp < (SELECT MAX(ph2."timestamp") FROM price_history ph2 WHERE ph2.stock_id=s.id AND ph2.timeframe='1d')
+      ))
   )
   ORDER BY s.asset_type, s.symbol
 `;
