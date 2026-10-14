@@ -63,14 +63,37 @@ async function stooqHistory(symbol) {
   return history;
 }
 
+function providerSymbolCandidates(symbol) {
+  const candidates = [symbol, symbol.replace(/\./g, '-'), symbol.replace(/-/g, '.')];
+  return [...new Set(candidates.map((value) => value.trim()).filter(Boolean))];
+}
+
 async function fetchHistory(symbol) {
-  try { return { history: await yahooHistory(symbol), source: 'YAHOO_FINANCE_CHART_FREE' }; }
-  catch (yahooError) {
-    try { return { history: await stooqHistory(symbol), source: 'STOOQ_FREE' }; }
-    catch (stooqError) {
-      throw new Error(String(yahooError?.message || yahooError) + '; ' + String(stooqError?.message || stooqError));
+  const candidates = providerSymbolCandidates(symbol);
+  const errors = [];
+  for (const providerSymbol of candidates) {
+    try {
+      return {
+        history: await yahooHistory(providerSymbol),
+        source: 'YAHOO_FINANCE_CHART_FREE',
+        providerSymbol
+      };
+    } catch (error) {
+      errors.push('Yahoo ' + providerSymbol + ': ' + String(error?.message || error));
     }
   }
+  for (const providerSymbol of candidates) {
+    try {
+      return {
+        history: await stooqHistory(providerSymbol),
+        source: 'STOOQ_FREE',
+        providerSymbol
+      };
+    } catch (error) {
+      errors.push('Stooq ' + providerSymbol + ': ' + String(error?.message || error));
+    }
+  }
+  throw new Error(errors.join('; '));
 }
 
 const missing = await sql`
@@ -160,12 +183,12 @@ for (const stock of missing) {
     );
     quoteRows += qres.length;
     if (stock.asset_type === 'etf') marketSnapshots.push({ symbol: stock.symbol, price: round(price), change_percent: round(changePercent), timestamp: quoteTimestamp });
-    console.log(JSON.stringify({symbol: stock.symbol, history_bars_available: history.length, new_bars_upserted: newHistory.length, quote_timestamp: quoteTimestamp, source: fetched.source}));
+    console.log(JSON.stringify({symbol: stock.symbol, provider_symbol: fetched.providerSymbol, history_bars_available: history.length, new_bars_upserted: newHistory.length, quote_timestamp: quoteTimestamp, source: fetched.source}));
   } catch (error) {
     const message = String(error?.message || error);
     if (/HTTP 404|no usable daily bars|No chart data returned/i.test(message)) {
       skipped += 1;
-      console.warn('[yahoo-backfill] skipped ' + stock.symbol + ' (no usable Yahoo history): ' + message.slice(0, 180));
+      console.warn('[yahoo-backfill] skipped ' + stock.symbol + ' (no usable history from Yahoo/Stooq): ' + message.slice(0, 400));
     } else {
       failed += 1;
       console.error('[yahoo-backfill] ' + stock.symbol + ': ' + message.slice(0, 250));
