@@ -44,7 +44,7 @@ export default async function StocksPage({ searchParams }: { searchParams: Promi
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (error) console.error('[stocks] Directory query failed:', error.message);
   const fetchedRows = filterCommonEquityRows((pageRows ?? []) as DirectoryStock[]);
-  const hasNextPage = fetchedRows.length > PAGE_SIZE;
+  const hasNextPage = (pageRows ?? []).length > PAGE_SIZE;
   const stocks = fetchedRows.slice(0, PAGE_SIZE).filter((stock) => Boolean(stock.slug?.trim()));
   const pageHref = (nextPage: number) => {
     const query = new URLSearchParams();
