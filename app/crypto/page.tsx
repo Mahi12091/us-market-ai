@@ -1,6 +1,22 @@
 import Link from 'next/link';
 
-export const metadata = { title: 'Crypto', description: 'Cryptocurrency market intelligence and quantitative forecasts.' };
+export const metadata = {
+  title: "Crypto Market Intelligence & Research",
+  description: "Explore cryptocurrency market context and quantitative research. Coverage and forecast availability depend on the latest validated source data.",
+  alternates: { canonical: "/crypto" },
+  openGraph: {
+    title: "Crypto Market Intelligence & Research",
+    description: "Explore cryptocurrency market context and quantitative research. Coverage and forecast availability depend on the latest validated source data.",
+    url: "https://usmarketai.com/crypto",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "Crypto Market Intelligence & Research",
+    description: "Explore cryptocurrency market context and quantitative research. Coverage and forecast availability depend on the latest validated source data.",
+  },
+};
 
 const assets = [
   ['BTC', 'Bitcoin', 'Primary crypto benchmark', 'Pending'],
