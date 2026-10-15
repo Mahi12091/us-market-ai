@@ -1,10 +1,11 @@
 import type { MetadataRoute } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
+import { isLikelyNonCommonSecurity } from '@/lib/stock-universe';
 
 const base = (process.env.NEXT_PUBLIC_SITE_URL || 'https://usmarketai.com').replace(/\/$/, '');
 export const dynamic = 'force-dynamic';
 const PAGE_SIZE = 1000;
-type SitemapStock = { slug: string | null; updated_at: string | null; sector: string | null; industry: string | null; asset_type: string | null };
+type SitemapStock = { slug: string | null; updated_at: string | null; sector: string | null; industry: string | null; asset_type: string | null; company_name: string | null };
 type Category = { slug: string; label: string; count: number; latest: string | null };
 const slugify = (value: string) => value.toLowerCase().trim().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -33,7 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const stocks: SitemapStock[] = [];
   const db = createDatabaseClient();
   for (let offset = 0; ; offset += PAGE_SIZE) {
-    const { data, error } = await db.from('stocks').select('slug,updated_at,sector,industry,asset_type')
+    const { data, error } = await db.from('stocks').select('slug,updated_at,sector,industry,asset_type,company_name')
       .eq('is_active', true).eq('is_indexable', true).order('slug', { ascending: true }).range(offset, offset + PAGE_SIZE - 1);
     if (error) {
       console.error('Sitemap stock query failed; returning static routes:', error.message);
@@ -44,13 +45,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (batch.length < PAGE_SIZE) break;
   }
   const stockRoutes: MetadataRoute.Sitemap = stocks
-    .filter((stock): stock is SitemapStock & { slug: string } => Boolean(stock.slug?.trim()))
+    .filter((stock): stock is SitemapStock & { slug: string } => Boolean(stock.slug?.trim()) && !isLikelyNonCommonSecurity(stock.company_name))
     .map(stock => ({ url: `${base}/stocks/${stock.slug}`, ...(stock.updated_at ? { lastModified: new Date(stock.updated_at) } : {}), changeFrequency: 'daily' as const, priority: 0.8 }));
 
   const categories = (field: 'sector' | 'industry') => {
     const map = new Map<string, Category>();
     for (const stock of stocks) {
       if (stock.asset_type && stock.asset_type !== 'stock') continue;
+      if (isLikelyNonCommonSecurity(stock.company_name)) continue;
       const label = stock[field]?.trim();
       if (!label || label.toLowerCase() === 'other') continue;
       const slug = slugify(label);
