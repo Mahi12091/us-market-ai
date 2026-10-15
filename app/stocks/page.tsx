@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 
 export const metadata = {
   title: "US Stocks: Company Directory & Research",
@@ -42,7 +43,7 @@ export default async function StocksPage({ searchParams }: { searchParams: Promi
     .order('symbol')
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   if (error) console.error('[stocks] Directory query failed:', error.message);
-  const fetchedRows = (pageRows ?? []) as DirectoryStock[];
+  const fetchedRows = filterCommonEquityRows((pageRows ?? []) as DirectoryStock[]);
   const hasNextPage = fetchedRows.length > PAGE_SIZE;
   const stocks = fetchedRows.slice(0, PAGE_SIZE).filter((stock) => Boolean(stock.slug?.trim()));
   const pageHref = (nextPage: number) => {
