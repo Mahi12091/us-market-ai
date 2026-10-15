@@ -6,6 +6,18 @@ export const metadata: Metadata = {
   title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
   description: 'Explore sector-wise US stock price prediction research for 2026, 2030, 2035, 2040 and 2050, with quantitative methodology, risks and live stock intelligence.',
   alternates: { canonical: '/blog' },
+  openGraph: {
+    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
+    description: 'Explore sector-wise US stock price prediction research with quantitative methodology, risks and links to company research.',
+    url: 'https://usmarketai.com/blog',
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
+    description: 'Long-term US stock forecast research, methodology and risk context.',
+  },
 };
 
 type StockRow = {
