@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata = {
-  title: "US Market AI Research Methodology & Editorial Desk",
+  title: "Research Methodology & Editorial Desk",
   description: "Learn about the US Market AI research desk, data validation principles, quantitative methods and how limitations are communicated to readers.",
   alternates: { canonical: "/research-author" },
   openGraph: {
