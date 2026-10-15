@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Terms of Use | US Market AI",
+  title: "Terms of Use",
   description: "Review the terms and conditions that apply to access and use of US Market AI market research tools and content.",
   alternates: { canonical: "/terms" },
   openGraph: {
