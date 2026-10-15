@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 import ResearchCategoryControls from '@/components/research-category-controls';
 
 type Row = Record<string, any>;
@@ -46,7 +47,7 @@ export async function ResearchCategoryPage({mode}:{mode:Mode}) {
     const q=db.from('stocks').select('id,symbol,slug,company_name,sector,industry,exchange,market_cap,asset_type,ipo_listing_date,founded_year').eq('is_active',true).eq('is_indexable',true);
     if(mode==='etfs') q.eq('asset_type','etf'); else q.eq('asset_type','stock');
     const result=await q.order('market_cap',{ascending:false,nullsFirst:false}).limit(mode==='screener'||mode==='compare'?6000:1500);
-    queryFailed=Boolean(result.error); rows=Array.isArray(result.data)?result.data:[];
+    queryFailed=Boolean(result.error); rows=filterCommonEquityRows((Array.isArray(result.data)?result.data:[]) as Row[]);
   }
   if(mode==='sectors') rows.sort((a,b)=>String(a.sector??'').localeCompare(String(b.sector??''))||String(a.symbol).localeCompare(String(b.symbol)));
   if(mode==='ipo') rows=rows.filter(row=>row.ipo_listing_date);
