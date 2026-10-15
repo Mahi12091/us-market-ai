@@ -3,7 +3,7 @@ import { SectorDirectory } from '@/components/sector-directory';
 
 export const revalidate = 900;
 export const metadata: Metadata = {
-  title: 'US Stocks by Sector & Industry | US Market AI',
+  title: 'US Stocks by Sector & Industry',
   description: 'Explore the US stock market by sector and industry. Browse company counts, available market capitalization data and links to individual stock research pages.',
   keywords: ['US stocks by sector', 'stock market sectors', 'US stock industry directory', 'sector analysis', 'industry stocks', 'stock research'],
   alternates: { canonical: 'https://usmarketai.com/sectors' },
