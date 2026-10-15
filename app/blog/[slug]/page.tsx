@@ -59,8 +59,8 @@ export default async function ForecastArticle({ params }: { params: Promise<{ sl
   const breadcrumbJsonLd = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl || '/' }, { '@type': 'ListItem', position: 2, name: 'Forecasts', item: siteUrl ? `${siteUrl}/blog` : '/blog' }, { '@type': 'ListItem', position: 3, name: stock.company_name, item: pageUrl }] };
 
   return <main className="blog-article-page">
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd).replace(/</g, '\\u003c') }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd).replace(/</g, '\\u003c') }} />
     <div className="container">
       <nav className="article-breadcrumb"><a href="/">Home</a><span>›</span><a href="/blog">Forecasts</a><span>›</span><span>{stock.symbol}</span></nav>
       <header className="article-hero">
