@@ -33,7 +33,6 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 
 const PAGE_SIZE = 100;
 
-type StocksSearchParams = { page?: string; sector?: string };
 type DirectoryStock = { symbol: string; slug: string | null; company_name: string; sector: string | null; industry: string | null; exchange: string | null; asset_type: string | null };
 
 export default async function StocksPage({ searchParams }: { searchParams: Promise<StocksSearchParams> }) {
