@@ -1,11 +1,24 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 import './blog.css';
 
 export const metadata: Metadata = {
   title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
   description: 'Explore sector-wise US stock price prediction research for 2026, 2030, 2035, 2040 and 2050, with quantitative methodology, risks and live stock intelligence.',
   alternates: { canonical: '/blog' },
+  openGraph: {
+    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
+    description: 'Explore sector-wise US stock price prediction research with quantitative methodology, risks and links to company research.',
+    url: 'https://usmarketai.com/blog',
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
+    description: 'Long-term US stock forecast research, methodology and risk context.',
+  },
 };
 
 type StockRow = {
@@ -39,7 +52,7 @@ export default async function BlogPage() {
     .order('market_cap', { ascending: false, nullsFirst: false })
     .limit(80);
 
-  const stocks = (result.data ?? []) as StockRow[];
+  const stocks = filterCommonEquityRows((result.data ?? []) as StockRow[]);
 
   return <main className="blog-page">
     <div className="container">

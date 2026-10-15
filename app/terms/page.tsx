@@ -1,4 +1,20 @@
-export const metadata = { title: 'Terms of Use', description: 'Terms of use for US Market AI.' };
+export const metadata = {
+  title: "Terms of Use",
+  description: "Review the terms and conditions that apply to access and use of US Market AI market research tools and content.",
+  alternates: { canonical: "/terms" },
+  openGraph: {
+    title: "Terms of Use | US Market AI",
+    description: "Review the terms and conditions that apply to access and use of US Market AI market research tools and content.",
+    url: "https://usmarketai.com/terms",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "Terms of Use | US Market AI",
+    description: "Review the terms and conditions that apply to access and use of US Market AI market research tools and content.",
+  },
+};
 
 export default function Terms() {
   return (

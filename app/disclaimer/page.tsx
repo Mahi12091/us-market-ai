@@ -1,4 +1,20 @@
-export const metadata = { title: 'Disclaimer', description: 'Important limitations and financial research disclaimer for US Market AI.' };
+export const metadata = {
+  title: "Financial Research Disclaimer",
+  description: "Understand the data, forecast, risk and investment limitations of US Market AI. Research is informational and is not individualized financial advice.",
+  alternates: { canonical: "/disclaimer" },
+  openGraph: {
+    title: "Financial Research Disclaimer",
+    description: "Understand the data, forecast, risk and investment limitations of US Market AI. Research is informational and is not individualized financial advice.",
+    url: "https://usmarketai.com/disclaimer",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "Financial Research Disclaimer",
+    description: "Understand the data, forecast, risk and investment limitations of US Market AI. Research is informational and is not individualized financial advice.",
+  },
+};
 
 export default function Disclaimer() {
   return (

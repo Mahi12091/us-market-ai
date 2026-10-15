@@ -1,7 +1,23 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 
-export const metadata: Metadata = { title: 'AI Predictions', description: 'Explore experimental quantitative forecasts for US stocks across 24-hour to 90-day horizons, with transparent data coverage and outcome-based validation.' };
+export const metadata = {
+  title: "AI Stock Predictions & Forecast Research",
+  description: "Explore experimental quantitative US stock forecasts across short and medium horizons, with model context, coverage limitations and outcome-based validation.",
+  alternates: { canonical: "/predictions" },
+  openGraph: {
+    title: "AI Stock Predictions & Forecast Research",
+    description: "Explore experimental quantitative US stock forecasts across short and medium horizons, with model context, coverage limitations and outcome-based validation.",
+    url: "https://usmarketai.com/predictions",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "AI Stock Predictions & Forecast Research",
+    description: "Explore experimental quantitative US stock forecasts across short and medium horizons, with model context, coverage limitations and outcome-based validation.",
+  },
+};
 const horizons=['24h','7d','30d','90d'];
 const MIN_OVERALL_RESULTS = 30;
 const MIN_HORIZON_RESULTS = 20;

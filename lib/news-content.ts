@@ -36,3 +36,37 @@ export function newsSummary(value: unknown, title: unknown, maxLength = 280): st
   if (!summary || summary.toLowerCase() === cleanTitle.toLowerCase()) return '';
   return summary.length > maxLength ? summary.slice(0, maxLength - 1).trimEnd() + '…' : summary;
 }
+
+
+/** Remove duplicate syndicated stories before rendering a feed. URL tracking
+ * parameters are ignored, and repeated headlines for the same ticker collapse
+ * to one item. Original publisher links and source text remain untouched. */
+export function dedupeNewsItems<T extends { title?: unknown; url?: unknown; stock_id?: unknown }>(items: T[], limit = 40): T[] {
+  const seenUrls = new Set<string>();
+  const seenTitles = new Set<string>();
+  const unique: T[] = [];
+  for (const item of items) {
+    const title = cleanNewsText(item.title);
+    if (!title) continue;
+    const titleKey = `${String(item.stock_id ?? 'market')}:${title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()}`;
+    const safeUrl = safeNewsUrl(item.url);
+    let urlKey = '';
+    if (safeUrl) {
+      try {
+        const parsed = new URL(safeUrl);
+        for (const key of [...parsed.searchParams.keys()]) {
+          if (/^(utm_.+|gclid|fbclid|mc_cid|mc_eid)$/i.test(key)) parsed.searchParams.delete(key);
+        }
+        urlKey = parsed.toString().replace(/\/$/, '');
+      } catch {
+        urlKey = '';
+      }
+    }
+    if (seenTitles.has(titleKey) || (urlKey && seenUrls.has(urlKey))) continue;
+    seenTitles.add(titleKey);
+    if (urlKey) seenUrls.add(urlKey);
+    unique.push(item);
+    if (unique.length >= limit) break;
+  }
+  return unique;
+}
