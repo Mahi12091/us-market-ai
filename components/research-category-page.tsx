@@ -17,7 +17,8 @@ const cfg: Record<Mode,{title:string;eyebrow:string;description:string;explain:s
 const fmt = (key:string,value:any) => {
   if(value==null||value==='') return '—';
   if((key==='market_cap'||key==='amount'||key==='revenue_actual'||key==='revenue_estimate')&&Number.isFinite(Number(value))) return '$'+Number(value).toLocaleString('en-US',{maximumFractionDigits:2});
-  if(key.startsWith('eps_')&&Number.isFinite(Number(value))) return ' return Number(value).toFixed(2)+'%';
+  if(key.startsWith('eps_')&&Number.isFinite(Number(value))) return '$'+Number(value).toFixed(2);
+  if((key.includes('percent')||key.includes('yield')||key==='payout_ratio')&&Number.isFinite(Number(value))) return Number(value).toFixed(2)+'%';
   if((key.endsWith('_date')||key.endsWith('_at'))&&Number.isFinite(new Date(String(value)).getTime())) return new Date(String(value)).toLocaleDateString('en-US',{timeZone:'UTC',year:'numeric',month:'short',day:'numeric'});
   return String(value);
 };
