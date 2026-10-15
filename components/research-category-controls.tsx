@@ -33,15 +33,17 @@ export default function ResearchCategoryControls({ rows, headers, mode }: { rows
     const term = search.trim().toLowerCase();
     return rows.filter(row => {
       const text = [row.symbol, row.company_name, row.sector, row.industry, row.exchange].map(v => String(v ?? '')).join(' ').toLowerCase();
-      const cap = Number(row.market_cap);
+      const hasCap = row.market_cap != null && row.market_cap !== '' && Number.isFinite(Number(row.market_cap));
+      const cap = hasCap ? Number(row.market_cap) : null;
       return (!term || text.includes(term))
         && (sector === 'all' || row.sector === sector)
-        && (minCap === '' || (Number.isFinite(cap) && cap >= Number(minCap)))
-        && (maxCap === '' || (Number.isFinite(cap) && cap <= Number(maxCap)));
+        && (minCap === '' || (cap !== null && cap >= Number(minCap)))
+        && (maxCap === '' || (cap !== null && cap <= Number(maxCap)));
     });
   }, [rows, search, sector, minCap, maxCap]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const visible = filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize);
+  const currentPage = Math.min(page, pageCount);
+  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectedRows = selected.map(symbol => rows.find(row => String(row.symbol) === symbol)).filter((row): row is Row => Boolean(row));
   const toggle = (symbol: string) => setSelected(current => current.includes(symbol) ? current.filter(item => item !== symbol) : current.length < 4 ? [...current, symbol] : current);
   const reset = () => { setSearch(''); setSector('all'); setMinCap(''); setMaxCap(''); setPage(1); };
@@ -79,7 +81,7 @@ export default function ResearchCategoryControls({ rows, headers, mode }: { rows
       <div className="research-table-heading"><div><h2 id="research-compare-title">Side-by-side company comparison</h2><p>Select up to four companies below. Only stored company facts are compared; missing values remain unavailable.</p></div><button type="button" className="research-filter-reset" onClick={() => setSelected([])} disabled={!selected.length}>Clear selection</button></div>
       {selectedRows.length ? <div className="research-table-scroll"><table><caption className="sr-only">Selected company comparison</caption><thead><tr><th>Metric</th>{selectedRows.map(row => <th key={String(row.symbol)}>{String(row.symbol)}</th>)}</tr></thead><tbody>{(['company_name','sector','industry','exchange','market_cap'] as const).map(key => <tr key={key}><th scope="row">{label(key)}</th>{selectedRows.map(row => <td key={String(row.symbol)}>{key === 'company_name' && row.slug ? <Link href={'/stocks/' + String(row.slug)}>{display(key, row[key])}</Link> : display(key, row[key])}</td>)}</tr>)}</tbody></table></div> : <p className="research-compare-empty">Choose two to four tickers from the results to compare company facts.</p>}
     </section>}
-    <section className="research-table-card"><div className="research-table-heading"><div><h2>{mode === 'screener' ? 'Filterable US stock universe' : 'Choose companies to compare'}</h2><p>{mode === 'screener' ? 'Use search, sector and market-cap filters to narrow the currently indexed universe.' : 'Select up to four companies. Open a company page for deeper fundamentals and risk context.'}</p></div><span>{Math.min(page, pageCount)} / {pageCount}</span></div>
+    <section className="research-table-card"><div className="research-table-heading"><div><h2>{mode === 'screener' ? 'Filterable US stock universe' : 'Choose companies to compare'}</h2><p>{mode === 'screener' ? 'Use search, sector and market-cap filters to narrow the currently indexed universe.' : 'Select up to four companies. Open a company page for deeper fundamentals and risk context.'}</p></div><span>{{currentPage} / {pageCount}</span></div>
       <div className="research-table-scroll"><table><caption className="sr-only">{mode === 'screener' ? 'US stock screener results' : 'Companies available for comparison'}</caption><thead><tr>{mode === 'compare' && <th scope="col">Select</th>}{headers.map(key => <th scope="col" key={key}>{label(key)}</th>)}<th scope="col">Research</th></tr></thead><tbody>{visible.map((row, index) => {
         const symbol = String(row.symbol ?? '');
         const isSelected = selected.includes(symbol);
@@ -89,7 +91,7 @@ export default function ResearchCategoryControls({ rows, headers, mode }: { rows
           <td>{row.slug ? <Link className="research-open" href={'/stocks/' + String(row.slug)}>Open research →</Link> : '—'}</td>
         </tr>;
       })}</tbody></table></div>
-      <div className="research-pagination"><span>Showing {filtered.length ? ((Math.min(page, pageCount) - 1) * pageSize + 1).toLocaleString('en-US') : 0}–{Math.min(page, pageCount) * pageSize < filtered.length ? (Math.min(page, pageCount) * pageSize).toLocaleString('en-US') : filtered.length.toLocaleString('en-US')} of {filtered.length.toLocaleString('en-US')}</span><div><button type="button" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page <= 1}>Previous</button><button type="button" onClick={() => setPage(value => Math.min(pageCount, value + 1))} disabled={page >= pageCount}>Next</button></div></div>
+      <div className="research-pagination"><span>Showing {filtered.length ? ((currentPage - 1) * pageSize + 1).toLocaleString('en-US') : 0}–{currentPage * pageSize < filtered.length ? (currentPage * pageSize).toLocaleString('en-US') : filtered.length.toLocaleString('en-US')} of {filtered.length.toLocaleString('en-US')}</span><div><button type="button" onClick={() => setPage(Math.max(1, currentPage - 1))} disabled={currentPage <= 1}>Previous</button><button type="button" onClick={() => setPage(Math.min(pageCount, currentPage + 1))} disabled={currentPage >= pageCount}>Next</button></div></div>
     </section>
   </div>;
 }
