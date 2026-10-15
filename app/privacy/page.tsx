@@ -1,4 +1,20 @@
-export const metadata = { title: 'Privacy', description: 'Privacy information for US Market AI.' };
+export const metadata = {
+  title: "Privacy Policy | US Market AI",
+  description: "Read how US Market AI handles information associated with use of its website and research services.",
+  alternates: { canonical: "/privacy" },
+  openGraph: {
+    title: "Privacy Policy | US Market AI",
+    description: "Read how US Market AI handles information associated with use of its website and research services.",
+    url: "https://usmarketai.com/privacy",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "Privacy Policy | US Market AI",
+    description: "Read how US Market AI handles information associated with use of its website and research services.",
+  },
+};
 
 export default function Privacy() {
   return (
