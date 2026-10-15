@@ -1,8 +1,21 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: 'AI Market Analysis',
-  description: 'AI-assisted market analysis based on verified structured market data.',
+  title: "AI Market Analysis & Research",
+  description: "Read AI-assisted market analysis grounded in available structured market data, with clear limits around data freshness and model uncertainty.",
+  alternates: { canonical: "/analysis" },
+  openGraph: {
+    title: "AI Market Analysis & Research",
+    description: "Read AI-assisted market analysis grounded in available structured market data, with clear limits around data freshness and model uncertainty.",
+    url: "https://usmarketai.com/analysis",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "AI Market Analysis & Research",
+    description: "Read AI-assisted market analysis grounded in available structured market data, with clear limits around data freshness and model uncertainty.",
+  },
 };
 
 export default function Analysis() {
