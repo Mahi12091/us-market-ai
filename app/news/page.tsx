@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: 'Follow the latest US stock market news, company announcements, earnings updates and sector developments. Explore ticker-linked headlines, publisher sources and market sentiment.',
   keywords: ['US stock market news', 'stock market news today', 'US stocks news', 'earnings news', 'technology stocks news', 'financial market updates', 'stock sentiment'],
   alternates: { canonical: 'https://usmarketai.com/news' },
-  openGraph: { title: 'US Stock Market News | US Market AI', description: 'Latest US company news, earnings headlines and sector developments with source links and market sentiment.', url: 'https://usmarketai.com/news', siteName: 'US Market AI', type: 'website' },
+  openGraph: { title: 'US Stock Market News', description: 'Latest US company news, earnings headlines and sector developments with source links and market sentiment.', url: 'https://usmarketai.com/news', siteName: 'US Market AI', type: 'website' },
   twitter: { card: 'summary_large_image', title: 'US Stock Market News | US Market AI', description: 'Latest US company news, earnings headlines and sector developments.' },
 };
 
