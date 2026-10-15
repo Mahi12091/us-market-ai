@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import PriceChart, { type ChartPoint } from '@/components/price-chart';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 
 export const revalidate = 300;
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://usmarketai.com').replace(/\/$/, '');
@@ -59,7 +60,7 @@ export default async function MarketsPage() {
   if (proxyLookupError) console.error('[markets] Benchmark stock lookup failed:', proxyLookupError.message);
   if (stockLookupError) console.error('[markets] Stock universe lookup failed:', stockLookupError.message);
   const proxyStocks = (rawProxyStocks ?? []) as ProxyRow[];
-  const stocks = (rawStocks ?? []) as StockRow[];
+  const stocks = filterCommonEquityRows((rawStocks ?? []) as StockRow[]);
   // Fetch quotes by bounded stock-ID batches. A single unfiltered quote query can
   // be truncated or fail at the data transport layer; the wrapper returns errors
   // as { data: null, error }, so handle each batch explicitly instead of silently
