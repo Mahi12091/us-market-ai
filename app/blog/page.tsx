@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 import './blog.css';
 
 export const metadata: Metadata = {
@@ -51,7 +52,7 @@ export default async function BlogPage() {
     .order('market_cap', { ascending: false, nullsFirst: false })
     .limit(80);
 
-  const stocks = (result.data ?? []) as StockRow[];
+  const stocks = filterCommonEquityRows((result.data ?? []) as StockRow[]);
 
   return <main className="blog-page">
     <div className="container">
