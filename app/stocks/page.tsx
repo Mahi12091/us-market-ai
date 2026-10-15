@@ -2,9 +2,22 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
 
-export const metadata: Metadata = {
-  title: 'US Stocks',
-  description: 'Browse US-listed stocks with dedicated pages for price, technicals, fundamentals, earnings and AI forecasts.',
+export const metadata = {
+  title: "US Stocks: Company Directory & Research",
+  description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
+  alternates: { canonical: "/stocks" },
+  openGraph: {
+    title: "US Stocks: Company Directory & Research",
+    description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
+    url: "https://usmarketai.com/stocks",
+    siteName: 'US Market AI',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: "US Stocks: Company Directory & Research",
+    description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
+  },
 };
 
 const PAGE_SIZE = 100;
