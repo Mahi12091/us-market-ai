@@ -51,7 +51,7 @@ export default async function MarketsPage() {
   const db = createDatabaseClient();
   const [{ data: rawProxyStocks, error: proxyLookupError }, { data: rawStocks, error: stockLookupError }] = await Promise.all([
     db.from('stocks').select('id,symbol,company_name').eq('is_active', true).in('symbol', proxies.map(p => p[0])),
-    db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('asset_type','stock').limit(5000),
+    db.from('stocks').select('id,symbol,slug,company_name,sector,market_cap').eq('is_active', true).eq('asset_type','stock').limit(6000),
   ]);
   // Never log a connection string or credentials; only report configuration state and query errors.
   if (!(process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL)) {
