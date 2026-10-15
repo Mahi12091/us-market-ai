@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 import LongTermResearchSection from '@/components/long-term-research-section';
 import { cleanNewsText, dedupeNewsItems, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
@@ -52,7 +53,7 @@ export default async function Home() {
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
     supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(80),
   ]);
-  const stocks = (rawStocks ?? []) as StockRow[];
+  const stocks = filterCommonEquityRows((rawStocks ?? []) as StockRow[]);
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
   const newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
   const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
