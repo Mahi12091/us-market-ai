@@ -6,7 +6,7 @@ import './search.css';
 export const revalidate = 60;
 
 export const metadata: Metadata = {
-  title: 'Search US Market AI',
+  title: 'Search',
   description: 'Search US stocks, companies, sectors, industries and ticker-linked market news across US Market AI.',
   robots: { index: false, follow: true },
 };
