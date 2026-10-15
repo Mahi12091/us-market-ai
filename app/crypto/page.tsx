@@ -3,6 +3,7 @@ import Link from 'next/link';
 export const metadata = {
   title: "Crypto Market Intelligence & Research",
   description: "Explore cryptocurrency market context and quantitative research. Coverage and forecast availability depend on the latest validated source data.",
+  robots: { index: false, follow: true },
   alternates: { canonical: "/crypto" },
   openGraph: {
     title: "Crypto Market Intelligence & Research",
