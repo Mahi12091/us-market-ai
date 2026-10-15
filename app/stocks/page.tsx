@@ -3,23 +3,33 @@ import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
 import { filterCommonEquityRows } from '@/lib/stock-universe';
 
-export const metadata = {
-  title: "US Stocks: Company Directory & Research",
-  description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
-  alternates: { canonical: "/stocks" },
-  openGraph: {
-    title: "US Stocks: Company Directory & Research",
-    description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
-    url: "https://usmarketai.com/stocks",
-    siteName: 'US Market AI',
-    type: 'website',
-  },
-  twitter: {
-    card: 'summary',
-    title: "US Stocks: Company Directory & Research",
-    description: "Browse US-listed stocks with available prices, company profiles, fundamentals, technical indicators, earnings and forecast research.",
-  },
+type StocksSearchParams = { page?: string; sector?: string };
+const getPageNumber = (value?: string) => {
+  const parsed = Number.parseInt(value ?? '1', 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 1000 ? parsed : 1;
 };
+
+export async function generateMetadata({ searchParams }: { searchParams: Promise<StocksSearchParams> }): Promise<Metadata> {
+  const params = await searchParams;
+  const page = getPageNumber(params.page);
+  const sector = (params.sector ?? '').trim();
+  const query = new URLSearchParams();
+  if (sector) query.set('sector', sector);
+  if (page > 1) query.set('page', String(page));
+  const canonical = `/stocks${query.size ? `?${query.toString()}` : ''}`;
+  const title = sector
+    ? `${sector} Stocks Directory${page > 1 ? ` – Page ${page}` : ''}`
+    : `US Stocks: Company Directory & Research${page > 1 ? ` – Page ${page}` : ''}`;
+  const description = sector
+    ? `Browse tracked ${sector} stocks with company classifications and links to available research${page > 1 ? ` (page ${page})` : ''}. Missing data is not estimated.`
+    : `Browse US-listed companies through available company profiles, market data, fundamentals and quantitative research${page > 1 ? ` (page ${page})` : ''}.`;
+  return {
+    title, description,
+    alternates: { canonical },
+    openGraph: { title, description, url: `https://usmarketai.com${canonical}`, siteName: 'US Market AI', type: 'website' },
+    twitter: { card: 'summary', title, description },
+  };
+}
 
 const PAGE_SIZE = 100;
 
@@ -28,8 +38,7 @@ type DirectoryStock = { symbol: string; slug: string | null; company_name: strin
 
 export default async function StocksPage({ searchParams }: { searchParams: Promise<StocksSearchParams> }) {
   const params = await searchParams;
-  const requestedPage = Number.parseInt(params.page ?? '1', 10);
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 && requestedPage <= 1000 ? requestedPage : 1;
+  const page = getPageNumber(params.page);
   const sector = (params.sector ?? '').trim();
   const supabase = createDatabaseClient();
   let query = supabase
