@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 import LongTermResearchSection from '@/components/long-term-research-section';
-import { cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { cleanNewsText, dedupeNewsItems, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 
@@ -38,16 +38,23 @@ function formatQuoteTimestamp(value: string | null | undefined) { if (!value) re
 function quoteIsFresh(value: string | null | undefined) { if (!value) return false; const timestamp = new Date(value).getTime(); return Number.isFinite(timestamp) && Date.now() - timestamp <= 7 * 24 * 60 * 60 * 1000; }
 function prettySector(value: string | null | undefined) { return value?.trim() || 'US Stocks'; }
 
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'US Market AI',
+  url: 'https://usmarketai.com/',
+};
+
 export default async function Home() {
   const supabase = createDatabaseClient();
   const [{ data: rawStocks }, { data: rawMarketStocks }, { data: rawNews }] = await Promise.all([
     supabase.from('stocks').select('id,symbol,slug,company_name,market_cap,sector,logo_url').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').order('market_cap', { ascending: false, nullsFirst: false }).limit(500),
     supabase.from('stocks').select('id,symbol,slug,company_name').eq('is_active', true).in('symbol', Object.keys(marketLabels)),
-    supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(8),
+    supabase.from('news').select('id,stock_id,title,summary,source,published_at,sentiment,url').order('published_at', { ascending: false, nullsFirst: false }).limit(80),
   ]);
   const stocks = (rawStocks ?? []) as StockRow[];
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
-  const newsItems = (rawNews ?? []) as NewsRow[];
+  const newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
   const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
   const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent,quote_timestamp').in('stock_id', allIds) : { data: [] };
   const quotes = (rawQuotes ?? []) as QuoteRow[];
@@ -75,7 +82,7 @@ export default async function Home() {
   }
   const sectorNewsSections = [...sectorNewsMap.entries()].filter(([,items]) => items.length > 0).slice(0,4);
 
-  return <div className="home-page">
+  return <div className="home-page"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd).replace(/</g, '\\u003c') }} />
     <div className="market-strip"><div className="container market-strip-inner">{Object.entries(marketLabels).map(([symbol,name]) => { const item=marketBySymbol.get(symbol); return <div className="ticker-mini" key={symbol}><span>{name}</span><strong>{formatPrice(item?.quote?.price)}</strong><em className={Number(item?.quote?.change_percent ?? 0)>=0?'up':'down'}>{formatChange(item?.quote?.change_percent)}</em><small>{formatQuoteTimestamp(item?.quote?.quote_timestamp)}</small></div>; })}<a href="/markets" className="market-link">View market overview →</a></div></div>
     <div className="container">
       <section className="hero-premium"><div className="hero-premium-copy"><div className="eyebrow-pill">US EQUITY INTELLIGENCE · RESEARCH WORKSPACE</div><h1>See the market.<br/><span>Understand the move.</span></h1><p className="hero-lead">A research workspace for serious US-market exploration. Track major ETF benchmarks, discover leading and lagging stocks, compare companies, study sector trends and connect market headlines with company-level context.</p><div className="hero-value-list"><span><b>01</b> Market pulse &amp; stock movers</span><span><b>02</b> Company fundamentals &amp; technical signals</span><span><b>03</b> Forecasts, sector research &amp; source-linked news</span></div><div className="button-row"><a className="button primary" href="/markets">Explore Market Intelligence →</a><a className="button" href="/screener">Find a Stock ↗</a></div><div className="hero-trust-row"><span>◫ <b>Data-aware context</b></span><span>◈ <b>Quantitative research</b></span><span>✓ <b>Clear risk framing</b></span></div></div><div className="hero-dashboard" aria-label="US Market AI market dashboard preview"><div className="dashboard-top"><span className="live-dot">● {marketBySymbol.get('SPY')?.quote?.price != null ? 'LATEST STORED QUOTE' : 'QUOTE UNAVAILABLE'}</span><small>Market intelligence</small></div><div className="dashboard-main"><div><small>SPY · S&amp;P 500 ETF proxy</small><strong>{formatPrice(marketBySymbol.get('SPY')?.quote?.price)}</strong><em>{formatChange(marketBySymbol.get('SPY')?.quote?.change_percent)}</em></div><div className="dashboard-data-note"><span>Market data snapshot</span><strong>{marketBySymbol.get('SPY')?.quote?.price != null ? formatQuoteTimestamp(marketBySymbol.get('SPY')?.quote?.quote_timestamp) : 'Waiting for quote data'}</strong><small>Prices may be delayed; check the timestamp on the relevant stock page.</small></div></div><div className="dashboard-indexes">{Object.entries(marketLabels).map(([symbol,name])=><div key={symbol}><span>{name}</span><b>{formatPrice(marketBySymbol.get(symbol)?.quote?.price)}</b><em>{formatChange(marketBySymbol.get(symbol)?.quote?.change_percent)}</em></div>)}</div><div className="dashboard-note">Markets move fast. <b>Stay ahead of the signal.</b></div></div></section>
