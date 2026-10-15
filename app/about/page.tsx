@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 export const metadata = {
-  title: "About US Market AI",
+  title: "About",
   description: "Learn how US Market AI presents market data, quantitative research, source-aware company metrics and model limitations for independent research.",
   alternates: { canonical: "/about" },
   openGraph: {
