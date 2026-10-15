@@ -53,10 +53,11 @@ export async function ResearchCategoryPage({mode}:{mode:Mode}) {
   if(mode==='ipo') rows=rows.filter(row=>row.ipo_listing_date);
   if(mode!=='screener'&&mode!=='compare') rows=rows.slice(0,150);
   const headers=c.columns.filter(key=>rows.some(row=>key in row)||['symbol','company_name'].includes(key));
+  const interactiveDirectory=mode==='screener'||mode==='compare';
   return <main className="container research-category">
     <section className="page-hero"><div className="page-hero-content"><div className="eyebrow">{c.eyebrow}</div><h1>{c.title}</h1><p>{c.description}</p><div className="hero-actions"><Link className="blue-btn" href="/stocks">Browse all stocks</Link><Link className="outline-btn" href="/markets">Market overview</Link></div></div></section>
     <section className="research-explainer"><div><span className="research-label">HOW TO USE THIS PAGE</span><h2>Research before you decide</h2><p>{c.explain}</p></div><div className="research-count"><strong>{rows.length.toLocaleString('en-US')}</strong><span>records available</span><small>Database-backed records</small></div></section>
-    {(mode==='screener'||mode==='compare')&&rows.length>0
+    {interactiveDirectory&&rows.length>0
       ? <ResearchCategoryControls rows={rows} headers={headers} mode={mode}/>
       : <section className="research-table-card"><div className="research-table-heading"><div><h2>{mode==='sectors'?'Companies by sector':mode==='earnings'?'Recent reported earnings':mode==='dividends'?'Verified dividend events':'Research directory'}</h2><p>Values not available in the source are shown as —.</p></div><span>{rows.length} rows</span></div>
         {rows.length>0?<div className="research-table-scroll"><table><thead><tr>{headers.map(key=><th key={key}>{key.replaceAll('_',' ')}</th>)}<th>Research</th></tr></thead><tbody>{rows.map((row,index)=><tr key={String(row.id??row.symbol??index)}>{headers.map(key=><td key={key}>{key==='symbol'&&row.slug?<Link className="research-symbol" href={'/stocks/'+row.slug}>{fmt(key,row[key])}</Link>:fmt(key,row[key])}</td>)}<td>{row.slug?<Link href={'/stocks/'+row.slug} className="research-open">Open stock →</Link>:'—'}</td></tr>)}</tbody></table></div>
