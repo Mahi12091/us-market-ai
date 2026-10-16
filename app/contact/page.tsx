@@ -2,11 +2,11 @@ import Link from 'next/link';
 
 export const metadata = {
   title: "Contact",
-  description: "Send feedback, report data corrections or contact the US Market AI team about the research platform and its market-data coverage.",
+  description: "Contact workflow status and current support options for the US Market AI research platform.",
   alternates: { canonical: "/contact" },
   openGraph: {
     title: "Contact US Market AI",
-    description: "Send feedback, report data corrections or contact the US Market AI team about the research platform and its market-data coverage.",
+    description: "Contact workflow status and current support options for the US Market AI research platform.",
     url: "https://usmarketai.com/contact",
     siteName: 'US Market AI',
     type: 'website',
@@ -14,7 +14,7 @@ export const metadata = {
   twitter: {
     card: 'summary',
     title: "Contact US Market AI",
-    description: "Send feedback, report data corrections or contact the US Market AI team about the research platform and its market-data coverage.",
+    description: "Contact workflow status and current support options for the US Market AI research platform.",
   },
 };
 
@@ -25,7 +25,7 @@ export default function Contact() {
         <section className="info-hero">
           <div className="eyebrow-row"><span className="eyebrow-dot" /> US Market AI</div>
           <h1>Let’s talk.</h1>
-          <p className="info-lead">Questions, feedback, data corrections and partnership ideas are all welcome. The contact workflow will be connected before production launch.</p>
+          <p className="info-lead">Questions, feedback and data-correction reports are important. A public GitHub issue tracker is available; no private contact form or support email is configured on this page.</p>
         </section>
 
         <div className="contact-grid">
@@ -36,10 +36,10 @@ export default function Contact() {
         </div>
 
         <section className="info-section">
-          <div className="info-kicker">Before launch</div>
-          <h2>Contact form coming next</h2>
-          <p>The production contact form and delivery channel will be enabled before public launch. Until then, this page intentionally avoids displaying a placeholder email address.</p>
-          <div className="info-actions"><Link className="info-btn" href="/about">About US Market AI</Link><Link className="info-btn" href="/privacy">Privacy</Link></div>
+          <div className="info-kicker">Support status</div>
+          <h2>Public issue tracker</h2>
+          <p>You can report a product issue or data-quality concern through the public repository issue tracker. Posts may be visible to anyone and may require a GitHub account. Do not include personal, account, payment or confidential financial information. A private support channel is not currently configured.</p>
+          <div className="info-actions"><a className="info-btn primary" href="https://github.com/Mahi12091/us-market-ai/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub ↗</a><Link className="info-btn" href="/about">About US Market AI</Link><Link className="info-btn" href="/privacy">Privacy</Link></div>
         </section>
       </div>
     </div>

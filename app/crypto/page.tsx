@@ -33,14 +33,14 @@ export default function CryptoPage() {
         <section className="info-hero">
           <div className="eyebrow-row"><span className="eyebrow-dot" /> Digital assets</div>
           <h1>Crypto Intelligence</h1>
-          <p className="info-lead">A dedicated research layer for digital assets, designed around price momentum, volatility, market context, sentiment and crypto-specific signals.</p>
+          <p className="info-lead">Crypto research is in preview while validated market data is being connected. Live prices, charts and forecasts are intentionally withheld until source coverage is verified.</p>
           <div className="info-actions"><Link className="info-btn primary" href="/predictions">View Predictions →</Link><Link className="info-btn" href="/news">Crypto News</Link></div>
         </section>
 
         <div className="info-grid">
-          <article className="info-card"><div className="info-kicker">Market</div><h2>Live Crypto Data</h2><p>Price, volume, volatility and market status will populate automatically once the data pipeline is connected.</p></article>
+          <article className="info-card"><div className="info-kicker">Market</div><h2>Live data pipeline</h2><p>Not connected yet. No live price, volume or volatility figures are presented until validated source records are available.</p></article>
           <article className="info-card"><div className="info-kicker">Signals</div><h2>Crypto Factors</h2><p>Momentum, volatility, BTC relationship, sentiment and other crypto-native factors feed the quantitative layer.</p></article>
-          <article className="info-card"><div className="info-kicker">Forecasts</div><h2>Multiple Horizons</h2><p>Forecast architecture supports 24H, 7D, 30D and 90D scenarios with confidence and later evaluation.</p></article>
+          <article className="info-card"><div className="info-kicker">Forecasts</div><h2>Forecasts not available</h2><p>Forecast horizons are planned, but no crypto forecasts are published until the dedicated data and evaluation pipeline is active.</p></article>
         </div>
 
         <section className="info-section">

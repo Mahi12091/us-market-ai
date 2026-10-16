@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
 import './search.css';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
+import { detachUnsupportedNewsAssociations, isLikelyUSMarketStory, cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 60;
 
@@ -11,17 +13,19 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-type StockSearchRow = { symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null };
+type StockSearchRow = { symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null; asset_type?: string | null };
 type NewsSearchRow = { id: number; title: string; summary: string | null; url: string | null; source: string | null; published_at: string | null; sentiment: string | null; stock_id: number | null };
-type NewsStockRow = { id: number; symbol: string; slug: string };
+type NewsStockRow = { id: number; symbol: string; slug: string; company_name: string };
 
 function cleanQuery(value: string) {
-  return value.replace(/[%,]/g, ' ').replace(/_/g, ' ').trim().slice(0, 80);
+  return value.replace(/[%,()\\]/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
 function formatDate(value: string | null) {
-  if (!value) return 'Latest';
-  return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  if (!value) return 'Date unavailable';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Date unavailable';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
@@ -35,16 +39,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   if (query) {
     const pattern = `%${query}%`;
     const [stockResult, newsResult] = await Promise.all([
-      db.from<StockSearchRow>('stocks').select('symbol,slug,company_name,sector,industry,exchange').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').or(`symbol.ilike.${pattern},company_name.ilike.${pattern},sector.ilike.${pattern},industry.ilike.${pattern},exchange.ilike.${pattern}`).order('symbol').limit(60),
+      db.from<StockSearchRow>('stocks').select('symbol,slug,company_name,sector,industry,exchange,asset_type').eq('is_active', true).eq('is_indexable', true).eq('asset_type', 'stock').or(`symbol.ilike.${pattern},company_name.ilike.${pattern},sector.ilike.${pattern},industry.ilike.${pattern},exchange.ilike.${pattern}`).order('symbol').limit(60),
       db.from<NewsSearchRow>('news').select('id,title,summary,url,source,published_at,sentiment,stock_id').or(`title.ilike.${pattern},summary.ilike.${pattern},source.ilike.${pattern}`).order('published_at', { ascending: false, nullsFirst: false }).limit(30),
     ]);
-    stocks = stockResult.data ?? [];
+    stocks = filterCommonEquityRows(stockResult.data ?? []);
     news = newsResult.data ?? [];
   }
 
   const newsStockIds = [...new Set(news.map(item => item.stock_id).filter((id): id is number => id != null))];
-  const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
-  const stockMap = new Map((newsStocks ?? []).map(stock => [stock.id, stock]));
+  const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug,company_name').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
+  const stockMap = new Map((newsStocks ?? []).map(stock => [String(stock.id), stock]));
+  news = detachUnsupportedNewsAssociations(news, stockMap).filter(isLikelyUSMarketStory);
 
   return (
     <div className="search-page">
@@ -79,7 +84,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
             <div className="search-result-section">
               <div className="result-section-head"><div><h3>Market news</h3><p>Matching stories stored by the ticker-linked news pipeline.</p></div><b>{news.length}</b></div>
-              {news.length ? <div className="search-news-list">{news.map(item => { const stock = item.stock_id ? stockMap.get(item.stock_id) : null; const href = item.url ?? (stock ? `/stocks/${stock.slug}#news` : '/news'); return <a href={href} target={item.url ? '_blank' : undefined} rel={item.url ? 'noreferrer' : undefined} className="search-news-card" key={item.id}><div><div className="search-news-meta">{stock?.symbol ?? 'MARKET'} · {item.source ?? 'Market News'} · {formatDate(item.published_at)}</div><h4>{item.title}</h4><p>{item.summary ?? 'Open the story for the full market update.'}</p></div><span>↗</span></a>; })}</div> : <div className="no-results">No matching market news was found.</div>}
+              {news.length ? <div className="search-news-list">{news.map(item => { const stock = item.stock_id == null ? null : stockMap.get(String(item.stock_id)) ?? null; const sourceUrl = safeNewsUrl(item.url); const href = sourceUrl ?? (stock ? `/stocks/${stock.slug}#news` : '/news'); return <a href={href} target={sourceUrl ? '_blank' : undefined} rel={sourceUrl ? 'noopener noreferrer' : undefined} className="search-news-card" key={item.id}><div><div className="search-news-meta">{stock?.symbol ?? 'MARKET'} · {cleanNewsText(item.source) || 'Market News'} · {formatDate(item.published_at)}</div><h4>{cleanNewsText(item.title)}</h4><p>{newsSummary(item.summary, item.title) || 'Open the original publisher report for the full details.'}</p></div><span>↗</span></a>; })}</div> : <div className="no-results">No matching market news was found.</div>}
             </div>
           </section>
         )}
