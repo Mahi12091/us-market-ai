@@ -36,7 +36,7 @@ function formatPrice(value: number | null | undefined) { return value == null ? 
 function formatChange(value: number | null | undefined) { return value == null ? '—' : `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%`; }
 function formatDate(value: string | null | undefined) { return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Latest'; }
 function formatQuoteTimestamp(value: string | null | undefined) { if (!value) return 'Timestamp unavailable'; const date = new Date(value); return Number.isFinite(date.getTime()) ? `As of ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}` : 'Timestamp unavailable'; }
-function quoteIsFresh(value: string | null | undefined) { if (!value) return false; const timestamp = new Date(value).getTime(); return Number.isFinite(timestamp) && Date.now() - timestamp <= 7 * 24 * 60 * 60 * 1000; }
+function quoteIsFresh(value: string | null | undefined) { if (!value) return false; const timestamp = new Date(value).getTime(); const age = Date.now() - timestamp; return Number.isFinite(timestamp) && age >= 0 && age <= 7 * 24 * 60 * 60 * 1000; }
 function prettySector(value: string | null | undefined) { return value?.trim() || 'US Stocks'; }
 
 const websiteJsonLd = {
