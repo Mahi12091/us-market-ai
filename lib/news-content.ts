@@ -145,3 +145,15 @@ export function detachUnsupportedNewsAssociations<
     return item;
   });
 }
+
+
+/** Exclude clearly non-US market headlines from the US equity feed unless the
+ * story also contains explicit US-market context. Ticker-linked company stories
+ * are validated separately by newsMentionsStock. */
+export function isLikelyUSMarketStory(item: { title?: unknown; summary?: unknown }): boolean {
+  const text = cleanNewsText(\`\${cleanNewsText(item.title)} \${cleanNewsText(item.summary)}\`).toLowerCase();
+  if (!text) return false;
+  const clearlyNonUS = /\b(?:indonesia|oslo stock exchange|hong kong|china telecom|nippon india|nifty|sensex|boc hong kong|hk[d]?|cny|eur\s?\d|a\$\s?\d|oslo bors)\b/i.test(text);
+  const explicitUSContext = /\b(?:u\.s\.|us stock|us market|united states|wall street|nasdaq|nyse|s&p\s?500|dow jones|russell 2000|federal reserve|fed funds|u\.s\. treasury|sec filing|american stocks)\b/i.test(text);
+  return !clearlyNonUS || explicitUSContext;
+}
