@@ -74,7 +74,7 @@ export default async function Home() {
     const linked = newsStockMap.get(item.stock_id);
     if (!linked) return false;
     const storyText = `${cleanNewsText(item.title) ?? ''} ${cleanNewsText(item.summary) ?? ''}`.toLowerCase();
-    const tokens = storyText.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
+    const tokens: string[] = storyText.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
     const tickerMatch = tokens.includes(linked.symbol.trim().toUpperCase());
     const companyName = linked.company_name.trim().toLowerCase();
     return tickerMatch || (companyName.length > 2 && storyText.includes(companyName));
