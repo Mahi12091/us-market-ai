@@ -68,6 +68,17 @@ async function getStock(stockSlug: string): Promise<AnyRow | null> {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
+  const guide = STATIC_ARTICLES[slug];
+  if (guide) {
+    return {
+      title: guide.title,
+      description: guide.description,
+      robots: { index: true, follow: true },
+      alternates: { canonical: `/blog/${slug}` },
+      openGraph: { title: guide.title, description: guide.description, url: `https://usmarketai.com/blog/${slug}`, siteName: 'US Market AI', type: 'article' },
+      twitter: { card: 'summary_large_image', title: guide.title, description: guide.description },
+    };
+  }
   if (!slug.endsWith(SUFFIX)) return { title: 'Forecast Research', robots: { index: false, follow: true } };
   const stock = await getStock(slug.slice(0, -SUFFIX.length));
   if (!stock) return { title: 'Forecast Research', robots: { index: false, follow: true } };
@@ -84,6 +95,33 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ForecastArticle({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const guide = STATIC_ARTICLES[slug];
+  if (guide) {
+    const pageUrl = `https://usmarketai.com/blog/${slug}`;
+    const articleJsonLd = {
+      '@context': 'https://schema.org', '@type': 'Article',
+      headline: guide.title, description: guide.description,
+      author: { '@type': 'Organization', name: 'US Market AI Research Desk', url: 'https://usmarketai.com/research-author' },
+      publisher: { '@type': 'Organization', name: 'US Market AI', url: 'https://usmarketai.com' },
+      mainEntityOfPage: pageUrl,
+    };
+    return <main className="blog-article-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd).replace(/</g, '\\u003c') }} />
+      <div className="container">
+        <nav className="article-breadcrumb" aria-label="Breadcrumb"><a href="/">Home</a><span>›</span><a href="/blog">Research guides</a><span>›</span><span>{guide.title}</span></nav>
+        <header className="article-hero">
+          <div className="eyebrow">{guide.category}</div>
+          <h1>{guide.title}</h1>
+          <p>{guide.description}</p>
+          <div className="article-links"><a className="button primary" href="/markets">Explore Market Overview →</a><a className="button" href="/research-author">Research methodology</a></div>
+        </header>
+        <article className="article-body">
+          {guide.sections.map(section => <section key={section.heading}><h2>{section.heading}</h2><p>{section.body}</p></section>)}
+        </article>
+        <aside className="blog-disclaimer">Educational research only. Market data and model outputs can be incomplete or wrong; this guide is not individualized investment advice. Verify material facts with primary sources.</aside>
+      </div>
+    </main>;
+  }
   if (!slug.endsWith(SUFFIX)) notFound();
   const stockSlug = slug.slice(0, -SUFFIX.length);
   const stock = await getStock(stockSlug);
