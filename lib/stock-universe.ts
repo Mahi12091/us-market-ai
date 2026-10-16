@@ -3,7 +3,7 @@
  * been mislabeled as generic "stock" records upstream. This does not replace
  * a proper security-type field in the source database.
  */
-const NON_COMMON_SECURITY_NAME = /\b(?:senior notes?|notes due|preferred stock|preferred shares?|depositary shares?|depositary receipts?|warrants?|rights?|units|fixed-to-floating rate cumulative redeemable|blank check|special purpose acquisition|acquisition corp(?:oration)?(?:\s+(?:i{1,3}|iv|v|vi|vii|viii|ix|x|\d+))?)\b/i;
+const NON_COMMON_SECURITY_NAME = /\b(?:senior notes?|notes due|preferred stock|preferred shares?|depositary shares?|depositary receipts?|warrants?|rights?|units|fixed-to-floating rate cumulative redeemable|blank check|special purpose acquisition|acquisition corp(?:oration)?\.?(?:\s+(?:i{1,3}|iv|v|vi|vii|viii|ix|x|\d+))?)\b/i;
 
 export function isLikelyNonCommonSecurity(companyName: unknown): boolean {
   return typeof companyName === 'string' && NON_COMMON_SECURITY_NAME.test(companyName);
