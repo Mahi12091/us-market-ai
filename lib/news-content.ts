@@ -119,9 +119,9 @@ export function newsMentionsStock(
 
   const words = normalizedWords(stock.company_name).filter(word => !LEGAL_COMPANY_WORDS.has(word));
   if (!words.length) return false;
-  const normalizedStory = normalizedWords(story).join(' ');
+  const normalizedStory = ` ${normalizedWords(story).join(' ')} `;
   const phrase = words.join(' ');
-  if (phrase.length >= 5 && normalizedStory.includes(phrase)) return true;
+  if (phrase.length >= 5 && normalizedStory.includes(` ${phrase} `)) return true;
 
   // A distinctive brand word is useful for names such as "Verizon Communications".
   // Do not accept short words like "Bio" on their own ("Braveheart Bio" != Bio-Techne).
