@@ -47,7 +47,13 @@ export async function ResearchCategoryPage({mode}:{mode:Mode}) {
     const q=db.from('stocks').select('id,symbol,slug,company_name,sector,industry,exchange,market_cap,asset_type,ipo_listing_date,founded_year').eq('is_active',true).eq('is_indexable',true);
     if(mode==='etfs') q.eq('asset_type','etf'); else q.eq('asset_type','stock');
     const result=await q.order('market_cap',{ascending:false,nullsFirst:false}).limit(mode==='screener'||mode==='compare'?6000:1500);
-    queryFailed=Boolean(result.error); rows=filterCommonEquityRows((Array.isArray(result.data)?result.data:[]) as Row[]);
+    queryFailed=Boolean(result.error);
+    const stockRows = (Array.isArray(result.data) ? result.data : []) as Row[];
+    // ETF records are funds, not common equities. Do not pass them through the
+    // common-equity filter, which correctly excludes non-stock instruments.
+    rows = mode === 'etfs'
+      ? stockRows.filter(row => String(row.asset_type ?? '').toLowerCase() === 'etf')
+      : filterCommonEquityRows(stockRows);
   }
   if(mode==='sectors') rows.sort((a,b)=>String(a.sector??'').localeCompare(String(b.sector??''))||String(a.symbol).localeCompare(String(b.symbol)));
   if(mode==='ipo') rows=rows.filter(row=>row.ipo_listing_date);
