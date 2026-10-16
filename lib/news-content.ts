@@ -111,7 +111,7 @@ export function newsMentionsStock(
   const symbol = cleanNewsText(stock.symbol).toUpperCase();
   if (symbol) {
     const escapedSymbol = symbol.replace(/\./g, '\\.');
-    const explicitTicker = new RegExp('(?:\\\\$|\\\\(|\\\\b(?:NASDAQ|NYSE|NYSEAMERICAN|AMEX)\\\\s*:\\s*)' + escapedSymbol + '(?:\\\\)|\\\\b)', 'i');
+    const explicitTicker = new RegExp('(?:\\$|\\(|\\b(?:NASDAQ|NYSE|NYSEAMERICAN|AMEX)\\s*:\\s*)' + escapedSymbol + '(?:\\)|\\b)', 'i');
     if (explicitTicker.test(upperStory)) return true;
     const tokens = upperStory.match(/[A-Z0-9]+/g) ?? [];
     if (symbol.length >= 3 && !GENERIC_TICKER_WORDS.has(symbol) && tokens.includes(symbol)) return true;
@@ -126,7 +126,7 @@ export function newsMentionsStock(
   // A distinctive brand word is useful for names such as "Verizon Communications".
   // Do not accept short words like "Bio" on their own ("Braveheart Bio" != Bio-Techne).
   const distinctive = words.filter(word => word.length >= 5);
-  return distinctive.some(word => new RegExp('\\\\b' + word + '\\\\b', 'i').test(story));
+  return distinctive.some(word => new RegExp('\\b' + word + '\\b', 'i').test(story));
 }
 
 /** Preserve a story when its ticker mapping is unsupported, but remove the
