@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { createDatabaseClient } from '@/lib/neon';
 import './search.css';
 import { filterCommonEquityRows } from '@/lib/stock-universe';
-import { detachUnsupportedNewsAssociations, cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { detachUnsupportedNewsAssociations, isLikelyUSMarketStory, cleanNewsText, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 60;
 
@@ -49,7 +49,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const newsStockIds = [...new Set(news.map(item => item.stock_id).filter((id): id is number => id != null))];
   const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug,company_name').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
   const stockMap = new Map((newsStocks ?? []).map(stock => [String(stock.id), stock]));
-  news = detachUnsupportedNewsAssociations(news, stockMap);
+  news = detachUnsupportedNewsAssociations(news, stockMap).filter(isLikelyUSMarketStory);
 
   return (
     <div className="search-page">
