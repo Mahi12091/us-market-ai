@@ -25,7 +25,7 @@ export default function Contact() {
         <section className="info-hero">
           <div className="eyebrow-row"><span className="eyebrow-dot" /> US Market AI</div>
           <h1>Let’s talk.</h1>
-          <p className="info-lead">Questions, feedback, data corrections and partnership ideas are all welcome. The contact workflow will be connected before production launch.</p>
+          <p className="info-lead">Questions, feedback and data-correction reports are important. This page currently provides product information, but a message-delivery form is not enabled yet.</p>
         </section>
 
         <div className="contact-grid">
@@ -36,9 +36,9 @@ export default function Contact() {
         </div>
 
         <section className="info-section">
-          <div className="info-kicker">Before launch</div>
-          <h2>Contact form coming next</h2>
-          <p>The production contact form and delivery channel will be enabled before public launch. Until then, this page intentionally avoids displaying a placeholder email address.</p>
+          <div className="info-kicker">Support status</div>
+          <h2>Contact workflow is not yet enabled</h2>
+          <p>We do not currently accept messages through this page. Please do not enter personal or financial information here. A verified contact channel will be published when message delivery and privacy handling are configured.</p>
           <div className="info-actions"><Link className="info-btn" href="/about">About US Market AI</Link><Link className="info-btn" href="/privacy">Privacy</Link></div>
         </section>
       </div>
