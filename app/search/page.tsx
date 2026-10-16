@@ -18,7 +18,7 @@ type NewsSearchRow = { id: number; title: string; summary: string | null; url: s
 type NewsStockRow = { id: number; symbol: string; slug: string; company_name: string };
 
 function cleanQuery(value: string) {
-  return value.replace(/[%,]/g, ' ').replace(/_/g, ' ').trim().slice(0, 80);
+  return value.replace(/[%,()\\]/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 
 function formatDate(value: string | null) {
