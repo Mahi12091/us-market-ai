@@ -81,7 +81,7 @@ export function dedupeNewsItems<T extends { title?: unknown; url?: unknown; stoc
 
 
 const GENERIC_TICKER_WORDS = new Set([
-  'ALL', 'ARE', 'BE', 'BEST', 'BULL', 'BUY', 'CASH', 'CAT', 'COST', 'CUT',
+  'ALL', 'ARE', 'BE', 'BEST', 'BIO', 'BULL', 'BUY', 'CASH', 'CAT', 'COST', 'CUT',
   'DAY', 'DEAL', 'EAT', 'EVER', 'FAST', 'FOR', 'FUN', 'GAP', 'GOOD', 'GO',
   'HAS', 'HE', 'HI', 'HOME', 'HOPE', 'IT', 'KEY', 'LOW', 'MAN', 'NEW', 'NOW',
   'ON', 'ONE', 'OPEN', 'OUT', 'PAY', 'PLAY', 'RUN', 'SAFE', 'SEE', 'SO',
