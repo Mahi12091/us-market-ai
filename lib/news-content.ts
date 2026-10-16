@@ -95,7 +95,7 @@ const LEGAL_COMPANY_WORDS = new Set([
 ]);
 
 function normalizedWords(value: unknown): string[] {
-  return cleanNewsText(value).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\\s+/).filter(Boolean);
+  return cleanNewsText(value).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
 }
 
 /** Check that a stored ticker association is actually supported by the story.
