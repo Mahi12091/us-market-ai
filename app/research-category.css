@@ -36,3 +36,10 @@
 .research-empty-note{margin:0 22px;color:#9caec4;font-size:12px;line-height:1.7}
 @media(max-width:900px){.etf-proxy-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.etf-proxy-grid{grid-template-columns:1fr;padding:12px}.etf-proxy-card{padding:15px}.research-empty-note{margin:0 16px 8px}}
+
+.dividend-guide{padding-bottom:18px}
+.dividend-guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:18px}
+.dividend-guide-card{padding:17px;border:1px solid rgba(148,163,184,.2);border-radius:14px;background:rgba(2,6,23,.38)}
+.dividend-guide-card h3{margin:0 0 8px;font-size:14px;color:#f1f5f9}
+.dividend-guide-card p{margin:0;color:#9caec4;font-size:12px;line-height:1.7}
+@media(max-width:520px){.dividend-guide-grid{grid-template-columns:1fr;padding:12px}.dividend-guide-card{padding:15px}}
