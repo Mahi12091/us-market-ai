@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 import { filterCommonEquityRows } from '@/lib/stock-universe';
 import LongTermResearchSection from '@/components/long-term-research-section';
-import { cleanNewsText, dedupeNewsItems, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { cleanNewsText, dedupeNewsItems, detachUnsupportedNewsAssociations, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 
@@ -68,17 +68,8 @@ export default async function Home() {
   const { data: rawNewsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug,sector,company_name').in('id', newsStockIds) : { data: [] };
   const newsStocks = (rawNewsStocks ?? []) as Pick<StockRow, 'id' | 'symbol' | 'slug' | 'sector' | 'company_name'>[];
   const newsStockMap = new Map(newsStocks.map(s => [s.id, s]));
-  // Prevent unrelated articles from appearing as stock-specific news.
-  newsItems = newsItems.filter(item => {
-    if (!item.stock_id) return true;
-    const linked = newsStockMap.get(item.stock_id);
-    if (!linked) return false;
-    const storyText = `${cleanNewsText(item.title) ?? ''} ${cleanNewsText(item.summary) ?? ''}`.toLowerCase();
-    const tokens: string[] = storyText.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
-    const tickerMatch = tokens.includes(linked.symbol.trim().toUpperCase());
-    const companyName = linked.company_name.trim().toLowerCase();
-    return tickerMatch || (companyName.length > 2 && storyText.includes(companyName));
-  });
+  // Keep stories even when their stored ticker link is unsupported, but detach the incorrect association.
+  newsItems = detachUnsupportedNewsAssociations(newsItems, newsStockMap);
   const sectorMap = new Map<string, StockRow[]>();
   for (const stock of stocks) { const sector = prettySector(stock.sector); const bucket = sectorMap.get(sector) ?? []; if (bucket.length < 6) bucket.push(stock); sectorMap.set(sector, bucket); }
   const sectorSections = [...sectorMap.entries()].filter(([, items]) => items.length >= 4).slice(0,6);
