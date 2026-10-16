@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
-import { cleanNewsText, dedupeNewsItems, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { cleanNewsText, dedupeNewsItems, detachUnsupportedNewsAssociations, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 export const metadata: Metadata = {
@@ -31,12 +31,12 @@ const sectorName = (value: string | null | undefined) => {
 export default async function News() {
   const supabase = createDatabaseClient();
   const { data: rawNews } = await supabase.from('news').select('id,stock_id,title,summary,url,source,published_at,sentiment,sentiment_score').order('published_at',{ascending:false,nullsFirst:false}).limit(200);
-  const items = dedupeNewsItems((rawNews ?? []) as NewsRow[], 40);
+  const items = dedupeNewsItems((rawNews ?? []) as NewsRow[], 200);
   const ids = [...new Set(items.map(n=>n.stock_id).filter((id): id is string => Boolean(id)))];
   const { data: rawStocks } = ids.length ? await supabase.from('stocks').select('id,symbol,slug,company_name,sector').in('id',ids) : {data:[]};
   const stocks = (rawStocks ?? []) as StockRow[];
   const stockMap = new Map(stocks.map(s=>[s.id,s]));
-  const latest = items;
+  const latest = detachUnsupportedNewsAssociations(items, stockMap).slice(0, 40);
   const featured = latest[0];
   const sectorGroups = new Map<string, NewsRow[]>();
   for (const item of latest) {
