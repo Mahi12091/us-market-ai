@@ -4,19 +4,19 @@ import { filterCommonEquityRows } from '@/lib/stock-universe';
 import './blog.css';
 
 export const metadata: Metadata = {
-  title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
-  description: 'Explore sector-wise US stock price prediction research for 2026, 2030, 2035, 2040 and 2050, with quantitative methodology, risks and live stock intelligence.',
+  title: 'US Stock Research Guides & Long-Term Forecasts',
+  description: 'Read practical guides to stock valuation, earnings, quantitative predictions and market structure, alongside long-term forecast research when validated data is available.',
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
-    description: 'Explore sector-wise US stock price prediction research with quantitative methodology, risks and links to company research.',
+    title: 'US Stock Research Guides & Long-Term Forecasts',
+    description: 'Practical US stock research guides, valuation and earnings explainers, quantitative forecast methodology and risk context.',
     url: 'https://usmarketai.com/blog',
     siteName: 'US Market AI',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
+    title: 'US Stock Research Guides & Long-Term Forecasts',
     description: 'Long-term US stock forecast research, methodology and risk context.',
   },
 };
@@ -65,7 +65,7 @@ export default async function BlogPage() {
     <div className="container">
       <section className="blog-hero">
         <div className="eyebrow">US MARKET AI · FORECAST RESEARCH</div>
-        <h1>Stock Price Predictions <span>2026–2050</span></h1>
+        <h1>Stock Research Guides <span>&amp; Forecasts 2026–2050</span></h1>
         <p>Long-term stock research organized by sector, with dedicated article pages, thumbnail space, model methodology, risk factors and links back to live stock intelligence.</p>
         <div className="blog-actions"><a className="button primary" href="/predictions">Explore AI Predictions →</a><a className="button" href="/stocks">Browse US Stocks</a></div>
       </section>
