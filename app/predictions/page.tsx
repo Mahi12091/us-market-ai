@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
+import { filterCommonEquityRows } from '@/lib/stock-universe';
 
 export const metadata = {
   title: "AI Stock Predictions & Forecast Research",
@@ -23,26 +24,29 @@ const MIN_OVERALL_RESULTS = 30;
 const MIN_HORIZON_RESULTS = 20;
 const pct=(v:number|null|undefined)=>v==null?'—':`${v.toFixed(1)}%`;
 
-type PredictionStock = { id: string; symbol: string };
+type PredictionStock = { id: string; symbol: string; company_name: string; asset_type: string | null; is_indexable: boolean };
 type PredictionRow = { id: string; stock_id: string; horizon: string; current_price: number|null; predicted_price: number|null; predicted_change_percent: number|null; direction: string|null; confidence: number|null; prediction_time: string|null };
 type PredictionResult = { prediction_id: string; stock_id: string; horizon: string; predicted_price: number|null; actual_price: number|null; predicted_direction: string|null; actual_direction: string|null; percentage_error: number|null; hit: boolean|null; evaluated_at: string|null };
 
 export default async function Predictions(){
   const db= createDatabaseClient();
   const [{data:rawStocks},{data:rawPredictions},{data:rawResults}]=await Promise.all([
-    db.from<PredictionStock>('stocks').select('id,symbol').eq('is_active',true).limit(10000),
+    db.from<PredictionStock>('stocks').select('id,symbol,company_name,asset_type,is_indexable').eq('is_active',true).eq('is_indexable',true).eq('asset_type','stock').limit(10000),
     db.from<PredictionRow>('predictions').select('id,stock_id,horizon,current_price,predicted_price,predicted_change_percent,direction,confidence,prediction_time').eq('model_version','quant-v3.0').order('prediction_time',{ascending:false}).limit(30000),
     db.from<PredictionResult>('prediction_results').select('prediction_id,stock_id,horizon,predicted_price,actual_price,predicted_direction,actual_direction,percentage_error,hit,evaluated_at').order('evaluated_at',{ascending:false}).limit(5000)
   ]);
-  const stocks: PredictionStock[]=Array.isArray(rawStocks)?rawStocks:rawStocks?[rawStocks]:[];
-  const predictions: PredictionRow[]=Array.isArray(rawPredictions)?rawPredictions:rawPredictions?[rawPredictions]:[];
-  const results: PredictionResult[]=Array.isArray(rawResults)?rawResults:rawResults?[rawResults]:[];
+  const stockRows: PredictionStock[]=Array.isArray(rawStocks)?rawStocks:rawStocks?[rawStocks]:[];
+  const stocks = filterCommonEquityRows(stockRows);
+  const eligibleStockIds = new Set(stocks.map(stock => stock.id));
+  const predictions: PredictionRow[]=(Array.isArray(rawPredictions)?rawPredictions:rawPredictions?[rawPredictions]:[]).filter(row => eligibleStockIds.has(row.stock_id));
+  const results: PredictionResult[]=(Array.isArray(rawResults)?rawResults:rawResults?[rawResults]:[]).filter(row => eligibleStockIds.has(row.stock_id) && typeof row.hit === 'boolean');
   const names=new Map<string,string>(stocks.map((s)=>[s.id,s.symbol]));
-  const currentCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const currentCutoff = now - 7 * 24 * 60 * 60 * 1000;
   const currentByStockHorizon = new Map<string, PredictionRow>();
   for (const p of predictions) {
     const timestamp = p.prediction_time ? new Date(p.prediction_time).getTime() : NaN;
-    if (!Number.isFinite(timestamp) || timestamp < currentCutoff || p.predicted_price == null || !Number.isFinite(Number(p.predicted_price))) continue;
+    if (!Number.isFinite(timestamp) || timestamp < currentCutoff || timestamp > now || p.predicted_price == null || !Number.isFinite(Number(p.predicted_price))) continue;
     const key = `${p.stock_id}:${p.horizon}`;
     if (!currentByStockHorizon.has(key)) currentByStockHorizon.set(key, p);
   }
@@ -56,7 +60,7 @@ export default async function Predictions(){
     const bearish = rows.filter(p => p.direction === 'bearish').length;
     return { h, count: rows.length, bullish, bearish, signal: bullish > bearish ? 'bullish' : bearish > bullish ? 'bearish' : 'neutral', avgChange: mean(changes), avgConfidence: mean(scores) };
   });
-  const stats=horizons.map(h=>{const rs=results.filter((r)=>r.horizon===h);const hits=rs.filter((r)=>r.hit).length;return {h,count:rs.length,accuracy:rs.length>=MIN_HORIZON_RESULTS?hits/rs.length*100:null}});
+  const stats=horizons.map(h=>{const rs=results.filter((r)=>r.horizon===h);const hits=rs.filter((r)=>r.hit===true).length;return {h,count:rs.length,accuracy:rs.length>=MIN_HORIZON_RESULTS?hits/rs.length*100:null}});
   const evaluated=results.length;
   const overall=evaluated>=MIN_OVERALL_RESULTS?results.filter((r)=>r.hit).length/evaluated*100:null;
   const recent=predictions.slice(0,20);
