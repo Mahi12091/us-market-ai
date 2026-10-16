@@ -30,6 +30,13 @@ type StockRow = {
   market_cap: number | null;
 };
 
+const researchGuides = [
+  {slug:'read-stock-valuation-metrics',category:'FUNDAMENTALS',title:'How to Read Stock Valuation Metrics',description:'Interpret P/E, cash flow, growth and debt without relying on a single ratio.'},
+  {slug:'interpret-earnings-reports',category:'EARNINGS',title:'How to Interpret a Company Earnings Report',description:'Separate revenue, margins, reported periods, guidance and source facts.'},
+  {slug:'understand-ai-stock-predictions',category:'QUANTITATIVE RESEARCH',title:'How to Evaluate AI Stock Predictions',description:'Understand forecast horizons, confidence, historical validation and model risk.'},
+  {slug:'market-breadth-and-sector-rotation',category:'MARKET STRUCTURE',title:'Market Breadth and Sector Rotation Explained',description:'Learn what breadth and sector averages can tell you—and what they cannot.'},
+];
+
 const categories = [
   { name: 'Technology', description: 'Software, semiconductors, cloud, AI and technology leaders.' },
   { name: 'Financial Services', description: 'Banks, payments, exchanges, brokers and financial platforms.' },
@@ -61,6 +68,11 @@ export default async function BlogPage() {
         <h1>Stock Price Predictions <span>2026–2050</span></h1>
         <p>Long-term stock research organized by sector, with dedicated article pages, thumbnail space, model methodology, risk factors and links back to live stock intelligence.</p>
         <div className="blog-actions"><a className="button primary" href="/predictions">Explore AI Predictions →</a><a className="button" href="/stocks">Browse US Stocks</a></div>
+      </section>
+
+      <section className="blog-directory blog-guides-directory">
+        <div className="section-head"><div><div className="eyebrow">RESEARCH GUIDES</div><h2>Practical investing research guides</h2><p className="muted">Original educational explainers on valuation, earnings, quantitative forecasts and market structure.</p></div></div>
+        <div className="blog-article-grid">{researchGuides.map(guide=><a className="blog-article-card" href={`/blog/${guide.slug}`} key={guide.slug}><div className="blog-article-thumbnail" aria-hidden="true"><span>{guide.category.slice(0,3)}</span></div><div className="blog-article-card-body"><small>{guide.category}</small><h3>{guide.title}</h3><p>{guide.description}</p><b>Read guide →</b></div></a>)}</div>
       </section>
 
       <section className="blog-principles">
