@@ -2,11 +2,11 @@ import Link from 'next/link';
 
 export const metadata = {
   title: "Contact",
-  description: "Send feedback, report data corrections or contact the US Market AI team about the research platform and its market-data coverage.",
+  description: "Contact workflow status and current support options for the US Market AI research platform.",
   alternates: { canonical: "/contact" },
   openGraph: {
     title: "Contact US Market AI",
-    description: "Send feedback, report data corrections or contact the US Market AI team about the research platform and its market-data coverage.",
+    description: "Contact workflow status and current support options for the US Market AI research platform.",
     url: "https://usmarketai.com/contact",
     siteName: 'US Market AI',
     type: 'website',
