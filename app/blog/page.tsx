@@ -70,21 +70,21 @@ export default async function BlogPage() {
       </section>
 
       <section className="blog-directory">
-        <div className="section-head"><div><div className="eyebrow">FORECAST LIBRARY</div><h2>Sector-wise long-term stock research</h2><p className="muted">Each category is designed to hold 4–6 articles as the tracked stock universe expands.</p></div></div>
+        <div className="section-head"><div><div className="eyebrow">FORECAST LIBRARY</div><h2>Sector-wise long-term stock research</h2><p className="muted">Only companies with a valid research destination are shown. No placeholder articles or invented forecast pages are published.</p></div></div>
 
         <div className="blog-category-stack">
           {categories.map((category) => {
             const items = stocks.filter((stock) => categoryMatch(category.name, stock.sector)).slice(0, 6);
-            const cards: StockRow[] = items.length ? items : Array.from({ length: 4 }, (_, index) => ({ symbol: 'STOCK', slug: '', company_name: `${category.name} research article ${index + 1}`, sector: category.name, industry: null, market_cap: null }));
+            const cards: StockRow[] = items.filter((stock) => Boolean(stock.slug?.trim()));
             const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
             return <section className="blog-category" key={category.name}>
               <div className="blog-category-head"><div><div className="eyebrow">SECTOR RESEARCH</div><h2>{category.name}</h2><p>{category.description}</p></div><a href={sectorHref}>Browse sector →</a></div>
-              <div className="blog-article-grid">
-                {cards.map((stock, index) => <a className="blog-article-card" href={stock.slug ? `/blog/${stock.slug}-stock-price-prediction-2026-2050` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
-                  <div className="blog-article-thumbnail"><span>THUMBNAIL<br/>PLACEHOLDER</span></div>
-                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>2026, 2030, 2035, 2040 and 2050 research framework, methodology, assumptions and risk factors.</p><b>Read research →</b></div>
+              {cards.length ? <div className="blog-article-grid">
+                {cards.map((stock) => <a className="blog-article-card" href={`/blog/${stock.slug}-stock-price-prediction-2026-2050`} key={`${category.name}-${stock.symbol}`}>
+                  <div className="blog-article-thumbnail" aria-hidden="true"><span>{stock.symbol}</span></div>
+                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>Long-term research framework, methodology, assumptions and risk factors. Forecast figures are shown only when validated model data exists.</p><b>Read research →</b></div>
                 </a>)}
-              </div>
+              </div> : <div className="research-empty"><strong>No verified articles in this sector yet</strong><p>We do not publish placeholder articles or unsupported price targets. Browse the available company directory while research coverage is prepared.</p><a className="research-open" href={sectorHref}>Browse sector companies →</a></div>}
             </section>;
           })}
         </div>
