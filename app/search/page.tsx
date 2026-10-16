@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 type StockSearchRow = { symbol: string; slug: string; company_name: string; sector: string | null; industry: string | null; exchange: string | null; asset_type?: string | null };
 type NewsSearchRow = { id: number; title: string; summary: string | null; url: string | null; source: string | null; published_at: string | null; sentiment: string | null; stock_id: number | null };
-type NewsStockRow = { id: number; symbol: string; slug: string };
+type NewsStockRow = { id: number; symbol: string; slug: string; company_name: string };
 
 function cleanQuery(value: string) {
   return value.replace(/[%,]/g, ' ').replace(/_/g, ' ').trim().slice(0, 80);
@@ -45,7 +45,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   }
 
   const newsStockIds = [...new Set(news.map(item => item.stock_id).filter((id): id is number => id != null))];
-  const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
+  const { data: newsStocks } = newsStockIds.length ? await db.from<NewsStockRow>('stocks').select('id,symbol,slug,company_name').in('id', newsStockIds) : { data: [] as NewsStockRow[] };
   const stockMap = new Map((newsStocks ?? []).map(stock => [String(stock.id), stock]));
   news = detachUnsupportedNewsAssociations(news, stockMap);
 
