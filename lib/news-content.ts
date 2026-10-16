@@ -113,7 +113,7 @@ export function newsMentionsStock(
     const escapedSymbol = symbol.replace(/\./g, '\\.');
     const explicitTicker = new RegExp('(?:\\$|\\(|\\b(?:NASDAQ|NYSE|NYSEAMERICAN|AMEX)\\s*:\\s*)' + escapedSymbol + '(?:\\)|\\b)', 'i');
     if (explicitTicker.test(upperStory)) return true;
-    const tokens = upperStory.match(/[A-Z0-9]+/g) ?? [];
+    const tokens: string[] = upperStory.match(/[A-Z0-9]+/g) ?? [];
     if (symbol.length >= 4 && !GENERIC_TICKER_WORDS.has(symbol) && tokens.includes(symbol)) return true;
   }
 
