@@ -24,7 +24,7 @@ export default function Privacy() {
           <h2>Market and research data</h2>
           <p>Searches and page requests may be used to retrieve market, company, news, and research records from the platform’s data services. Public market information displayed on the site is not, by itself, a request for or record of your personal financial circumstances.</p>
           <h2>Forms, accounts, and sensitive information</h2>
-          <p>The Contact page currently does not submit or deliver messages. Do not send personal, account, payment, or financial information through a feature that does not explicitly confirm secure submission. If accounts or forms are introduced, this policy must be updated before they are enabled.</p>
+          <p>The Contact page does not have a private message form or support email. It links to a public GitHub issue tracker for product reports; content posted there may be publicly visible and is processed by GitHub under its own terms and privacy policy. Do not post personal, account, payment, or confidential financial information. If private accounts or forms are introduced, this policy must be updated before they are enabled.</p>
           <h2>Cookies and similar technologies</h2>
           <p>Essential technologies may be used by the site or its infrastructure to provide security and core functionality. Do not assume that optional analytics or advertising cookies are enabled. If they are introduced, the operator should identify the providers, explain their purposes, and provide any consent or opt-out controls required by applicable law.</p>
           <h2>Service providers and disclosures</h2>
@@ -32,7 +32,7 @@ export default function Privacy() {
           <h2>Retention and security</h2>
           <p>Information should be retained only for the operational, security, legal, or other disclosed purposes for which it is needed. No website can guarantee absolute security; avoid transmitting confidential information through public pages.</p>
           <h2>Your choices and requests</h2>
-          <p>Privacy rights depend on your location and the applicable law. The site does not currently provide a working privacy-request submission form. Before collecting personal information through new features, the operator should publish a verified contact channel and procedures for applicable access, correction, deletion, objection, and consent-withdrawal requests.</p>
+          <p>Privacy rights depend on your location and the applicable law. The site does not currently provide a private privacy-request submission form or verified privacy contact. Public GitHub issues are not an appropriate channel for confidential privacy requests. Before collecting personal information through new features, the operator should publish a verified private contact channel and procedures for applicable access, correction, deletion, objection, and consent-withdrawal requests.</p>
           <h2>Children and policy changes</h2>
           <p>The service is designed as a general market-research resource, not as a service directed to children. This policy may be updated when functionality or legal requirements change; material changes should be reflected on this page.</p>
           <h2>Operator and legal review</h2>
