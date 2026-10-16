@@ -55,7 +55,7 @@ export default async function Home() {
   ]);
   const stocks = filterCommonEquityRows((rawStocks ?? []) as StockRow[]);
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
-  const newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
+  let newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
   const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
   const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent,quote_timestamp').in('stock_id', allIds) : { data: [] };
   const quotes = (rawQuotes ?? []) as QuoteRow[];
@@ -65,9 +65,20 @@ export default async function Home() {
   const movers = [...quotedStocks].sort((a,b) => Number(b.quote?.change_percent) - Number(a.quote?.change_percent)).slice(0,5);
   const losers = [...quotedStocks].sort((a,b) => Number(a.quote?.change_percent) - Number(b.quote?.change_percent)).slice(0,5);
   const newsStockIds = [...new Set(newsItems.map(n => n.stock_id).filter((id): id is string => Boolean(id)))];
-  const { data: rawNewsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug,sector').in('id', newsStockIds) : { data: [] };
-  const newsStocks = (rawNewsStocks ?? []) as Pick<StockRow, 'id' | 'symbol' | 'slug' | 'sector'>[];
+  const { data: rawNewsStocks } = newsStockIds.length ? await supabase.from('stocks').select('id,symbol,slug,sector,company_name').in('id', newsStockIds) : { data: [] };
+  const newsStocks = (rawNewsStocks ?? []) as Pick<StockRow, 'id' | 'symbol' | 'slug' | 'sector' | 'company_name'>[];
   const newsStockMap = new Map(newsStocks.map(s => [s.id, s]));
+  // Prevent unrelated articles from appearing as stock-specific news.
+  newsItems = newsItems.filter(item => {
+    if (!item.stock_id) return true;
+    const linked = newsStockMap.get(item.stock_id);
+    if (!linked) return false;
+    const storyText = `${cleanNewsText(item.title) ?? ''} ${cleanNewsText(item.summary) ?? ''}`.toLowerCase();
+    const tokens = storyText.toUpperCase().match(/[A-Z0-9]+/g) ?? [];
+    const tickerMatch = tokens.includes(linked.symbol.trim().toUpperCase());
+    const companyName = linked.company_name.trim().toLowerCase();
+    return tickerMatch || (companyName.length > 2 && storyText.includes(companyName));
+  });
   const sectorMap = new Map<string, StockRow[]>();
   for (const stock of stocks) { const sector = prettySector(stock.sector); const bucket = sectorMap.get(sector) ?? []; if (bucket.length < 6) bucket.push(stock); sectorMap.set(sector, bucket); }
   const sectorSections = [...sectorMap.entries()].filter(([, items]) => items.length >= 4).slice(0,6);
