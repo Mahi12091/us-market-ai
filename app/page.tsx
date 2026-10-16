@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 import { filterCommonEquityRows } from '@/lib/stock-universe';
 import LongTermResearchSection from '@/components/long-term-research-section';
-import { cleanNewsText, dedupeNewsItems, detachUnsupportedNewsAssociations, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { cleanNewsText, dedupeNewsItems, detachUnsupportedNewsAssociations, isLikelyUSMarketStory, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 
@@ -55,7 +55,7 @@ export default async function Home() {
   ]);
   const stocks = filterCommonEquityRows((rawStocks ?? []) as StockRow[]);
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
-  let newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
+  let newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 80);
   const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
   const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent,quote_timestamp').in('stock_id', allIds) : { data: [] };
   const quotes = (rawQuotes ?? []) as QuoteRow[];
@@ -69,7 +69,7 @@ export default async function Home() {
   const newsStocks = (rawNewsStocks ?? []) as Pick<StockRow, 'id' | 'symbol' | 'slug' | 'sector' | 'company_name'>[];
   const newsStockMap = new Map(newsStocks.map(s => [s.id, s]));
   // Keep stories even when their stored ticker link is unsupported, but detach the incorrect association.
-  newsItems = detachUnsupportedNewsAssociations(newsItems, newsStockMap);
+  newsItems = detachUnsupportedNewsAssociations(newsItems, newsStockMap).filter(isLikelyUSMarketStory).slice(0, 8);
   const sectorMap = new Map<string, StockRow[]>();
   for (const stock of stocks) { const sector = prettySector(stock.sector); const bucket = sectorMap.get(sector) ?? []; if (bucket.length < 6) bucket.push(stock); sectorMap.set(sector, bucket); }
   const sectorSections = [...sectorMap.entries()].filter(([, items]) => items.length >= 4).slice(0,6);
