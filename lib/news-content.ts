@@ -9,13 +9,21 @@ const decodeEntities = (value: string) => value
 export function cleanNewsText(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return '';
   let text = value;
-  for (let i = 0; i < 3; i++) text = decodeEntities(text);
+  // News providers sometimes double- or triple-encode HTML before ingestion.
+  // Decode until stable (with a hard cap), then strip markup before rendering.
+  for (let i = 0; i < 8; i++) {
+    const decoded = decodeEntities(text);
+    if (decoded === text) break;
+    text = decoded;
+  }
   return text
+    .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
     .replace(/<[^>]*>/g, ' ')
     .replace(/\b(?:href|target|rel|class|style)\s*=\s*["'][^"']*["']/gi, ' ')
-    .replace(/&(?:nbsp|amp|quot|lt|gt|#\d+|#x[\da-f]+);?/gi, ' ')
+    .replace(/&(?:nbsp|amp|quot|lt|gt|apos|#\d+|#x[\da-f]+);?/gi, ' ')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
