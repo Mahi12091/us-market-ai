@@ -25,7 +25,7 @@ export default function Contact() {
         <section className="info-hero">
           <div className="eyebrow-row"><span className="eyebrow-dot" /> US Market AI</div>
           <h1>Let’s talk.</h1>
-          <p className="info-lead">Questions, feedback and data-correction reports are important. This page currently provides product information, but a message-delivery form is not enabled yet.</p>
+          <p className="info-lead">Questions, feedback and data-correction reports are important. A public GitHub issue tracker is available; no private contact form or support email is configured on this page.</p>
         </section>
 
         <div className="contact-grid">
@@ -37,9 +37,9 @@ export default function Contact() {
 
         <section className="info-section">
           <div className="info-kicker">Support status</div>
-          <h2>Contact workflow is not yet enabled</h2>
-          <p>We do not currently accept messages through this page. Please do not enter personal or financial information here. A verified contact channel will be published when message delivery and privacy handling are configured.</p>
-          <div className="info-actions"><Link className="info-btn" href="/about">About US Market AI</Link><Link className="info-btn" href="/privacy">Privacy</Link></div>
+          <h2>Public issue tracker</h2>
+          <p>You can report a product issue or data-quality concern through the public repository issue tracker. Posts may be visible to anyone and may require a GitHub account. Do not include personal, account, payment or confidential financial information. A private support channel is not currently configured.</p>
+          <div className="info-actions"><a className="info-btn primary" href="https://github.com/Mahi12091/us-market-ai/issues/new" target="_blank" rel="noopener noreferrer">Report an issue on GitHub ↗</a><Link className="info-btn" href="/about">About US Market AI</Link><Link className="info-btn" href="/privacy">Privacy</Link></div>
         </section>
       </div>
     </div>
