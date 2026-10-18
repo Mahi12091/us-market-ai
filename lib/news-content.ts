@@ -94,18 +94,28 @@ const LEGAL_COMPANY_WORDS = new Set([
   'holding', 'holdings', 'group', 'the', 'delaware', 'par', 'value'
 ]);
 
+const GENERIC_COMPANY_WORDS = new Set([
+  'hope', 'new', 'key', 'home', 'real', 'first', 'american', 'national',
+  'general', 'united', 'global', 'central', 'capital', 'resources', 'energy',
+  'systems', 'technology', 'technologies', 'international', 'services',
+  'health', 'healthcare', 'financial', 'finance', 'industries', 'industrial',
+  'markets', 'market', 'solutions', 'partners', 'properties', 'group'
+]);
+
+const FINANCIAL_CONTEXT = /\b(?:stock|shares|share price|equity|earnings|revenue|quarter|quarterly|investor|investors|analyst|analysts|market cap|ticker|forecast|valuation|dividend|nasdaq|nyse|sec filing)\b/i;
+
 function normalizedWords(value: unknown): string[] {
   return cleanNewsText(value).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
 }
 
-/** Check that a stored ticker association is actually supported by the story.
- * Very short/common-word tickers require explicit ticker syntax; company-name
- * matching ignores legal suffixes and avoids matching generic one-word fragments. */
+/** Validate stored ticker links conservatively to avoid assigning unrelated
+ * headlines to a stock merely because a common word appears in the headline. */
 export function newsMentionsStock(
   item: { title?: unknown; summary?: unknown },
   stock: { symbol?: unknown; company_name?: unknown }
 ): boolean {
-  const story = cleanNewsText(`${cleanNewsText(item.title)} ${cleanNewsText(item.summary)}`);
+  const title = cleanNewsText(item.title);
+  const story = cleanNewsText(title + ' ' + cleanNewsText(item.summary));
   if (!story) return false;
   const upperStory = story.toUpperCase();
   const symbol = cleanNewsText(stock.symbol).toUpperCase();
@@ -119,19 +129,27 @@ export function newsMentionsStock(
 
   const words = normalizedWords(stock.company_name).filter(word => !LEGAL_COMPANY_WORDS.has(word));
   if (!words.length) return false;
-  const normalizedStory = ` ${normalizedWords(story).join(' ')} `;
+  const normalizedStory = ' ' + normalizedWords(story).join(' ') + ' ';
   const phrase = words.join(' ');
-  if (phrase.length >= 5 && normalizedStory.includes(` ${phrase} `)) return true;
 
-  // A distinctive brand word is useful for names such as "Verizon Communications".
-  // Do not accept short words like "Bio" on their own ("Braveheart Bio" != Bio-Techne).
-  const distinctive = words.filter(word => word.length >= 5);
+  // Multi-word company names must appear as a phrase, not as an isolated word.
+  if (words.length >= 2 && phrase.length >= 5 && normalizedStory.includes(' ' + phrase + ' ')) return true;
+
+  // A one-word brand must be accompanied by financial context to avoid ordinary
+  // uses of common words being mistaken for a company mention.
+  if (words.length === 1) {
+    return phrase.length >= 5
+      && normalizedStory.includes(' ' + phrase + ' ')
+      && FINANCIAL_CONTEXT.test(title);
+  }
+
+  // Permit a distinctive brand token for long names, but never generic terms.
+  const distinctive = words.filter(word => word.length >= 5 && !GENERIC_COMPANY_WORDS.has(word));
   return distinctive.some(word => new RegExp('\\b' + word + '\\b', 'i').test(story));
 }
 
-/** Preserve a story when its ticker mapping is unsupported, but remove the
- * incorrect stock association so the UI won't attribute it to the wrong company
- * or sector. */
+/** Detach unsupported ticker links; rendering code can then decide whether an
+ * unlinked headline qualifies as broad US-market news. */
 export function detachUnsupportedNewsAssociations<
   T extends { stock_id?: unknown; title?: unknown; summary?: unknown }
 >(
@@ -146,14 +164,21 @@ export function detachUnsupportedNewsAssociations<
   });
 }
 
-
-/** Exclude clearly non-US market headlines from the US equity feed unless the
- * story also contains explicit US-market context. Ticker-linked company stories
- * are validated separately by newsMentionsStock. */
-export function isLikelyUSMarketStory(item: { title?: unknown; summary?: unknown }): boolean {
-  const text = cleanNewsText(String(item.title ?? '') + ' ' + String(item.summary ?? '')).toLowerCase();
+/** Keep validated company stories and explicit US-market headlines. Unlinked
+ * stock stories without US context are excluded rather than mislabeled as broad
+ * market news. Clearly foreign-market stories never enter this feed. */
+export function isLikelyUSMarketStory(item: { stock_id?: unknown; title?: unknown; summary?: unknown }): boolean {
+  const text = cleanNewsText(String(item.title ?? '') + ' ' + String(item.summary ?? ''));
   if (!text) return false;
-  const clearlyNonUS = /\b(?:indonesia|oslo stock exchange|hong kong|china telecom|nippon india|nifty|sensex|boc hong kong|hk[d]?|cny|eur\s?\d|a\$\s?\d|oslo bors)\b/i.test(text);
-  const explicitUSContext = /\b(?:u\.s\.|us stock|us market|united states|wall street|nasdaq|nyse|s&p\s?500|dow jones|russell 2000|federal reserve|fed funds|u\.s\. treasury|sec filing|american stocks)\b/i.test(text);
-  return !clearlyNonUS || explicitUSContext;
+
+  const hardForeignContext = /\b(?:indonesia|oslo stock exchange|hong kong|china telecom|nippon india|nifty|sensex|boc hong kong|oslo bors|tase|tel aviv stock exchange|london stock exchange|ftse 100|asx 200|tsx composite|nikkei|hang seng|kospi|bse sensex|nse india)\b|(?:\b(?:TASE|LSE|ASX|TSX|TSE|HKEX|BSE|NSE|FWB|XETRA)\s*[:.])|(?:\b\d{4,6}\.(?:IR|L|TO|AX|HK|DE|PA|AS|MI|SW|ST|OL|CO|KS|T|BO|NS)\b)/i.test(text);
+  if (hardForeignContext) return false;
+
+  const explicitUSContext = /\b(?:u\.s\.|us stock|us market|united states|wall street|nasdaq|nyse|s&p\s?500|dow jones|russell 2000|federal reserve|fed funds|u\.s\. treasury|sec filing|american stocks|new york stock exchange)\b/i.test(text);
+  const foreignCurrencyContext = /\b(?:EUR|AUD|CAD|GBP|INR|HKD|CNY|JPY|NZD|CHF)\s?\d/i.test(text);
+  if (foreignCurrencyContext && !explicitUSContext) return false;
+
+  // A non-null stock_id here has already passed newsMentionsStock validation.
+  if (item.stock_id != null && item.stock_id !== '') return true;
+  return explicitUSContext;
 }
