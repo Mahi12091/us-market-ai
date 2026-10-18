@@ -4,11 +4,11 @@ import { filterCommonEquityRows } from '@/lib/stock-universe';
 import './blog.css';
 
 export const metadata: Metadata = {
-  title: 'US Stock Research Guides & Long-Term Forecasts',
-  description: 'Read practical guides to stock valuation, earnings, quantitative predictions and market structure, alongside long-term forecast research when validated data is available.',
+  title: 'US Stock Research Guides & Forecast Methodology',
+  description: 'Read practical guides to stock valuation, earnings, quantitative predictions and market structure. Long-term forecast pages publish numerical targets only when validated model data is available.',
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'US Stock Research Guides & Long-Term Forecasts',
+    title: 'US Stock Research Guides & Forecast Methodology',
     description: 'Practical US stock research guides, valuation and earnings explainers, quantitative forecast methodology and risk context.',
     url: 'https://usmarketai.com/blog',
     siteName: 'US Market AI',
@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'US Stock Research Guides & Long-Term Forecasts',
-    description: 'Long-term US stock forecast research, methodology and risk context.',
+    title: 'US Stock Research Guides & Forecast Methodology',
+    description: 'US stock research guides, forecast methodology and risk context.',
   },
 };
 
@@ -66,7 +66,7 @@ export default async function BlogPage() {
       <section className="blog-hero">
         <div className="eyebrow">US MARKET AI · FORECAST RESEARCH</div>
         <h1>Stock Research Guides <span>&amp; Forecasts 2026–2050</span></h1>
-        <p>Long-term stock research organized by sector, with dedicated article pages, thumbnail space, model methodology, risk factors and links back to live stock intelligence.</p>
+        <p>Read practical guides on valuation, earnings, market structure and AI forecasts. Stock-specific long-horizon pages explain methodology and risks; numerical targets appear only when validated model outputs are available.</p>
         <div className="blog-actions"><a className="button primary" href="/predictions">Explore AI Predictions →</a><a className="button" href="/stocks">Browse US Stocks</a></div>
       </section>
 
@@ -82,7 +82,7 @@ export default async function BlogPage() {
       </section>
 
       <section className="blog-directory">
-        <div className="section-head"><div><div className="eyebrow">FORECAST LIBRARY</div><h2>Sector-wise long-term stock research</h2><p className="muted">Only companies with a valid research destination are shown. No placeholder articles or invented forecast pages are published.</p></div></div>
+        <div className="section-head"><div><div className="eyebrow">STOCK FORECAST METHODOLOGY</div><h2>Sector-wise stock forecast research frameworks</h2><p className="muted">These pages are research frameworks, not guaranteed price targets. Long-horizon figures remain unpublished until a validated model output is available.</p></div></div>
 
         <div className="blog-category-stack">
           {categories.map((category) => {
@@ -94,7 +94,7 @@ export default async function BlogPage() {
               {cards.length ? <div className="blog-article-grid">
                 {cards.map((stock) => <a className="blog-article-card" href={`/blog/${stock.slug}-stock-price-prediction-2026-2050`} key={`${category.name}-${stock.symbol}`}>
                   <div className="blog-article-thumbnail" aria-hidden="true"><span>{stock.symbol}</span></div>
-                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>Long-term research framework, methodology, assumptions and risk factors. Forecast figures are shown only when validated model data exists.</p><b>Read research →</b></div>
+                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>Long-term research framework, methodology, assumptions and risk factors. Forecast figures are shown only when validated model data exists.</p><b>View research framework →</b></div>
                 </a>)}
               </div> : <div className="research-empty"><strong>No verified articles in this sector yet</strong><p>We do not publish placeholder articles or unsupported price targets. Browse the available company directory while research coverage is prepared.</p><a className="research-open" href={sectorHref}>Browse sector companies →</a></div>}
             </section>;
