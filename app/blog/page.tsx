@@ -4,20 +4,20 @@ import { filterCommonEquityRows } from '@/lib/stock-universe';
 import './blog.css';
 
 export const metadata: Metadata = {
-  title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
-  description: 'Explore sector-wise US stock price prediction research for 2026, 2030, 2035, 2040 and 2050, with quantitative methodology, risks and live stock intelligence.',
+  title: 'US Stock Research Guides & Forecast Methodology',
+  description: 'Read practical guides to stock valuation, earnings, quantitative predictions and market structure. Long-term forecast pages publish numerical targets only when validated model data is available.',
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
-    description: 'Explore sector-wise US stock price prediction research with quantitative methodology, risks and links to company research.',
+    title: 'US Stock Research Guides & Forecast Methodology',
+    description: 'Practical US stock research guides, valuation and earnings explainers, quantitative forecast methodology and risk context.',
     url: 'https://usmarketai.com/blog',
     siteName: 'US Market AI',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Stock Price Predictions 2026–2050 | Long-Term Research',
-    description: 'Long-term US stock forecast research, methodology and risk context.',
+    title: 'US Stock Research Guides & Forecast Methodology',
+    description: 'US stock research guides, forecast methodology and risk context.',
   },
 };
 
@@ -29,6 +29,13 @@ type StockRow = {
   industry: string | null;
   market_cap: number | null;
 };
+
+const researchGuides = [
+  {slug:'read-stock-valuation-metrics',category:'FUNDAMENTALS',title:'How to Read Stock Valuation Metrics',description:'Interpret P/E, cash flow, growth and debt without relying on a single ratio.'},
+  {slug:'interpret-earnings-reports',category:'EARNINGS',title:'How to Interpret a Company Earnings Report',description:'Separate revenue, margins, reported periods, guidance and source facts.'},
+  {slug:'understand-ai-stock-predictions',category:'QUANTITATIVE RESEARCH',title:'How to Evaluate AI Stock Predictions',description:'Understand forecast horizons, confidence, historical validation and model risk.'},
+  {slug:'market-breadth-and-sector-rotation',category:'MARKET STRUCTURE',title:'Market Breadth and Sector Rotation Explained',description:'Learn what breadth and sector averages can tell you—and what they cannot.'},
+];
 
 const categories = [
   { name: 'Technology', description: 'Software, semiconductors, cloud, AI and technology leaders.' },
@@ -58,9 +65,14 @@ export default async function BlogPage() {
     <div className="container">
       <section className="blog-hero">
         <div className="eyebrow">US MARKET AI · FORECAST RESEARCH</div>
-        <h1>Stock Price Predictions <span>2026–2050</span></h1>
-        <p>Long-term stock research organized by sector, with dedicated article pages, thumbnail space, model methodology, risk factors and links back to live stock intelligence.</p>
+        <h1>Stock Research Guides <span>&amp; Forecasts 2026–2050</span></h1>
+        <p>Read practical guides on valuation, earnings, market structure and AI forecasts. Stock-specific long-horizon pages explain methodology and risks; numerical targets appear only when validated model outputs are available.</p>
         <div className="blog-actions"><a className="button primary" href="/predictions">Explore AI Predictions →</a><a className="button" href="/stocks">Browse US Stocks</a></div>
+      </section>
+
+      <section className="blog-directory blog-guides-directory">
+        <div className="section-head"><div><div className="eyebrow">RESEARCH GUIDES</div><h2>Practical investing research guides</h2><p className="muted">Original educational explainers on valuation, earnings, quantitative forecasts and market structure.</p></div></div>
+        <div className="blog-article-grid">{researchGuides.map(guide=><a className="blog-article-card" href={`/blog/${guide.slug}`} key={guide.slug}><div className="blog-article-thumbnail" aria-hidden="true"><span>{guide.category.slice(0,3)}</span></div><div className="blog-article-card-body"><small>{guide.category}</small><h3>{guide.title}</h3><p>{guide.description}</p><b>Read guide →</b></div></a>)}</div>
       </section>
 
       <section className="blog-principles">
@@ -70,21 +82,21 @@ export default async function BlogPage() {
       </section>
 
       <section className="blog-directory">
-        <div className="section-head"><div><div className="eyebrow">FORECAST LIBRARY</div><h2>Sector-wise long-term stock research</h2><p className="muted">Each category is designed to hold 4–6 articles as the tracked stock universe expands.</p></div></div>
+        <div className="section-head"><div><div className="eyebrow">STOCK FORECAST METHODOLOGY</div><h2>Sector-wise stock forecast research frameworks</h2><p className="muted">These pages are research frameworks, not guaranteed price targets. Long-horizon figures remain unpublished until a validated model output is available.</p></div></div>
 
         <div className="blog-category-stack">
           {categories.map((category) => {
             const items = stocks.filter((stock) => categoryMatch(category.name, stock.sector)).slice(0, 6);
-            const cards: StockRow[] = items.length ? items : Array.from({ length: 4 }, (_, index) => ({ symbol: 'STOCK', slug: '', company_name: `${category.name} research article ${index + 1}`, sector: category.name, industry: null, market_cap: null }));
+            const cards: StockRow[] = items.filter((stock) => Boolean(stock.slug?.trim()));
             const sectorHref = category.name === 'Consumer & Communication' ? '/stocks' : `/stocks?sector=${encodeURIComponent(category.name)}`;
             return <section className="blog-category" key={category.name}>
               <div className="blog-category-head"><div><div className="eyebrow">SECTOR RESEARCH</div><h2>{category.name}</h2><p>{category.description}</p></div><a href={sectorHref}>Browse sector →</a></div>
-              <div className="blog-article-grid">
-                {cards.map((stock, index) => <a className="blog-article-card" href={stock.slug ? `/blog/${stock.slug}-stock-price-prediction-2026-2050` : '/blog'} key={`${category.name}-${stock.symbol}-${index}`}>
-                  <div className="blog-article-thumbnail"><span>THUMBNAIL<br/>PLACEHOLDER</span></div>
-                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>2026, 2030, 2035, 2040 and 2050 research framework, methodology, assumptions and risk factors.</p><b>Read research →</b></div>
+              {cards.length ? <div className="blog-article-grid">
+                {cards.map((stock) => <a className="blog-article-card" href={`/blog/${stock.slug}-stock-price-prediction-2026-2050`} key={`${category.name}-${stock.symbol}`}>
+                  <div className="blog-article-thumbnail" aria-hidden="true"><span>{stock.symbol}</span></div>
+                  <div className="blog-article-card-body"><small>{stock.symbol} · {stock.sector || category.name}</small><h3>{stock.company_name} Stock Price Prediction 2026–2050</h3><p>Long-term research framework, methodology, assumptions and risk factors. Forecast figures are shown only when validated model data exists.</p><b>View research framework →</b></div>
                 </a>)}
-              </div>
+              </div> : <div className="research-empty"><strong>No verified articles in this sector yet</strong><p>We do not publish placeholder articles or unsupported price targets. Browse the available company directory while research coverage is prepared.</p><a className="research-open" href={sectorHref}>Browse sector companies →</a></div>}
             </section>;
           })}
         </div>

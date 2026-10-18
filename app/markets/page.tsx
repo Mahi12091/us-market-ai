@@ -35,7 +35,7 @@ const sectors: { label: string; aliases: string[] }[] = [
 ];
 const pct = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v) >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`;
 const money = (v: unknown) => v == null || !Number.isFinite(Number(v)) ? '—' : `${Number(v).toLocaleString('en-US',{maximumFractionDigits:2})}`;
-const quoteIsFresh = (value: string | null | undefined) => { if (!value) return false; const time = new Date(value).getTime(); return Number.isFinite(time) && Date.now() - time <= 4 * 24 * 60 * 60 * 1000; };
+const quoteIsFresh = (value: string | null | undefined) => { if (!value) return false; const time = new Date(value).getTime(); const age = Date.now() - time; return Number.isFinite(time) && age >= 0 && age <= 4 * 24 * 60 * 60 * 1000; };
 const quoteDate = (value: string | null | undefined) => { if (!value) return 'Timestamp unavailable'; const d = new Date(value); return Number.isFinite(d.getTime()) ? `As of ${d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'})}` : 'Timestamp unavailable'; }
 const faq = [
   {question:'What does the US Market Overview show?',answer:'The dashboard brings together available data for major US market benchmark proxies, daily market breadth, sector-level price changes and SPY historical closing prices. Coverage depends on the latest records available from the data sources.'},
