@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { createDatabaseClient } from '@/lib/neon';
 import { filterCommonEquityRows } from '@/lib/stock-universe';
 import LongTermResearchSection from '@/components/long-term-research-section';
-import { cleanNewsText, dedupeNewsItems, newsSummary, safeNewsUrl } from '@/lib/news-content';
+import { cleanNewsText, dedupeNewsItems, isMarketRelevantNews, newsSummary, safeNewsUrl } from '@/lib/news-content';
 
 export const revalidate = 300;
 
@@ -55,7 +55,7 @@ export default async function Home() {
   ]);
   const stocks = filterCommonEquityRows((rawStocks ?? []) as StockRow[]);
   const marketStocks = (rawMarketStocks ?? []) as MarketStockRow[];
-  const newsItems = dedupeNewsItems((rawNews ?? []) as NewsRow[], 8);
+  const newsItems = dedupeNewsItems(((rawNews ?? []) as NewsRow[]).filter(isMarketRelevantNews), 8);
   const allIds = [...new Set([...stocks.map(s => s.id), ...marketStocks.map(s => s.id)])];
   const { data: rawQuotes } = allIds.length ? await supabase.from('latest_quotes').select('stock_id,price,change_percent,quote_timestamp').in('stock_id', allIds) : { data: [] };
   const quotes = (rawQuotes ?? []) as QuoteRow[];

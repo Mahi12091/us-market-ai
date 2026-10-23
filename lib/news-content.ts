@@ -20,6 +20,23 @@ export function cleanNewsText(value: unknown): string {
     .trim();
 }
 
+
+/** Keep unrelated headlines out of the US-equity research feed.
+ * A ticker association alone is not enough: broad RSS feeds can attach an
+ * unrelated story to a symbol by accident (for example, "stock" as a verb).
+ */
+export function isMarketRelevantNews(item: { title?: unknown; summary?: unknown }): boolean {
+  const title = cleanNewsText(item.title);
+  const summary = cleanNewsText(item.summary);
+  const text = `${title} ${summary}`.toLowerCase();
+  if (!title) return false;
+
+  const financialContext = /\b(shares?|earnings?|revenue|profits?|sales growth|dividends?|analysts?|price target|upgrade|downgrade|investors?|market cap|nasdaq|nyse|s\s*&\s*p\s*500|dow jones|russell 2000|etf|ipo|sec filing|buyback|acquisition|merger|guidance|forecast|trading|market rally|market selloff|market volatility|stock futures|futures|treasury yields?|federal reserve|\bfed\b|inflation|interest rates|bond yields?|economic data|economic growth|jobs report|central bank|monetary policy|recession|tariffs|cpi|ppi|pce|manufacturing|gold prices?|silver prices?|crude oil|oil prices?|commodit(?:y|ies)|currency|dollar|yen|euro|gdp|unemployment|crypto|bitcoin|ethereum|quarter(?:ly)? results|operating margin|cash flow|balance sheet|debt refinancing|institutional stake|short interest|options market)\b/i;
+  const stockPhrase = /\b(stock market|stock price|stocks? (?:rose|rises|fell|falls|jumped|jumps|surged|surges|slid|slides|gained|gains|dropped|drops|rallied|rallies|plunged|soared|outperformed|underperformed|to watch|to buy|to sell)|market shares)\b/i;
+
+  return financialContext.test(text) || stockPhrase.test(text);
+}
+
 export function safeNewsUrl(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
   try {
