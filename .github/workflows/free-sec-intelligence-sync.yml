@@ -71,7 +71,6 @@ jobs:
     if: false
     name: SEC coverage audit
     needs: [sec-bulk-xbrl, sec-insider, sec-13f-dataset]
-    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

@@ -44,7 +44,6 @@ jobs:
     if: false
     name: Technical batch ${{ matrix.batch }}
     needs: sync
-    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     strategy:
@@ -73,7 +72,6 @@ jobs:
     if: false
     name: Post-sync processing
     needs: technical
-    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     env:
