@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   generate:
+    if: false
     name: Generate predictions for all active stocks
     runs-on: ubuntu-24.04
     timeout-minutes: 350
