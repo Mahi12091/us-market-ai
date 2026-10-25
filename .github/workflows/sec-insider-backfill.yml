@@ -15,6 +15,7 @@ concurrency:
 
 jobs:
   insider-backfill:
+    if: false
     name: Extended SEC Form 3/4/5 ingestion
     runs-on: ubuntu-latest
     timeout-minutes: 360
