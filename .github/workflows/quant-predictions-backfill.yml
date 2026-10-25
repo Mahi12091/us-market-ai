@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   predictions:
+    if: false
     name: Prediction batch ${{ matrix.batch }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
