@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 jobs:
   sec-bulk:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

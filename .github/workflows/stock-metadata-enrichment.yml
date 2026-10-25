@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   enrich:
+    if: false
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:

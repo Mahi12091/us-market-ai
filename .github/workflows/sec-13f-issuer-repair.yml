@@ -12,6 +12,7 @@ concurrency:
 
 jobs:
   repair-issuer-matches:
+    if: false
     name: Reprocess official SEC 13F dataset with normalized issuer names
     runs-on: ubuntu-latest
     timeout-minutes: 360

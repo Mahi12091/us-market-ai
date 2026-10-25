@@ -11,6 +11,7 @@ concurrency:
 
 jobs:
   technical:
+    if: false
     name: Technical batch ${{ matrix.batch }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120

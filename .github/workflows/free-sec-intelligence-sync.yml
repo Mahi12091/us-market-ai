@@ -8,6 +8,7 @@ concurrency:
 
 jobs:
   sec-bulk-xbrl:
+    if: false
     name: SEC bulk + XBRL
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -27,6 +28,7 @@ jobs:
         run: node scripts/sync_sec_free_bulk_v3.mjs
 
   sec-insider:
+    if: false
     name: SEC insider transactions
     needs: sec-bulk-xbrl
     runs-on: ubuntu-latest
@@ -47,6 +49,7 @@ jobs:
         run: node scripts/sync_sec_insider_free_v2.mjs
 
   sec-13f-dataset:
+    if: false
     name: Official SEC 13F dataset
     needs: sec-insider
     runs-on: ubuntu-latest
@@ -65,6 +68,7 @@ jobs:
         run: node scripts/sync_sec_13f_dataset.mjs
 
   sec-coverage-audit:
+    if: false
     name: SEC coverage audit
     needs: [sec-bulk-xbrl, sec-insider, sec-13f-dataset]
     if: ${{ always() }}

@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 jobs:
   score:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
