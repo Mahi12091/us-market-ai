@@ -12,6 +12,7 @@ on:
       - 'scripts/calculate_derived_fundamentals.mjs'
 jobs:
   score:
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
