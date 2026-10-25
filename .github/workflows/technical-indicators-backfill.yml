@@ -2,12 +2,6 @@ name: Technical Indicators Backfill
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/compute_technical_indicators.mjs'
-      - '.github/workflows/technical-indicators-backfill.yml'
-
 permissions:
   contents: read
 

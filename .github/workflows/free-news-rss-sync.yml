@@ -1,13 +1,6 @@
 name: Free RSS News Backfill
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '15 */6 * * *'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/sync_news_free_rss.mjs'
-      - '.github/workflows/free-news-rss-sync.yml'
 concurrency:
   group: free-news-rss-sync
   cancel-in-progress: false

@@ -2,14 +2,6 @@ name: Quant Predictions Backfill
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/generate_predictions_v3.mjs'
-      - 'scripts/compute_technical_indicators.mjs'
-      - 'scripts/calculate_derived_fundamentals.mjs'
-      - '.github/workflows/quant-predictions-backfill.yml'
-
 permissions:
   contents: read
 

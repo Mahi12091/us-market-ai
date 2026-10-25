@@ -1,15 +1,6 @@
 name: Quant Intelligence Refresh
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '45 5 * * *'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/quant-intelligence-refresh.yml'
-      - 'scripts/generate_stock_scores_v2.mjs'
-      - 'scripts/compute_technical_indicators.mjs'
-      - 'scripts/calculate_derived_fundamentals.mjs'
 jobs:
   score:
     runs-on: ubuntu-latest

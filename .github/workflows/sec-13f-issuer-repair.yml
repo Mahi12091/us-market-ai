@@ -1,15 +1,7 @@
 name: SEC 13F Issuer Matching Repair
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/sec-13f-issuer-repair.yml'
-      - 'scripts/repair_sec_13f_issuer_matching.mjs'
   workflow_dispatch:
-  schedule:
-    - cron: '45 7 * * 1'
-
 permissions:
   contents: read
   actions: read

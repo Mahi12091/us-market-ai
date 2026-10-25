@@ -1,14 +1,7 @@
 name: Reference Metadata Sync
 
 on:
-  schedule:
-    - cron: '0 */2 * * *'
   workflow_dispatch:
-  push:
-    paths:
-      - 'scripts/seed_us_stock_universe.mjs'
-      - '.github/workflows/reference-metadata-sync.yml'
-
 permissions:
   contents: read
 

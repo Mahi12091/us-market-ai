@@ -2,14 +2,6 @@ name: Company Profile Enrichment
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '20 9 * * *'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/enrich_stock_metadata.mjs'
-      - '.github/workflows/company-profile-enrichment.yml'
-
 permissions:
   contents: read
 

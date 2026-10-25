@@ -1,12 +1,6 @@
 name: 3spread Controlled Fundamental Sync
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/3spread-controlled-fundamental-sync.yml'
-      - 'scripts/sync_fundamentals_3spread_v2.mjs'
-      - 'scripts/run_3spread_resumable.mjs'
   workflow_dispatch:
     inputs:
       batch_number:
@@ -17,10 +11,6 @@ on:
         description: 'Stocks per run'
         required: false
         default: '250'
-
-  schedule:
-    - cron: '30 5 * * *'
-
 permissions:
   contents: read
 

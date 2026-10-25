@@ -1,15 +1,7 @@
 name: Stock Metadata Enrichment
 
 on:
-  schedule:
-    - cron: '15 * * * *'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/enrich_stock_metadata.mjs'
-      - '.github/workflows/stock-metadata-enrichment.yml'
-
 permissions:
   contents: read
 

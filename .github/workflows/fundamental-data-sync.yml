@@ -1,10 +1,7 @@
 name: Fundamental Data Sync
 
 on:
-  schedule:
-    - cron: '30 3 * * 1'
   workflow_dispatch:
-
 permissions:
   contents: read
 

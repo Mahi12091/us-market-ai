@@ -2,9 +2,6 @@ name: SEC Insider Ownership Backfill
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '15 6 * * 1'
-
 permissions:
   contents: read
   actions: read

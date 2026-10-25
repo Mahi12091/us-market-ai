@@ -2,14 +2,6 @@ name: Rule-Based Research Backfill
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/generate_rule_based_research.mjs'
-      - '.github/workflows/rule-based-research-backfill.yml'
-  schedule:
-    - cron: '20 6 * * *'
-
 concurrency:
   group: rule-based-research-backfill
   cancel-in-progress: false

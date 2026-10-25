@@ -2,13 +2,6 @@ name: Neon Schema Migrate
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'neon/migrations/**'
-      - 'scripts/migrate_neon.mjs'
-      - 'package.json'
-
 permissions:
   contents: read
 

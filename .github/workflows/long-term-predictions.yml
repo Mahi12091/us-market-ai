@@ -2,7 +2,6 @@ name: Long-Term Predictions
 
 on:
   workflow_dispatch:
-
 permissions:
   contents: read
 

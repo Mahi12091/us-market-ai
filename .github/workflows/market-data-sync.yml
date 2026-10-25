@@ -1,10 +1,7 @@
 name: Market Data Sync
 
 on:
-  schedule:
-    - cron: '0 21 * * 1-5'
   workflow_dispatch:
-
 permissions:
   contents: read
 

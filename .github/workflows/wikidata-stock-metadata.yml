@@ -2,11 +2,6 @@ name: Wikipedia + Wikidata Stock Metadata Fallback
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'scripts/enrich_stock_metadata_wikidata.mjs'
-      - '.github/workflows/wikidata-stock-metadata.yml'
-
 permissions:
   contents: read
 

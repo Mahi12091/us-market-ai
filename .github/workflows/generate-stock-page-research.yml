@@ -22,7 +22,6 @@ on:
         required: true
         default: false
         type: boolean
-
 permissions:
   contents: read
 

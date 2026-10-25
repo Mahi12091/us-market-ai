@@ -2,14 +2,6 @@ name: SEC Company Address Backfill
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 10 * * *'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/enrich_sec_company_addresses.mjs'
-      - '.github/workflows/sec-company-address-backfill.yml'
-
 permissions:
   contents: read
 

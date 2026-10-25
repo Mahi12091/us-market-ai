@@ -2,14 +2,6 @@ name: Prediction Evaluation
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '25 */6 * * *'
-  push:
-    branches: [main]
-    paths:
-      - 'scripts/evaluate_predictions.mjs'
-      - '.github/workflows/prediction-evaluation.yml'
-
 permissions:
   contents: read
 
