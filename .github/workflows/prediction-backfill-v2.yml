@@ -20,6 +20,7 @@ env:
 
 jobs:
   predictions:
+    if: false
     name: Generate quant-v2 predictions
     runs-on: ubuntu-24.04
     timeout-minutes: 350
