@@ -59,3 +59,5 @@ Before deployment, verify the production build with `npm run build` and confirm 
 7. Crypto-specific research pipeline
 
 Predictions are estimates and are not financial advice.
+
+<!-- commit access test -->
