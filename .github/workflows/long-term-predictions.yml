@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   generate:
+    if: false
     name: Generate long-term scenario forecasts
     runs-on: ubuntu-24.04
     timeout-minutes: 30
